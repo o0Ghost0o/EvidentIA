@@ -3,10 +3,17 @@
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-setup: ## Copy env template and install backend + frontend deps
+setup: ## Copy env template, install deps and configure git hooks
 	cp -n .env.example .env || true
 	cd backend && uv sync
-	cd frontend && npm install
+	cd frontend && bun install || npm install
+	git config core.hooksPath .githooks
+	chmod +x .githooks/*
+
+hooks: ## Configure git hooks for branch protection and Linear validation
+	git config core.hooksPath .githooks
+	chmod +x .githooks/*
+	@echo "✓ Git hooks configured (.githooks)"
 
 dev: ## Start infra in Docker; backend/frontend run locally (see output)
 	docker compose up -d postgres qdrant redis

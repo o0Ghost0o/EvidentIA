@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Git pre-push hook: prevents direct push to 'main' or 'master'
+set -e
+
+PROTECTED_BRANCHES="main master"
+
+while read -r local_ref local_sha remote_ref remote_sha
+do
+  for protected in $PROTECTED_BRANCHES; do
+    if [ "$remote_ref" = "refs/heads/$protected" ]; then
+      CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+      if [ "$CURRENT_BRANCH" = "$protected" ]; then
+        echo "" >&2
+        echo "================================================================================" >&2
+        echo "🛑 [PUSH DIRECTO BLOQUEADO] Pushing directo a la rama '$protected' está prohibido." >&2
+        echo "================================================================================" >&2
+        echo "Flujo requerido:" >&2
+        echo "  1. Trabaja en tu rama: git checkout -b {type}/{ticket_id}_{ticket_name}" >&2
+        echo "  2. Haz push de tu rama de trabajo: git push origin tu-rama" >&2
+        echo "  3. Abre y mergea un Pull Request (PR) hacia '$protected'." >&2
+        echo "================================================================================" >&2
+        echo "" >&2
+        exit 1
+      fi
+    fi
+  done
+done
+
+exit 0
