@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Git commit-msg hook: ensures the commit message references the Linear ticket
+set -e
+
+COMMIT_MSG_FILE="$1"
+FIRST_LINE=$(head -n 1 "$COMMIT_MSG_FILE")
+
+# Extract current branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
+# If we are on a ticket branch like feature/CPS-88_proteger-rama-main
+if [[ "$CURRENT_BRANCH" =~ ^(feature|feat|bug|fix|bugfix|chore|refactor|hotfix|test|docs)/([A-Za-z0-9]+-[0-9]+)_ ]]; then
+  TICKET_ID="${BASH_REMATCH[2]}"
+  
+  # Check if message already contains the ticket ID (e.g. [CPS-88] or CPS-88:)
+  if ! echo "$FIRST_LINE" | grep -qi "$TICKET_ID"; then
+    # Prepend ticket ID to commit message
+    TEMP_FILE=$(mktemp)
+    echo "[$TICKET_ID] $FIRST_LINE" > "$TEMP_FILE"
+    tail -n +2 "$COMMIT_MSG_FILE" >> "$TEMP_FILE"
+    mv "$TEMP_FILE" "$COMMIT_MSG_FILE"
+    echo "ℹ️ Se vinculó automáticamente el ticket '$TICKET_ID' al mensaje de commit."
+  fi
+fi
