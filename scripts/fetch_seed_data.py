@@ -12,8 +12,10 @@ validators as live ingestion.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -27,37 +29,95 @@ SEED_NEWS_MAX = 60
 SEED_EVENTS_MAX = 100
 
 
-def main() -> None:
+def _load_existing_csv(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    with path.open(encoding="utf-8") as fh:
+        return [dict(r) for r in csv.DictReader(fh) if r.get("titulo") or r.get("pais_iso3")]
+
+
+def _load_existing_geojson(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = []
+    for feat in payload.get("features", []):
+        props = feat.get("properties", {}) or {}
+        coords = (feat.get("geometry", {}) or {}).get("coordinates", []) or []
+        rows.append({
+            "id": feat.get("id"), "magnitude": props.get("mag"),
+            "time": props.get("time") or None, "updated": props.get("updated") or None,
+            "longitude": coords[0] if len(coords) > 0 else None,
+            "latitude": coords[1] if len(coords) > 1 else None,
+            "depth": props.get("depth"), "place": props.get("place"),
+            "status": props.get("status"), "url": props.get("url"),
+        })
+    return rows
+
+
+def main(only: set[str] | None = None) -> None:
     seed_dir = ROOT / "data" / "seed"
     seed_dir.mkdir(parents=True, exist_ok=True)
+    only = only or {"gdelt", "tvn", "worldbank", "usgs"}
+    # Merge mode: existing seed rows are always preloaded; freshly fetched rows
+    # go first so validators (dedup keeps first) prefer them. TVN is capped so
+    # GDELT diversity survives the 60-row seed cap.
+    want_news = bool({"gdelt", "tvn"} & only)
+    existing_news = _load_existing_csv(seed_dir / "noticias.csv")
+    news_raw: list[dict] = existing_news if not want_news else []
+    ind_raw: list[dict] = _load_existing_csv(seed_dir / "indicadores.csv")
+    evt_raw: list[dict] = _load_existing_geojson(seed_dir / "eventos.geojson")
 
     failures: list[str] = []
-    try:
-        print("Fetching GDELT…")
-        news_raw = fetchers.fetch_gdelt_news()
-        print(f"  {len(news_raw)} hits")
-    except Exception as exc:
-        failures.append(f"gdelt: {exc}")
-        news_raw = []
-        print(f"  FAILED: {exc}")
+    if want_news:  # news family = TVN RSS + GDELT, flagged independently
+        combined: list[dict] = []
+        if "tvn" not in only:
+            print("Skipping TVN RSS (not in --only).")
+        else:
+            try:
+                print("Fetching TVN RSS…")
+                tvn_rows = fetchers.fetch_tvn_news(
+                    os.environ.get("TVN_RSS_URL", "https://www.tvn-2.com/rss")
+                )
+                combined.extend(tvn_rows[:40])
+                print(f"  {len(tvn_rows)} entries (kept {min(len(tvn_rows), 40)})")
+            except Exception as exc:
+                failures.append(f"tvn: {exc}")
+                print(f"  FAILED: {exc}")
+        if "gdelt" not in only:
+            print("Skipping GDELT (not in --only).")
+        else:
+            try:
+                print("Fetching GDELT…")
+                gdelt_rows = fetchers.fetch_gdelt_news()
+                combined.extend(gdelt_rows)
+                print(f"  {len(gdelt_rows)} hits")
+            except Exception as exc:
+                failures.append(f"gdelt: {exc}")
+                print(f"  FAILED: {exc}")
+        news_raw = (combined + existing_news) if combined else existing_news
+        if not combined:
+            print(f"  (kept {len(news_raw)} existing)")
 
-    try:
-        print("Fetching World Bank…")
-        ind_raw = fetchers.fetch_worldbank_indicators()
-        print(f"  {len(ind_raw)} obs")
-    except Exception as exc:
-        failures.append(f"worldbank: {exc}")
-        ind_raw = []
-        print(f"  FAILED: {exc}")
+    if "worldbank" in only:
+        try:
+            print("Fetching World Bank…")
+            fresh = fetchers.fetch_worldbank_indicators()
+            ind_raw = fresh + ind_raw
+            print(f"  {len(fresh)} obs")
+        except Exception as exc:
+            failures.append(f"worldbank: {exc}")
+            print(f"  FAILED: {exc} (kept {len(ind_raw)} existing)")
 
-    try:
-        print("Fetching USGS…")
-        evt_raw = fetchers.fetch_usgs_events()
-        print(f"  {len(evt_raw)} events")
-    except Exception as exc:
-        failures.append(f"usgs: {exc}")
-        evt_raw = []
-        print(f"  FAILED: {exc}")
+    if "usgs" in only:
+        try:
+            print("Fetching USGS…")
+            fresh = fetchers.fetch_usgs_events()
+            evt_raw = fresh + evt_raw
+            print(f"  {len(fresh)} events")
+        except Exception as exc:
+            failures.append(f"usgs: {exc}")
+            print(f"  FAILED: {exc} (kept {len(evt_raw)} existing)")
 
     if failures:
         print(f"WARNING: partial snapshot ({len(failures)} families failed)")
@@ -130,4 +190,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--only", nargs="*", choices=["gdelt", "tvn", "worldbank", "usgs"])
+    args = parser.parse_args()
+    main(set(args.only) if args.only else None)

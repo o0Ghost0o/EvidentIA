@@ -48,7 +48,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # ── Data / snapshot ──────────────────────────────────────────────────────
-    tvn_rss_url: str = ""  # empty → TVN fetcher skipped (recorded in report)
+    # Verified 2026-10-06: TVN's public feed (151 entries). Empty → skipped.
+    tvn_rss_url: str = "https://www.tvn-2.com/rss"
     data_dir: str = "data"
     seed_dir: str = "data/seed"
     # When true (or when fetchers have no connectivity), ingestion uses the

@@ -15,6 +15,29 @@ ISO 8601 (UTC), autor, descripción y archivos afectados.
 
 ## Entradas
 
+### [2026-10-07T00:00:00Z] Snapshot seed real + casos + métricas (2.7, 6.3–6.4, 7.5–7.6)
+
+- **Autor:** AI
+- **Roadmap:** Fase 2 tarea 2.7; Fase 6 tareas 6.3–6.4; Fase 7 tareas 7.5–7.6
+- **Descripción:** Snapshot `data/seed/` con datos reales: 40 titulares TVN
+  (feed `tvn-2.com/rss` descubierto y verificado, 151 entradas), 540 obs. Banco
+  Mundial (6 países × 6 indicadores × 15 años), 82 sismos USGS 2024 + manifest
+  SHA-256. GDELT bloqueado por 429 (reintento programado tras cooldown; el seed
+  acepta merge incremental con `--only`). Endurecimiento: `fetchers/_http.py`
+  (reintentos 10/30/90 s ante timeouts/429/5xx) en WB/USGS; `fetch_seed_data.py`
+  con `--only` y merge. Benchmark 60 consultas construido. Ingesta seed e2e:
+  9.9 s, 0 descartadas, 97 entidades + 98 relaciones. Ranking: 39 temas,
+  ~10 ms. 5 fichas trazables (una con evidencia insuficiente). Scoring v1
+  congelado con limitación documentada (D08). Suite: 48 passed.
+- **Archivos:**
+  - `data/seed/*`, `data/benchmark.jsonl`
+  - `backend/src/evidentia/ingestion/fetchers/_http.py`, `worldbank.py`, `usgs.py`
+  - `backend/src/evidentia/config.py` (`tvn_rss_url` por defecto)
+  - `scripts/fetch_seed_data.py`, `.env.example`
+  - `docs/casos/caso_001.md` … `caso_005.md`, `docs/DECISIONS.md` (D08)
+  - `docs/notion/03-catalogo-de-datos.md`, `05-casos-y-evidencias.md`,
+    `06-pruebas-y-metricas.md`
+
 ### [2026-10-07T00:00:00Z] Fase 7 (parcial): proxy, Makefile, sync Notion, benchmark builder
 
 - **Autor:** AI

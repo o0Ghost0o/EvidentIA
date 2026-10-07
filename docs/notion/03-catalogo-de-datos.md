@@ -6,7 +6,7 @@
 
 | Familia | Fuente | URL / API | Cobertura | Campos | Licencia / condiciones |
 |---------|--------|-----------|-----------|--------|------------------------|
-| A. Noticias | TVN RSS público | Feed RSS de TVN Panamá | Titulares+enlaces 30 días (ampliar a 90 si faltan) | titulo, url, medio, idioma, fechas, tema, origen | Metadatos; sin republicación de artículos/videos/imágenes sin autorización |
+| A. Noticias | TVN RSS público | `https://www.tvn-2.com/rss` (verificado 2026-10-06, 151 entradas) | Titulares+enlaces del feed vigente | titulo, url, medio, idioma, fechas, tema, origen | Metadatos; sin republicación de artículos/videos/imágenes sin autorización |
 | A. Noticias | GDELT DOC 2.0 API | `api.gdeltproject.org` | Query "Panama", logística, turismo, economía, eventos naturales; máx 250/consulta, dividir por fechas | titulo, url, medio, idioma, fechas | No transfiere derechos de los medios enlazados |
 | B. Indicadores | Banco Mundial Indicators API v2 | `api.worldbank.org` | PAN/CRI/COL/DOM/MEX/GTM × 6 indicadores × 2010–2024 (conservar nulos) | pais_iso3, indicador_id, anio, valor, unidad, fuente_url | CC BY 4.0 gral., salvo excepciones en metadatos |
 | C. Sismos | USGS Earthquake Catalog | `earthquake.usgs.gov` | 2024-01-01–2024-12-31, lat 5–12, lon −86–−76, mag ≥ 3 | id, magnitude, time, updated, lon/lat, depth, place, status, url | Solo hechos sísmicos; la caja no equivale a Panamá |

@@ -131,7 +131,7 @@ Estados: `pendiente` · `en-progreso` · `hecho` · `modificado`
 | 2.4 | Generar `manifest.json` con SHA-256 y metadatos de corte | hecho (2026-10-07) |
 | 2.5 | `POST /ingest/run` (encola trabajo Dramatiq) | hecho (2026-10-07) |
 | 2.6 | `GET /ingest/quality-report` | hecho (2026-10-07) |
-| 2.7 | Snapshot mínimo offline en `data/seed/` (T10) | en-progreso (2026-10-07) |
+| 2.7 | Snapshot mínimo offline en `data/seed/` (T10) | hecho (2026-10-07) |
 
 ### Fase 3 — Multi-RAG + Light GraphRAG
 
@@ -173,19 +173,19 @@ Estados: `pendiente` · `en-progreso` · `hecho` · `modificado`
 |---|-------|--------|
 | 6.1 | Tests de aceptación T01–T10 | hecho (2026-10-07) |
 | 6.2 | Tests unitarios: scoring, deduplicación, grafo, retrieval | hecho (2026-10-07) |
-| 6.3 | `data/benchmark.jsonl` (60 consultas) | pendiente |
-| 6.4 | Métricas: citas, abstención, agrupación, Precision@5, latencia/costo | pendiente |
+| 6.3 | `data/benchmark.jsonl` (60 consultas) | hecho (2026-10-07) |
+| 6.4 | Métricas: citas, abstención, agrupación, Precision@5, latencia/costo | hecho (2026-10-07) |
 
 ### Fase 7 — Deploy, casos y pitch
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 7.1 | Dockerfiles multistage (backend + frontend) | pendiente |
-| 7.2 | Compose final con healthchecks y volúmenes | pendiente |
-| 7.3 | Makefile: setup, dev, test, ingest, build, up, down | pendiente |
-| 7.4 | `scripts/sync_notion.py` | pendiente |
-| 7.5 | 5 fichas trazables en `docs/casos/` (una con evidencia insuficiente) | pendiente |
-| 7.6 | Pitch de 10 min en `docs/notion/08-presentacion-al-jurado.md` | pendiente |
+| 7.1 | Dockerfiles multistage (backend + frontend) | hecho (2026-10-07) |
+| 7.2 | Compose final con healthchecks y volúmenes | hecho (2026-10-07) |
+| 7.3 | Makefile: setup, dev, test, ingest, build, up, down | hecho (2026-10-07) |
+| 7.4 | `scripts/sync_notion.py` | hecho (2026-10-07) |
+| 7.5 | 5 fichas trazables en `docs/casos/` (una con evidencia insuficiente) | hecho (2026-10-07) |
+| 7.6 | Pitch de 10 min en `docs/notion/08-presentacion-al-jurado.md` | hecho (2026-10-07) |
 
 ---
 
@@ -204,6 +204,7 @@ Estados: `pendiente` · `en-progreso` · `hecho` · `modificado`
 
 | Timestamp (UTC) | Autor | Cambio |
 |-----------------|-------|--------|
+| 2026-10-07T00:00:00Z | AI | Roadmap completo: seed real (TVN+WB+USGS; GDELT en reintento), benchmark, 5 fichas, métricas observadas. |
 | 2026-10-07T00:00:00Z | AI | Fases 2 (código) y 3 hechas; `contradicts` difiere su regla a Fase 4; seed 2.7 en curso por 429 de GDELT. |
 | 2026-10-07T00:00:00Z | AI | Fase 1 hecha: compose crece por fases (worker→F2, frontend→F5, nginx→F7) para que cada fase verifique `up --build` en verde. |
 | 2026-10-07T00:00:00Z | AI | Versión inicial v1.0.0 (ITMT): roadmap estratégico + plan operativo Fases 0–7. |

@@ -7,11 +7,15 @@
 
 | ID | Modalidad | Tema | Puntaje (R/I/U/N/E) | Evidencia | Revisión | Revisora |
 |----|-----------|------|---------------------|-----------|----------|----------|
-| caso_001 | TVN | _pendiente_ | — | — | nuevo | — |
-| caso_002 | TVN | _pendiente_ | — | — | nuevo | — |
-| caso_003 | TVN | _pendiente_ | — | — | nuevo | — |
-| caso_004 | TVN | _pendiente (evidencia insuficiente)_ | — | insuficiente | requiere evidencia | — |
-| caso_005 | Banca | _pendiente_ | — | — | nuevo | — |
+| caso_001 | TVN | Traslados presupuestarios ~$100M | 60.5 (0.3/0.5/1.0/1.0/0.4) | parcial | en revisión | editora-demo |
+| caso_002 | TVN | Aprehensión exdirector CSS | 60.5 (0.3/0.5/1.0/1.0/0.4) | parcial | en revisión | editora-demo |
+| caso_003 | TVN | Caso Pandora: detención provisional | 60.5 (0.3/0.5/1.0/1.0/0.4) | parcial | en revisión | editora-demo |
+| caso_004 | TVN | Rating del noticiero (consulta sin corpus) | n/a | insuficiente | requiere evidencia | editora-demo |
+| caso_005 | Banca | Obra pública MOP + PIB Panamá | 60.5 (0.3/0.5/1.0/1.0/0.4) | suficiente | en revisión | analista-demo |
+
+Fichas fuente: `docs/casos/caso_001.md` … `docs/casos/caso_005.md` (verificadas
+contra `data/seed/` del 2026-10-07: 40 noticias TVN, 540 obs. Banco Mundial,
+82 eventos USGS; GDELT pendiente de cuota 429).
 
 ## Formato de ficha (contrato `fichas.jsonl`)
 

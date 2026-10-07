@@ -99,3 +99,17 @@ el reto: 3 decisiones justificadas.
   para un grafo de cientos de nodos).
 - **Consecuencias:** Menos infraestructura; consultas de vecindario implementadas en
   la capa de servicio; migración futura posible si el grafo escala.
+
+## D08 — 2026-10-07 — Scoring v1 se mantiene title-based (limitación documentada)
+
+- **Estado:** aceptada
+- **Contexto:** Con datos reales, historias nacionales de TVN puntúan R=0.3 porque
+  el título no nombra "Panamá" (la relevancia es implícita del medio). Tentaba
+  ajustar las reglas sobre la marcha.
+- **Decisión:** Congelar reglas v1 y documentar la limitación; la relevancia por
+  medio queda como mejora v1.2 con su justificación. Las bandas se calibran con
+  corpus variados, no con el seed inicial.
+- **Alternativas descartadas:** parche ad-hoc de R por medio (cambia bandas sin
+  datos para validarlas; peor para la demo que una limitación declarada).
+- **Consecuencias:** Puntajes 60.5/medio/parcial honestos en las 5 fichas; el pitch
+  incluye la limitación y el mecanismo de versionado de reglas como respuesta.
