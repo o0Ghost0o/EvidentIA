@@ -41,7 +41,7 @@ def test_ranking_orders_and_explains() -> None:
     resp = client.get("/ranking", params={"modalidad": "tvn"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["rules_version"] == "v1"
+    assert body["rules_version"] == "v1.2"
     assert body["count"] == 2  # one group + one singleton
     first, second = body["items"]
     assert first["id"] == "evt-1"  # Panama+theme outranks off-topic

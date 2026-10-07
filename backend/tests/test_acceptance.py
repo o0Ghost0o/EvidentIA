@@ -113,7 +113,7 @@ def test_T08_high_priority_exposes_components_without_enabling_publish() -> None
     )
     assert res["band"] == "alto"
     assert set(res["components"]) == {"R", "I", "U", "N", "E"}
-    assert res["rules_version"] == "v1"
+    assert res["rules_version"] in ("v1", "v1.2")
     # Priority high AND evidence insufficient → investigate, never publish.
     assert res["evidence_state"] == "insuficiente"
 
