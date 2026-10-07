@@ -21,7 +21,7 @@ Implementación: `backend/tests/test_acceptance.py` (10/10 verde, suite total
 48 passed). Benchmark de desarrollo: `data/benchmark.jsonl` (60 consultas:
 30 sustentadas, 10 contradicción, 10 sin respuesta, 10 adversariales).
 
-## Métricas (observadas 2026-10-07, seed: 40 TVN + 540 WB + 82 USGS)
+## Métricas (observadas 2026-10-07, seed: 150 noticias [67 TVN + 74 La Prensa + 9 Crítica] + 540 WB + 82 USGS)
 
 | Métrica | Meta del reto | Resultado |
 |---------|---------------|-----------|
@@ -31,7 +31,7 @@ Implementación: `backend/tests/test_acceptance.py` (10/10 verde, suite total
 | Agrupación (Jaccard + agencia) | reportar | Regla documentada v1; F1 vs etiquetas humanas pendiente |
 | Utilidad del ranking (Precision@5) | reportar | Evaluación exploratoria pendiente (sin editor asignado) |
 | Eficiencia ranking (39 temas, reglas v1) | mediana ≤15 s | ~10 ms mediana local (5 réplicas: 84/10.6/11/10.2/10.5) |
-| Ingesta seed (40/540/82, sqlite) | — | 9.9 s, 0 descartadas, 97 entidades + 98 relaciones |
+| Ingesta seed (150/540/82, sqlite) | — | Corpus ampliado a 150 noticias (3 medios); tiempos/entidades pendientes de re-medición tras T-04 |
 | Generación (tokens/costo) | reportar | Pendiente de key (sin key: abstención inmediata, costo 0) |
 
 ## Correcciones
