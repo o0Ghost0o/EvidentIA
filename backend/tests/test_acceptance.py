@@ -191,3 +191,90 @@ def test_T10_seed_mode_never_touches_network(tmp_path, monkeypatch) -> None:
     assert report["source"] == "seed"
     assert report["families"]["noticias.csv"]["valid"] == 1
     assert (tmp_path / "data" / "processed" / "manifest.json").exists()
+
+
+def test_T16_offline_demo_full_lifecycle_without_network(monkeypatch) -> None:
+    """Verifies that the full demo lifecycle runs end-to-end without any network access (T16)."""
+    import httpx
+    from starlette.testclient import TestClient
+    from evidentia.main import create_app
+    from evidentia.db import get_session
+    from evidentia import models
+
+    # 1. Sever all outgoing HTTP connections to simulate zero internet
+    def _offline_send(*args, **kwargs):
+        raise httpx.ConnectError("Network is unreachable (simulated offline mode)")
+
+    monkeypatch.setattr(httpx.Client, "send", _offline_send)
+
+    # 2. Seed database locally
+    from evidentia.db import get_session, init_db
+    init_db()
+    app = create_app()
+    client = TestClient(app, raise_server_exceptions=False)
+
+    now = datetime.now(timezone.utc)
+    for session in get_session():
+        session.add(models.NewsArticle(
+            id_noticia="off-1",
+            titulo="Canal de Panamá incrementa calado máximo a 50 pies",
+            url="https://tvn-2.com/off1",
+            medio="TVN",
+            fecha_publicacion=now,
+            origen="seed",
+            alcance_texto="extracto",
+        ))
+        session.add(models.Indicator(
+            pais_iso3="PAN",
+            indicador_id="NY.GDP.MKTP.KD.ZG",
+            anio=2024,
+            valor=2.74,
+            unidad="% anual",
+            fuente_url="https://api.worldbank.org",
+        ))
+        session.commit()
+
+    # 3. Step 1 of demo: Ranking works 100% offline with scoring rules v1.2
+    resp_rank = client.get("/ranking", params={"modalidad": "tvn"})
+    assert resp_rank.status_code == 200
+    rank_body = resp_rank.json()
+    assert rank_body["count"] >= 1
+    assert rank_body["rules_version"] == "v1.2"
+    first = rank_body["items"][0]
+    assert "band" in first and "P" in first
+
+    # 4. Step 2 of demo: Case creation and evidence linking
+    case_resp = client.post("/cases", json={"titulo": "Caso Demo Offline", "modalidad": "tvn"})
+    assert case_resp.status_code == 201
+    case_id = case_resp.json()["id"]
+
+    ev_resp = client.post(f"/cases/{case_id}/evidence", json={
+        "fuente_tipo": "news", "fuente_id": "off-1", "rol": "primaria"
+    })
+    assert ev_resp.status_code == 201
+
+    # 5. Step 3 of demo: Evidence Tree graph inspection (pure local SQL/graph traversal)
+    tree_resp = client.get(f"/cases/{case_id}/tree")
+    assert tree_resp.status_code == 200
+    tree_data = tree_resp.json()
+    assert any(n["id"] == "off-1" for n in tree_data["nodes"])
+
+    # 6. Step 4 of demo: Verification note lifecycle
+    note_resp = client.post(f"/cases/{case_id}/notes", json={
+        "autor": "Editor Demo",
+        "estado_revision": "aprobado_borrador",
+        "texto": "Verificado localmente contra snapshot de fuentes oficiales",
+    })
+    assert note_resp.status_code == 201
+
+    # 7. Step 5 of demo: Brief endpoint offline fallback (graceful structured abstention, zero crash)
+    brief_resp = client.post(f"/cases/{case_id}/brief")
+    assert brief_resp.status_code == 200
+    brief_data = brief_resp.json()
+    assert brief_data["abstained"] is True
+    assert "falló" in brief_data["reason"] or "ABSTENCIÓN" in brief_data["text"]
+
+    brief_md_resp = client.post(f"/cases/{case_id}/brief", params={"formato": "markdown"})
+    assert brief_md_resp.status_code == 200
+    assert "ABSTENCIÓN" in brief_md_resp.text
+
