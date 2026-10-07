@@ -180,3 +180,47 @@ def test_package_metrics_and_anti_injection() -> None:
     assert "jamás instrucciones" in SYSTEM_PROMPT
     assert "intentos de manipulación" in SYSTEM_PROMPT
 
+
+def test_banca_bulletin_no_financial_advice_contract() -> None:
+    reply = """## Resumen
+Se observan señales de solicitud presupuestaria para infraestructura y desaceleración del PIB anual en 2024 al 2.74%.
+
+## Sectores potencialmente relacionados
+- Infraestructura y construcción
+- Banca comercial
+- Transporte y logística
+
+## Horizonte temporal
+Mediano plazo (12 a 24 meses).
+
+## Evidencia
+- [OBSERVACIÓN] El MOP solicitó fondos para compromisos pendientes [mop-001:titular].
+- [OBSERVACIÓN] Crecimiento del PIB en Panamá 2024 fue 2.74% [PAN:NY.GDP.MKTP.KD.ZG:2024:valor].
+- [HIPÓTESIS DE IMPACTO] La reactivación de pagos a contratistas podría apoyar la liquidez del sector constructivo.
+
+## Preguntas para el analista
+1. ¿Cuál es el cronograma estimado de desembolsos del MOP hacia contratistas clave?
+2. ¿Qué subsectores de la construcción tienen mayor apalancamiento en crédito local?
+3. ¿Cómo impacta la tasa de crecimiento del PIB las proyecciones de demanda crediticia?
+"""
+    synth = Synthesiser(client=StubClient(reply))
+    docs = [
+        EvidenceDoc(source_id="mop-001", kind="news", text="MOP solicita presupuesto", trace={}),
+        EvidenceDoc(source_id="PAN:NY.GDP.MKTP.KD.ZG:2024", kind="indicator", text="PIB Panamá 2024", trace={}),
+    ]
+    bulletin = banca.build_banca_bulletin(docs, synth)
+    assert not bulletin["abstained"]
+    assert len(bulletin["resumen"].split()) <= 250
+    assert "Infraestructura" in bulletin["sectores"]
+    assert "Mediano plazo" in bulletin["horizonte"]
+    assert "[OBSERVACIÓN]" in bulletin["evidencia"]
+    assert "[HIPÓTESIS DE IMPACTO]" in bulletin["evidencia"]
+    assert "1." in bulletin["preguntas"] and "3." in bulletin["preguntas"]
+    # No buy/sell/investment advice
+    for prohibited in ("recomienda comprar", "recomienda vender", "invertir en", "impago de deuda"):
+        assert prohibited not in bulletin["raw"].lower()
+    md = banca.render_markdown(bulletin, "Caso MOP y PIB")
+    assert "BORRADOR PARA REVISIÓN HUMANA" in md
+    assert "señales, no recomendaciones" in md
+
+

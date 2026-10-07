@@ -14,26 +14,28 @@ from evidentia.generation.synthesizer import (
     cap_words,
 )
 
-INSTRUCTION = """Redacta el boletín de entorno en EXACTAMENTE este formato:
+INSTRUCTION = """Redacta el boletín de entorno bancario en EXACTAMENTE este formato:
 
 ## Resumen
-<máximo 250 palabras: señales observadas en fuentes públicas>
+<máximo 250 palabras: señales observadas en fuentes públicas, citando indicadores macroeconómicos de contexto>
 
 ## Sectores potencialmente relacionados
-<viñetas>
+<viñetas de sectores de actividad económica posiblemente impactados>
 
 ## Horizonte temporal
-<línea: corto/mediano/largo plazo según las fuentes>
+<una línea: corto, mediano o largo plazo justificando según las fuentes>
 
 ## Evidencia
-<viñetas con citas [id:campo]; separa OBSERVACIÓN de HIPÓTESIS DE IMPACTO>
+<viñetas con citas [id_fuente:campo] o [id_fuente]; separa explícitamente [OBSERVACIÓN] (datos fácticos de fuentes) de [HIPÓTESIS DE IMPACTO] (posibles efectos)>
 
 ## Preguntas para el analista
-1. <pregunta>
-2. <pregunta>
-3. <pregunta>
+1. <pregunta analítica 1>
+2. <pregunta analítica 2>
+3. <pregunta analítica 3>
 
-Prohibido: recomendar compra/venta, inferir pérdidas, impagos o exposición de carteras.
+Reglas obligatorias para banca:
+- Al citar indicadores macroeconómicos del Banco Mundial, cita país/año/unidad exactos y jamás describas una cifra anual histórica como 'actual' o 'de hoy'.
+- Estrictamente prohibido: dar recomendaciones de compra/venta o inversión, o inferir pérdidas, impagos o exposición de carteras inexistentes. Señales para análisis, nunca veredictos.
 """
 
 

@@ -25,7 +25,7 @@ from evidentia.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
-CITATION_RE = re.compile(r"\[([A-Za-z0-9_:.\-]+):([A-Za-z_]+)\]")
+CITATION_RE = re.compile(r"\[([A-Za-z0-9_:.\-]+?)(?::([A-Za-z_]+))?\]")
 CLAIM_TAGS = ("[HECHO]", "[DECLARACIÓN]", "[INFERENCIA]", "[HIPÓTESIS]")
 
 SYSTEM_PROMPT = """Eres un asistente editorial que redacta BORRADORES para revisión humana.
@@ -112,16 +112,30 @@ def render_sources(docs: list[EvidenceDoc]) -> str:
 def validate_citations(text: str, allowed_ids: set[str]) -> tuple[str, int, list[str]]:
     """Strip citations to unknown ids; returns (clean_text, kept, dropped)."""
     dropped: list[str] = []
+    known_tags = {
+        "[HECHO]", "[DECLARACIÓN]", "[INFERENCIA]", "[HIPÓTESIS]",
+        "[OBSERVACIÓN]", "[HIPÓTESIS DE IMPACTO]",
+    }
 
     def _check(match: re.Match) -> str:
-        source_id = match.group(1)
-        if source_id in allowed_ids:
-            return match.group(0)
-        dropped.append(match.group(0))
+        raw = match.group(0)
+        if raw in known_tags:
+            return raw
+        s1 = match.group(1)
+        s2 = match.group(2) if match.lastindex and match.lastindex >= 2 else None
+        full = f"{s1}:{s2}" if s2 else s1
+        if s1 in allowed_ids or full in allowed_ids:
+            return raw
+        dropped.append(raw)
         return "[CITA INVÁLIDA REMOVIDA]"
 
     clean = CITATION_RE.sub(_check, text)
-    kept = len(CITATION_RE.findall(clean))
+    # Count only valid source citations (exclude structural tags)
+    all_citations = CITATION_RE.findall(clean)
+    kept = sum(
+        1 for m in all_citations
+        if (m[0] in allowed_ids or (len(m) > 1 and f"{m[0]}:{m[1]}" in allowed_ids))
+    )
     return clean, kept, dropped
 
 
