@@ -1,6 +1,7 @@
 /**
  * Authentication and session management composable:
- * Dual JWT tokens (15-minute access token, 7-day refresh token) with automatic rotation and RBAC.
+ * Dual JWT tokens (15-minute access token, 7-day refresh token) with automatic rotation,
+ * cookie persistence for SSR/middleware guard, and RBAC hierarchy.
  */
 
 import { computed, ref } from "vue";
@@ -33,12 +34,29 @@ const STORAGE_KEY_REFRESH = "evidentia_refresh_token";
 const STORAGE_KEY_USER = "evidentia_user";
 
 export function useAuth() {
-  const isAuthenticated = computed(() => !!accessToken.value && !!user.value);
+  const accessCookie = useCookie<string | null>("evidentia_access_token", { maxAge: 900 });
+  const refreshCookie = useCookie<string | null>("evidentia_refresh_token", { maxAge: 604800 });
+  const userCookie = useCookie<AuthUser | null>("evidentia_user", { maxAge: 604800 });
+
+  // Sync memory state with cookies if not set
+  if (accessCookie.value && !accessToken.value) accessToken.value = accessCookie.value;
+  if (refreshCookie.value && !refreshToken.value) refreshToken.value = refreshCookie.value;
+  if (userCookie.value && !user.value) user.value = userCookie.value;
+
+  const isAuthenticated = computed(() => {
+    const hasToken = !!(accessToken.value || accessCookie.value);
+    const hasUser = !!(user.value || userCookie.value);
+    return hasToken && hasUser;
+  });
 
   function saveSession(tokens: TokenResponse) {
     accessToken.value = tokens.access_token;
     refreshToken.value = tokens.refresh_token;
     user.value = tokens.user;
+
+    accessCookie.value = tokens.access_token;
+    refreshCookie.value = tokens.refresh_token;
+    userCookie.value = tokens.user;
 
     if (import.meta.client) {
       localStorage.setItem(STORAGE_KEY_ACCESS, tokens.access_token);
@@ -51,6 +69,10 @@ export function useAuth() {
     accessToken.value = null;
     refreshToken.value = null;
     user.value = null;
+
+    accessCookie.value = null;
+    refreshCookie.value = null;
+    userCookie.value = null;
 
     if (import.meta.client) {
       localStorage.removeItem(STORAGE_KEY_ACCESS);
@@ -69,12 +91,13 @@ export function useAuth() {
   }
 
   async function refreshSession(): Promise<boolean> {
-    if (!refreshToken.value || isRefreshing.value) return false;
+    const currentRefresh = refreshToken.value || refreshCookie.value;
+    if (!currentRefresh || isRefreshing.value) return false;
     isRefreshing.value = true;
     try {
       const res = await $fetch<TokenResponse>("/api/auth/refresh", {
         method: "POST",
-        body: { refresh_token: refreshToken.value },
+        body: { refresh_token: currentRefresh },
       });
       saveSession(res);
       return true;
@@ -87,7 +110,7 @@ export function useAuth() {
   }
 
   async function logout(): Promise<void> {
-    const token = refreshToken.value;
+    const token = refreshToken.value || refreshCookie.value;
     clearSession();
     if (token) {
       await $fetch("/api/auth/logout", {
@@ -98,31 +121,45 @@ export function useAuth() {
   }
 
   function initAuth() {
-    if (!import.meta.client) return;
-    const storedAccess = localStorage.getItem(STORAGE_KEY_ACCESS);
-    const storedRefresh = localStorage.getItem(STORAGE_KEY_REFRESH);
-    const storedUser = localStorage.getItem(STORAGE_KEY_USER);
+    if (accessCookie.value) accessToken.value = accessCookie.value;
+    if (refreshCookie.value) refreshToken.value = refreshCookie.value;
+    if (userCookie.value) user.value = userCookie.value;
 
-    if (storedAccess) accessToken.value = storedAccess;
-    if (storedRefresh) refreshToken.value = storedRefresh;
-    if (storedUser) {
-      try {
-        user.value = JSON.parse(storedUser);
-      } catch {
-        user.value = null;
+    if (import.meta.client && (!accessToken.value || !user.value)) {
+      const storedAccess = localStorage.getItem(STORAGE_KEY_ACCESS);
+      const storedRefresh = localStorage.getItem(STORAGE_KEY_REFRESH);
+      const storedUser = localStorage.getItem(STORAGE_KEY_USER);
+
+      if (storedAccess) {
+        accessToken.value = storedAccess;
+        accessCookie.value = storedAccess;
+      }
+      if (storedRefresh) {
+        refreshToken.value = storedRefresh;
+        refreshCookie.value = storedRefresh;
+      }
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          user.value = parsed;
+          userCookie.value = parsed;
+        } catch {
+          user.value = null;
+        }
       }
     }
   }
 
   function hasRole(requiredRole: string): boolean {
-    if (!user.value) return false;
+    const currentUser = user.value || userCookie.value;
+    if (!currentUser) return false;
     const hierarchy: Record<string, number> = {
       Member: 1,
       Admin: 2,
       Owner: 3,
       "Super Admin": 4,
     };
-    const userWeight = hierarchy[user.value.role] || 0;
+    const userWeight = hierarchy[currentUser.role] || 0;
     const requiredWeight = hierarchy[requiredRole] || 0;
     return userWeight >= requiredWeight;
   }

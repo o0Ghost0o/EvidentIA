@@ -11,7 +11,7 @@ from jwt.exceptions import InvalidTokenError
 from sqlmodel import Session, select
 
 from evidentia import models
-from evidentia.auth.security import decode_token, hash_password
+from evidentia.auth.security import decode_token, hash_password, verify_password
 from evidentia.config import get_settings
 from evidentia.db import SessionDep
 
@@ -26,12 +26,17 @@ ROLE_HIERARCHY: dict[str, int] = {
 
 
 def bootstrap_initial_admin(session: Session) -> models.User | None:
-    """Bootstrap initial Super Admin user from secrets / environment if DB has no users."""
-    user = session.exec(select(models.User)).first()
-    if user is not None:
-        return user
-
+    """Bootstrap or synchronize initial Super Admin user from secrets / environment."""
     settings = get_settings()
+    admin = session.exec(select(models.User).where(models.User.email == settings.admin_email)).first()
+    if admin is not None:
+        if not verify_password(settings.admin_password, admin.hashed_password):
+            admin.hashed_password = hash_password(settings.admin_password)
+            session.add(admin)
+            session.commit()
+            session.refresh(admin)
+        return admin
+
     admin = models.User(
         email=settings.admin_email,
         nombre=settings.admin_initial_name,

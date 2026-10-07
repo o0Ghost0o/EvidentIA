@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { loginAsAdmin } from "./auth-helper";
 
 test.describe("E2E: Bandeja y Gestión de Leads", () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsAdmin(page);
+  });
+
   test("debe cargar la lista de leads y mostrar el formulario de creación", async ({ page }) => {
     await page.goto("/leads");
 

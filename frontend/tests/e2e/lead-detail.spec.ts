@@ -1,8 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { loginAsAdmin } from "./auth-helper";
 
 test.describe("E2E: Detalle de Ficha y Evidencias (/leads/:id)", () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsAdmin(page);
+  });
+
   test("debe cargar la ficha del lead, árbol jerárquico y panel de notas", async ({ page }) => {
-    // Primero crear o navegar a un lead existente
     await page.goto("/leads");
 
     const uniqueTitle = `E2E Lead Detalle ${Date.now()}`;

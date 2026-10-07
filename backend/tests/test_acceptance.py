@@ -211,6 +211,9 @@ def test_T16_offline_demo_full_lifecycle_without_network(monkeypatch) -> None:
     from evidentia.db import get_session, init_db
     init_db()
     app = create_app()
+    from evidentia.auth.dependencies import get_current_user
+    admin = models.User(id=1, email="admin@vertexdc.com", nombre="Admin", role="Super Admin", org_id="VERTEXdc", is_active=True, hashed_password="")
+    app.dependency_overrides[get_current_user] = lambda: admin
     client = TestClient(app, raise_server_exceptions=False)
 
     now = datetime.now(timezone.utc)

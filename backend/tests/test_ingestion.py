@@ -170,8 +170,16 @@ def test_api_ingest_sync_and_quality_report(tmp_path: Path, monkeypatch) -> None
     from evidentia.db import reset_engine
 
     reset_settings()
-    reset_engine()
-    client = TestClient(create_app(), raise_server_exceptions=False)
+    from evidentia import models
+    from evidentia.auth.dependencies import get_current_user
+    app = create_app()
+    admin = models.User(id=1, email="admin@vertexdc.com", nombre="Admin", role="Super Admin", org_id="VERTEXdc", is_active=True, hashed_password="")
+    app.dependency_overrides[get_current_user] = lambda: admin
+    client = TestClient(app, raise_server_exceptions=False)
+
+    # Verify unauthenticated call is rejected
+    unauth_client = TestClient(create_app(), raise_server_exceptions=False)
+    assert unauth_client.post("/ingest/run").status_code == 401
 
     resp = client.post("/ingest/run", params={"sync": True, "use_seed": True})
     assert resp.status_code == 200, resp.text

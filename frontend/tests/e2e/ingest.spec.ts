@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { loginAsAdmin } from "./auth-helper";
 
 test.describe("E2E: Ingesta y Reporte de Calidad (/ingest)", () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsAdmin(page);
+  });
+
   test("debe cargar la vista de ingesta y mostrar el contenedor de reporte de calidad", async ({ page }) => {
     await page.goto("/ingest");
 

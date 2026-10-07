@@ -1,36 +1,50 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("E2E: Navegación Global y Header", () => {
-  test("debe cargar la página principal (Bandeja de temas) y mostrar el header", async ({ page }) => {
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@vertexdc.com";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Vtx-Dev-EvidentIA#2026!7x";
+
+test.describe("E2E: Autenticación Obligatoria y Navegación", () => {
+  test("visitar la raíz sin sesión debe redirigir inmediatamente a /login", async ({ page }) => {
     await page.goto("/");
-
-    // Validar marca y enlaces principales del navbar
-    await expect(page.locator("nav")).toBeVisible();
-    await expect(page.locator("nav a:has-text('EvidentIA')")).toBeVisible();
-    await expect(page.locator("nav a:has-text('Bandeja')")).toBeVisible();
-    await expect(page.locator("nav a:has-text('Leads')")).toBeVisible();
-    await expect(page.locator("nav a:has-text('Ingesta')")).toBeVisible();
-
-    // Validar encabezado principal de la bandeja
-    await expect(page.locator("h1:has-text('Bandeja de temas')")).toBeVisible();
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page.locator("h1:has-text('EvidentIA')")).toBeVisible();
+    await expect(page.locator("text=Iniciar Sesión")).toBeVisible();
+    await expect(page.locator("input[type='password']")).toHaveValue("");
   });
 
-  test("debe navegar entre Bandeja, Leads e Ingesta a través del menú", async ({ page }) => {
-    await page.goto("/");
+  test("debe permitir iniciar sesión con credenciales válidas y acceder a la bandeja", async ({ page }) => {
+    await page.goto("/login");
 
-    // Clic en Leads
-    await page.click("nav a:has-text('Leads')");
-    await expect(page).toHaveURL(/\/leads/);
-    await expect(page.locator("h1:has-text('Leads')")).toBeVisible();
+    // Llenar campos limpios
+    await page.fill("input[type='email']", ADMIN_EMAIL);
+    await page.fill("input[type='password']", ADMIN_PASSWORD);
 
-    // Clic en Ingesta
-    await page.click("nav a:has-text('Ingesta')");
-    await expect(page).toHaveURL(/\/ingest/);
-    await expect(page.locator("h1:has-text('Ingesta y calidad')")).toBeVisible();
+    // Enviar
+    await page.click("button:has-text('Acceder a EvidentIA')");
 
-    // Retornar a Bandeja
-    await page.click("nav a:has-text('Bandeja')");
-    await expect(page).toHaveURL(/\//);
+    // Redirige al dashboard
+    await expect(page).toHaveURL(/\//, { timeout: 15000 });
     await expect(page.locator("h1:has-text('Bandeja de temas')")).toBeVisible();
+
+    // Validar presencia del usuario en header
+    await expect(page.locator(`text=${ADMIN_EMAIL}`)).toBeVisible();
+    await expect(page.locator("button:has-text('Cerrar Sesión')")).toBeVisible();
+  });
+
+  test("debe permitir cerrar sesión y bloquear el acceso nuevamente", async ({ page }) => {
+    // 1. Iniciar sesión
+    await page.goto("/login");
+    await page.fill("input[type='email']", ADMIN_EMAIL);
+    await page.fill("input[type='password']", ADMIN_PASSWORD);
+    await page.click("button:has-text('Acceder a EvidentIA')");
+    await expect(page).toHaveURL(/\//, { timeout: 15000 });
+
+    // 2. Cerrar sesión
+    await page.click("button:has-text('Cerrar Sesión')");
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+
+    // 3. Intentar volver a /leads debe redirigir a /login
+    await page.goto("/leads");
+    await expect(page).toHaveURL(/\/login/);
   });
 });
