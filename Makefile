@@ -24,6 +24,23 @@ dev: ## Start infra in Docker; backend/frontend run locally (see output)
 test: ## Backend test suite
 	cd backend && uv run pytest
 
+test-e2e-preflight: ## Check DNS, SSL and HTTP health of dev endpoints
+	python3 scripts/check_dev_endpoints.py
+
+test-e2e-api: ## Run E2E API live test suite against dev-evidentia-api.vertexdc.com
+	uv run --project backend pytest tests/e2e/test_api_live.py -v
+
+test-e2e-ui: ## Run Playwright E2E UI test suite against dev-evidentia.vertexdc.com
+	cd frontend && bun run test:e2e
+
+test-e2e: ## Run full E2E suite (preflight + API + UI)
+	@echo "==> Running E2E Preflight..."
+	@python3 scripts/check_dev_endpoints.py || true
+	@echo "==> Running E2E API Tests..."
+	@uv run --project backend pytest tests/e2e/test_api_live.py -v
+	@echo "==> Running E2E UI Tests (Playwright)..."
+	@cd frontend && bun run test:e2e
+
 ingest: ## Live ingestion (sync) into local processed/
 	cd backend && uv run python -c "from evidentia.ingestion.pipeline import run_ingestion; print(run_ingestion()['families'])"
 
