@@ -1,0 +1,36 @@
+name: Sync to Gitea & Trigger Coolify Deploy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  sync:
+    # Run on push to main, manual dispatch, or when a PR into main is merged
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup SSH for Gitea
+        env:
+          GITEA_SSH_PRIVATE_KEY: ${{ secrets.GITEA_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$GITEA_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p 2222 git.vertexdc.com >> ~/.ssh/known_hosts
+
+      - name: Push main to Gitea
+        run: |
+          git remote add gitea ssh://git@git.vertexdc.com:2222/VERTEXdc/EvidentIA.git
+          git push --force gitea main
