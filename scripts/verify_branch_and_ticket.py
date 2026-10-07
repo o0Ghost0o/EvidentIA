@@ -25,6 +25,7 @@ BRANCH_PATTERN = re.compile(
 )
 
 PROTECTED_BRANCHES = {"main", "master"}
+INTEGRATION_BRANCHES = {"dev", "develop"}
 ALLOWED_TYPES = ["feature", "feat", "bug", "fix", "bugfix", "chore", "refactor", "hotfix", "test", "docs"]
 
 
@@ -116,7 +117,7 @@ def validate_branch():
     branch = get_current_branch()
 
     # Allow detached HEAD states (e.g. during rebases, bisects, or CI checkouts)
-    if not branch or branch == "HEAD":
+    if not branch or branch == "HEAD" or branch in INTEGRATION_BRANCHES:
         return
 
     # 1. Protect main / master
