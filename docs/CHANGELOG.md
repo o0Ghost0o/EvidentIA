@@ -15,6 +15,19 @@ ISO 8601 (UTC), autor, descripción y archivos afectados.
 
 ## Entradas
 
+### [2026-10-07T22:35:00Z] [CPS-93] [T-24] Habilitación de auto-deploy en entorno dev sincronizado con Gitea y GitHub Actions
+
+- **Autor:** Pedro Carreras / AI
+- **Roadmap:** Fase 7, tarea 7.7 (Infraestructura y CI/CD continuo)
+- **Descripción:** Se configuró el auto-deploy continuo para la rama `dev` en Coolify. Se
+  actualizó el webhook #27 en Gitea ampliando `branch_filter` de `main` a `*` para que
+  cada push a `dev` notifique a Coolify de inmediato. Adicionalmente, se actualizó el flujo
+  `.github/workflows/sync-to-gitea.yml` para dispararse en push/PR de `main` y `dev`,
+  sincronizando automáticamente cualquier cambio hacia Gitea.
+- **Archivos:**
+  - `.github/workflows/sync-to-gitea.yml`
+  - `docs/CHANGELOG.md`
+
 ### [2026-10-07T22:28:00Z] [CPS-92] [T-23] Ingesta automática periódica con feature flag y actualización en vivo para pitch
 
 - **Autor:** Pedro Carreras / AI
