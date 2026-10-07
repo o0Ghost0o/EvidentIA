@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # the rest of the system keeps working on the local snapshot.
     together_api_key: str = ""
     together_base_url: str = "https://api.together.xyz/v1"
-    llm_model: str = "zai-org/GLM-5.3"
+    llm_model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
     # Local embedding model (fastembed/ONNX, no API key required)
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dimensions: int = 768

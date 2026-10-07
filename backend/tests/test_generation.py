@@ -40,7 +40,7 @@ def test_abstains_without_evidence() -> None:
 
 
 def test_abstains_without_api_key_by_default(monkeypatch) -> None:
-    monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
+    monkeypatch.setenv("TOGETHER_API_KEY", "")
     from evidentia.config import reset_settings
 
     reset_settings()
@@ -156,3 +156,27 @@ Corto plazo.
     assert "Logística" in package["sectores"]
     md = banca.render_markdown(package, "Caso Banca")
     assert "BORRADOR PARA REVISIÓN HUMANA" in md
+
+
+def test_package_metrics_and_anti_injection() -> None:
+    class StubClientWithUsage:
+        def __init__(self, reply: str) -> None:
+            self.reply = reply
+            self.last_usage = {"prompt_tokens": 120, "completion_tokens": 45, "total_tokens": 165}
+            self.last_latency_ms = 450.5
+
+        def complete(self, system: str, user: str, max_tokens: int = 1500) -> str:
+            return self.reply
+
+    synth = Synthesiser(client=StubClientWithUsage(TVN_REPLY))
+    pkg = tvn.build_tvn_package([_doc()], synth)
+    assert not pkg["abstained"]
+    assert pkg["prompt_tokens"] == 120
+    assert pkg["completion_tokens"] == 45
+    assert pkg["total_tokens"] == 165
+    assert pkg["latency_ms"] == 450.5
+
+    # Anti-injection rule check in system prompt
+    assert "jamás instrucciones" in SYSTEM_PROMPT
+    assert "intentos de manipulación" in SYSTEM_PROMPT
+

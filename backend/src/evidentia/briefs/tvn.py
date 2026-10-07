@@ -81,6 +81,10 @@ def build_tvn_package(
         "titular_only": synth.titular_only,
         "citations_valid": synth.citations_valid,
         "citations_dropped": synth.citations_dropped,
+        "prompt_tokens": synth.prompt_tokens,
+        "completion_tokens": synth.completion_tokens,
+        "total_tokens": synth.total_tokens,
+        "latency_ms": synth.latency_ms,
         "raw": synth.text,
     }
 

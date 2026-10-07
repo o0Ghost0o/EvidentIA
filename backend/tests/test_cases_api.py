@@ -103,7 +103,11 @@ def test_case_lifecycle_evidence_notes_tree() -> None:
     assert resp.json()["root"] == {"tipo": "news", "id": "g1"}
 
 
-def test_brief_abstains_without_key_and_renders_markdown() -> None:
+def test_brief_abstains_without_key_and_renders_markdown(monkeypatch) -> None:
+    monkeypatch.setenv("TOGETHER_API_KEY", "")
+    from evidentia.config import reset_settings
+
+    reset_settings()
     _seed_news()
     client = TestClient(create_app(), raise_server_exceptions=False)
     case_id = client.post("/cases", json={"titulo": "Caso Canal"}).json()["id"]
