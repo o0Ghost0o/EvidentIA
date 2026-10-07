@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "fecha_corte_UTC": "2026-10-07T05:19:38.463735+00:00",
+  "fecha_corte_UTC": "2026-10-07T05:22:34.981605+00:00",
   "source": "live-seed-build",
   "consultas": {
     "tvn": {
@@ -50,7 +50,7 @@
   },
   "archivos": {
     "noticias.csv": {
-      "sha256": "36c60ca7e052908c3008773cf9d77c0196cfdde92ee48688376d8b1ed57ecb8e",
+      "sha256": "9c0699c3cda44185b98a72b6fe084c5fa52481d82ceb3d28e0c032ec65735db7",
       "rows": 150
     },
     "indicadores.csv": {
