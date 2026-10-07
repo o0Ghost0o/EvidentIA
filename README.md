@@ -55,3 +55,10 @@ uv run uvicorn evidentia.main:app --reload   # API en http://localhost:8000
 `noticias.csv`, `indicadores.csv`, `eventos.geojson`, `fichas.jsonl`, `manifest.json`
 (SHA-256). Detalle de fuentes, licencias y transformaciones en
 [docs/notion/03-catalogo-de-datos.md](docs/notion/03-catalogo-de-datos.md).
+
+## Despliegue continuo
+
+- **Origen**: GitHub (`o0Ghost0o/EvidentIA`)
+- **Mirror**: Gitea (`VERTEXdc/EvidentIA`)
+- **Hosting**: Coolify (`evidentia.vertexdc.com`)
+
