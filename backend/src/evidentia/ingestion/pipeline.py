@@ -228,6 +228,16 @@ def run_ingestion(
             report["warnings"].append(f"tvn failed: {exc}")
             logger.exception("TVN fetch failed")
         try:
+            panama_rows = fetchers.fetch_panama_news()
+            news_raw.extend(panama_rows)
+            queries["panama"] = {
+                "feeds": [f["medio"] for f in fetchers.PANAMA_FEEDS],
+                "hits": len(panama_rows),
+            }
+        except Exception as exc:
+            report["warnings"].append(f"panama failed: {exc}")
+            logger.exception("Panama feeds fetch failed")
+        try:
             ind_raw = fetchers.fetch_worldbank_indicators()
             queries["worldbank"] = {"rows": len(ind_raw)}
         except Exception as exc:

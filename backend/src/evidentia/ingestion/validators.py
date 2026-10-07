@@ -13,6 +13,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
+from evidentia.textsim import jaccard, title_tokens
+
+# Near-duplicate headlines are collapsed above this Jaccard. The bar is high on
+# purpose: it removes re-posts of the same story (slightly re-titled) without
+# merging genuinely different news. Looser event grouping lives in graph layer.
+TITLE_DEDUP_JACCARD = 0.85
+
 
 @dataclass
 class ValidationResult:
@@ -60,6 +67,7 @@ def news_id_for(origen: str, url: str) -> str:
 def validate_news(rows: list[dict]) -> ValidationResult:
     result = ValidationResult()
     seen_urls: set[str] = set()
+    kept_tokens: list[set[str]] = []
     for i, row in enumerate(rows):
         titulo = (row.get("titulo") or "").strip()
         url = (row.get("url") or "").strip()
@@ -71,7 +79,13 @@ def validate_news(rows: list[dict]) -> ValidationResult:
             result.dropped += 1
             result.errors.append({"row": i, "reason": "duplicate url", "url": url})
             continue
+        tokens = title_tokens(titulo)
+        if tokens and any(jaccard(tokens, prev) >= TITLE_DEDUP_JACCARD for prev in kept_tokens):
+            result.dropped += 1
+            result.errors.append({"row": i, "reason": "near-duplicate title", "titulo": titulo})
+            continue
         seen_urls.add(url)
+        kept_tokens.append(tokens)
         clean = dict(row)
         clean["titulo"] = titulo
         clean["url"] = url

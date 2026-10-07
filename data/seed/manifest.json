@@ -1,15 +1,33 @@
 {
   "version": "v1",
-  "fecha_corte_UTC": "2026-10-07T01:55:17.796927+00:00",
+  "fecha_corte_UTC": "2026-10-07T05:22:34.981605+00:00",
   "source": "live-seed-build",
   "consultas": {
+    "tvn": {
+      "url": "https://www.tvn-2.com/rss",
+      "window_days": 90
+    },
+    "panama": {
+      "feeds": [
+        {
+          "medio": "La Prensa",
+          "url": "https://www.prensa.com/arc/outboundfeeds/rss/?outputType=xml"
+        },
+        {
+          "medio": "Crítica",
+          "url": "https://critica.com.pa/rss.xml"
+        }
+      ],
+      "window_days": 90
+    },
     "gdelt": {
       "queries": [
         "Panama",
         "Canal de Panamá",
         "Panamá economía",
         "Panamá turismo"
-      ]
+      ],
+      "status": "no utilizado — HTTP 429 persistente; receta conservada sin contenido"
     },
     "worldbank": {
       "countries": [
@@ -26,14 +44,14 @@
     }
   },
   "cantidad_por_archivo": {
-    "noticias.csv": 40,
+    "noticias.csv": 150,
     "indicadores.csv": 540,
     "eventos.geojson": 82
   },
   "archivos": {
     "noticias.csv": {
-      "sha256": "22bb49a3ef383224383f3650ce69691a3efa8e7aa35d0424f8d45164bcdd8666",
-      "rows": 40
+      "sha256": "9c0699c3cda44185b98a72b6fe084c5fa52481d82ceb3d28e0c032ec65735db7",
+      "rows": 150
     },
     "indicadores.csv": {
       "sha256": "6772f2f324616c2a928d8d51681967280236f47b643ff12dea3b282d42c5ea23",
@@ -51,7 +69,8 @@
   },
   "transformaciones": [
     "normalizacion fechas a ISO 8601 UTC",
-    "deduplicacion por URL / clave natural",
+    "deduplicacion por URL + similitud de titular (Jaccard >= 0.85) / clave natural",
+    "ventana de 90 dias en feeds RSS de noticias",
     "ids deterministicos id_noticia=<origen>-sha256(url)[:12]"
   ]
 }
