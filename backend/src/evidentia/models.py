@@ -154,3 +154,33 @@ class VerificationNote(SQLModel, table=True):
     estado_revision: str = Field(max_length=32)
     texto: str
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class User(SQLModel, table=True):
+    """Authenticated user with multi-tenant RBAC."""
+
+    __tablename__ = "users"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True, max_length=255)
+    nombre: str = Field(default="", max_length=128)
+    hashed_password: str = Field(max_length=255)
+    # Standard RBAC: Super Admin | Owner | Admin | Member
+    role: str = Field(default="Member", index=True, max_length=32)
+    org_id: str = Field(default="VERTEXdc", index=True, max_length=64)
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class RefreshToken(SQLModel, table=True):
+    """Rotating refresh token session (7-day validity)."""
+
+    __tablename__ = "refresh_tokens"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    token_hash: str = Field(unique=True, index=True, max_length=128)
+    expires_at: datetime = Field(index=True)
+    revoked: bool = Field(default=False, index=True)
+    created_at: datetime = Field(default_factory=_utcnow)

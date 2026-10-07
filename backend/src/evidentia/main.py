@@ -18,6 +18,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from evidentia.api.auth import router as auth_router
 from evidentia.api.cases import router as cases_router
 from evidentia.api.evidence import router as evidence_router
 from evidentia.api.health import router as health_router
@@ -35,10 +36,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings = settings
 
     try:
-        from evidentia.db import init_db
+        from evidentia.auth.dependencies import bootstrap_initial_admin
+        from evidentia.db import get_engine, init_db
+        from sqlmodel import Session
 
         init_db()
-        logger.info("Database tables initialised.")
+        with Session(get_engine()) as session:
+            bootstrap_initial_admin(session)
+        logger.info("Database tables and admin user initialised.")
     except Exception as exc:
         logger.error("Database initialisation failed (degraded mode): %s", exc)
 
@@ -71,6 +76,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health_router)
+    app.include_router(auth_router)
     app.include_router(ingest_router)
     app.include_router(ranking_router)
     app.include_router(cases_router)

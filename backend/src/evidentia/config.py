@@ -73,6 +73,17 @@ class Settings(BaseSettings):
     notion_token: str = ""
     notion_parent_page_id: str = ""
 
+    # ── Security & Dual JWT Tokens (15m access / 7d refresh) ────────────────
+    jwt_secret_key: str = "evidentia-super-secret-jwt-key-2026-PanamaHackIAthon-Secure-32Chars"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 15  # 15 minutes
+    refresh_token_expire_days: int = 7     # 7 days
+    admin_email: str = "admin@vertexdc.com"
+    admin_password: str = "EvidentIA2026!"
+    admin_initial_name: str = "Pedro Carreras"
+    admin_initial_role: str = "Super Admin"
+    admin_initial_org: str = "VERTEXdc"
+
 
 _settings: Settings | None = None
 

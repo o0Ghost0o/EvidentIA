@@ -12,6 +12,8 @@ export default defineEventHandler(async (event) => {
   const headers: Record<string, string> = {};
   const contentType = getHeader(event, "content-type");
   if (contentType) headers["content-type"] = contentType;
+  const authHeader = getHeader(event, "authorization");
+  if (authHeader) headers["authorization"] = authHeader;
 
   let body: unknown;
   if (event.method !== "GET" && event.method !== "HEAD") {
