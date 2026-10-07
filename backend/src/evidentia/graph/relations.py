@@ -14,40 +14,20 @@ Rules (prototype-grade, documented for the baseline comparison):
 from __future__ import annotations
 
 import hashlib
-import re
 
 from evidentia.graph import entities as ent
 from evidentia.scoring.deduplication import find_numeric_contradictions
+from evidentia.textsim import jaccard as _jaccard_value
+from evidentia.textsim import title_tokens
 
 GROUP_JACCARD = 0.45
 AGENCY_JACCARD = 0.30
-
-_TOKEN_RE = re.compile(r"[a-záéíóúñü0-9]+", re.IGNORECASE)
-_STOPWORDS = frozenset({
-    "de", "la", "el", "en", "y", "a", "los", "del", "se", "las", "por", "un",
-    "para", "con", "no", "una", "the", "of", "to", "in", "and", "for", "on",
-})
 
 REL_MENTIONS = "mentions"
 REL_SAME_EVENT = "same_event"
 REL_SOURCE_OF = "source_of"
 REL_CONTRADICTS = "contradicts"
 REL_CORROBORATES = "corroborates"
-
-
-def title_tokens(title: str) -> set[str]:
-    # Digit-only tokens are dropped: numeric variants of one story must group
-    # together so their differences can surface as contradictions.
-    return {
-        t.lower() for t in _TOKEN_RE.findall(title or "")
-        if not t.isdigit()
-    } - _STOPWORDS
-
-
-def _jaccard_value(a: set[str], b: set[str]) -> float:
-    if not a or not b:
-        return 0.0
-    return len(a & b) / len(a | b)
 
 
 def group_id_for(members: list[str]) -> str:

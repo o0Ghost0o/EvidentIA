@@ -47,7 +47,8 @@ def build_manifest(
         },
         "transformaciones": [
             "normalizacion fechas a ISO 8601 UTC",
-            "deduplicacion por URL / clave natural",
+            "deduplicacion por URL + similitud de titular (Jaccard >= 0.85) / clave natural",
+            "ventana de 90 dias en feeds RSS de noticias",
             "ids deterministicos id_noticia=<origen>-sha256(url)[:12]",
         ],
     }
