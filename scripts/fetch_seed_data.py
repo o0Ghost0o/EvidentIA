@@ -203,6 +203,10 @@ def main(only: set[str] | None = None) -> None:
         "indicadores.csv": len(indicators),
         "eventos.geojson": len(events),
     }
+    if (seed_dir / "fichas.jsonl").exists():
+        counts["fichas.jsonl"] = sum(
+            1 for line in (seed_dir / "fichas.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()
+        )
     queries = {
         "tvn": {"url": "https://www.tvn-2.com/rss", "window_days": 90},
         "panama": {

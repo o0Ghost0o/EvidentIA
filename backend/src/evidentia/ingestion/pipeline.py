@@ -199,7 +199,7 @@ def run_ingestion(
     queries: dict[str, object] = {}
 
     if use_seed:
-        for name in ("noticias.csv", "indicadores.csv", "eventos.geojson"):
+        for name in ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl"):
             src = seed_dir / name
             if not src.exists():
                 report["warnings"].append(f"seed file missing: {name}")
@@ -275,6 +275,10 @@ def run_ingestion(
         "indicadores.csv": len(indicators.valid),
         "eventos.geojson": len(events.valid),
     }
+    if (processed / "fichas.jsonl").exists():
+        counts["fichas.jsonl"] = sum(
+            1 for line in (processed / "fichas.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()
+        )
     manifest = manifest_mod.build_manifest(processed, counts, queries, report["source"])
     manifest_mod.write_manifest(processed, manifest)
     report["manifest"] = manifest

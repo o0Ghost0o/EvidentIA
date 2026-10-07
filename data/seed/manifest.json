@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "fecha_corte_UTC": "2026-10-07T05:22:34.981605+00:00",
+  "fecha_corte_UTC": "2026-10-07T16:38:20.620368+00:00",
   "source": "live-seed-build",
   "consultas": {
     "tvn": {
@@ -46,7 +46,8 @@
   "cantidad_por_archivo": {
     "noticias.csv": 150,
     "indicadores.csv": 540,
-    "eventos.geojson": 82
+    "eventos.geojson": 82,
+    "fichas.jsonl": 5
   },
   "archivos": {
     "noticias.csv": {
@@ -60,12 +61,17 @@
     "eventos.geojson": {
       "sha256": "4bf322396dcda60be3237ffcfe074de00532697e755e101acf6689c4d7cf1158",
       "rows": 82
+    },
+    "fichas.jsonl": {
+      "sha256": "59c418edb2d3a841648ebf7abe1c4bc3bac9937ab049aa421da76edbd6c221ca",
+      "rows": 5
     }
   },
   "licencias_condiciones": {
     "noticias.csv": "Titulares/enlaces; sin republicación de contenidos de terceros.",
     "indicadores.csv": "Banco Mundial CC BY 4.0 (salvo excepciones en metadatos).",
-    "eventos.geojson": "USGS; solo hechos sísmicos."
+    "eventos.geojson": "USGS; solo hechos sísmicos.",
+    "fichas.jsonl": "Casos de evaluación trazables de EvidentIA."
   },
   "transformaciones": [
     "normalizacion fechas a ISO 8601 UTC",

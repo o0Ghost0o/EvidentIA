@@ -181,3 +181,36 @@ def test_api_ingest_sync_and_quality_report(tmp_path: Path, monkeypatch) -> None
     resp = client.get("/ingest/quality-report")
     assert resp.status_code == 200
     assert resp.json()["source"] == "seed"
+
+
+def test_seed_snapshot_manifest_and_fichas_complete() -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "data" / "seed"
+    manifest_path = seed_dir / "manifest.json"
+    assert manifest_path.exists(), "manifest.json missing in data/seed"
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["version"] == "v1"
+    assert manifest["fecha_corte_UTC"]
+
+    required_files = ["noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl"]
+    for fname in required_files:
+        assert fname in manifest["archivos"], f"missing {fname} in manifest archivos"
+        fpath = seed_dir / fname
+        assert fpath.exists(), f"missing file {fname} in data/seed"
+        real_sha = manifest_mod.sha256_file(fpath)
+        assert manifest["archivos"][fname]["sha256"] == real_sha, f"sha256 mismatch for {fname}"
+        assert manifest["archivos"][fname]["rows"] > 0, f"empty row count for {fname}"
+
+    # Verify fichas.jsonl contract
+    fichas_path = seed_dir / "fichas.jsonl"
+    fichas = [json.loads(line) for line in fichas_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(fichas) >= 5, "at least 5 cases required in fichas.jsonl"
+    required_ficha_keys = {
+        "id_caso", "modalidad", "ids_fuente", "afirmaciones", "citas",
+        "puntaje", "componentes", "estado_evidencia", "borrador", "estado_revision"
+    }
+    for f in fichas:
+        assert required_ficha_keys.issubset(f.keys()), f"missing contract keys in ficha: {f}"
+        assert f["modalidad"] in {"tvn", "banca"}
+        assert f["estado_revision"] in {"nuevo", "en_revision", "requiere_evidencia", "aprobado_borrador", "descartado"}
+
