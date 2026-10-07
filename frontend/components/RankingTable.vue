@@ -45,7 +45,7 @@ function bandVariant(band: string) {
             <Badge variant="outline">evidencia: {{ item.evidence_state }}</Badge>
           </div>
         </div>
-        <Button variant="outline" @click="emit('open', item)">Abrir proyecto</Button>
+        <Button variant="outline" @click="emit('open', item)">Abrir Lead</Button>
       </li>
     </ul>
   </Card>

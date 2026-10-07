@@ -23,7 +23,7 @@ async function openProject(item: RankItem) {
     method: "POST",
     body: { titulo: item.titulo, modalidad: "tvn", queries: [item.titulo] },
   });
-  await navigateTo(`/projects/${created.id}`);
+  await navigateTo(`/leads/${created.id}`);
 }
 </script>
 
@@ -32,7 +32,7 @@ async function openProject(item: RankItem) {
     <div>
       <h1 class="text-2xl font-bold">Bandeja de temas</h1>
       <p class="text-sm text-muted-foreground">
-        Priorización determinista con evidencia trazable. Cada fila puede abrirse como proyecto.
+        Priorización determinista con evidencia trazable. Cada fila puede abrirse como lead (ficha de evidencia).
       </p>
     </div>
     <p v-if="error" class="rounded-md border border-destructive/50 p-3 text-sm">{{ error }}</p>

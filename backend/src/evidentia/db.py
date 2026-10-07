@@ -33,10 +33,22 @@ def reset_engine() -> None:
 
 
 def init_db() -> None:
-    """Create all tables (idempotent). No migrations for the prototype scope."""
+    """Create all tables (idempotent). Ensure backward-compatible column addition."""
     from evidentia import models  # noqa: F401  (register tables)
 
-    SQLModel.metadata.create_all(get_engine())
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine)
+    with engine.begin() as conn:
+        try:
+            if engine.dialect.name == "postgresql":
+                conn.exec_driver_sql("ALTER TABLE cases ADD COLUMN IF NOT EXISTS flags JSONB DEFAULT '[]'::jsonb;")
+            elif engine.dialect.name == "sqlite":
+                res = conn.exec_driver_sql("PRAGMA table_info(cases);").fetchall()
+                cols = [r[1] for r in res]
+                if cols and "flags" not in cols:
+                    conn.exec_driver_sql("ALTER TABLE cases ADD COLUMN flags JSON DEFAULT '[]';")
+        except Exception:
+            pass
 
 
 def get_session() -> Iterator[Session]:

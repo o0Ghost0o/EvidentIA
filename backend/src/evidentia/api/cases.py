@@ -23,11 +23,17 @@ class CaseCreate(BaseModel):
     titulo: str = Field(min_length=1, max_length=300)
     modalidad: str = Field(default="tvn", pattern="^(tvn|banca)$")
     queries: list[str] = Field(default_factory=list)
+    flags: list[str] = Field(default_factory=list)
 
 
 class CaseUpdate(BaseModel):
     titulo: str | None = Field(default=None, min_length=1, max_length=300)
     estado: str | None = None
+    flags: list[str] | None = None
+
+
+class FlagRequest(BaseModel):
+    flag: str = Field(min_length=1, max_length=64)
 
 
 class EvidenceCreate(BaseModel):
@@ -51,6 +57,112 @@ def _get_case(session: Session, case_id: int) -> models.Case:
     return case
 
 
+def _compute_activity_flags(
+    case: models.Case,
+    evidence: list[models.EvidenceItem],
+    notes: list[models.VerificationNote],
+) -> list[dict[str, str]]:
+    """Generate activity and state badges reflecting client actions and lead status."""
+    flags: list[dict[str, str]] = []
+
+    # 1. Custom client flags
+    for flag_name in (case.flags or []):
+        flags.append({
+            "id": f"custom-{flag_name}",
+            "label": flag_name,
+            "category": "custom",
+            "variant": "outline",
+            "description": "Flag personalizada asignada al lead",
+        })
+
+    # 2. Status / lifecycle badges
+    estado_labels = {
+        "nuevo": ("Nuevo Lead", "secondary", "Lead registrado en el sistema"),
+        "en_revision": ("En Revisión", "warning", "Revisión activa por el equipo"),
+        "requiere_evidencia": ("Requiere Evidencia", "destructive", "Requiere más fuentes o sustento"),
+        "aprobado_borrador": ("Borrador Aprobado", "success", "Aprobado para informe"),
+        "descartado": ("Descartado", "destructive", "Lead descartado"),
+    }
+    if case.estado in estado_labels:
+        lbl, var, desc = estado_labels[case.estado]
+        flags.append({
+            "id": f"status-{case.estado}",
+            "label": lbl,
+            "category": "status",
+            "variant": var,
+            "description": desc,
+        })
+
+    # 3. Evidence actions performed by client
+    ev_count = len(evidence)
+    if ev_count > 0:
+        flags.append({
+            "id": "action-evidence-linked",
+            "label": f"{ev_count} Evidencia(s)",
+            "category": "action",
+            "variant": "info",
+            "description": f"El cliente/usuario vinculó {ev_count} ficha(s) de evidencia",
+        })
+
+    manual_count = sum(1 for e in evidence if e.marcado_manual)
+    if manual_count > 0:
+        flags.append({
+            "id": "action-manual-marking",
+            "label": f"Marcado Manual ({manual_count})",
+            "category": "action",
+            "variant": "purple",
+            "description": f"Se marcaron manualmente {manual_count} evidencia(s)",
+        })
+
+    # 4. Source types linked
+    source_kinds = {e.fuente_tipo for e in evidence}
+    if "news" in source_kinds:
+        flags.append({
+            "id": "source-news",
+            "label": "Noticias / Prensa",
+            "category": "source",
+            "variant": "secondary",
+            "description": "Contiene noticias y artículos de prensa",
+        })
+    if "indicator" in source_kinds:
+        flags.append({
+            "id": "source-indicator",
+            "label": "Datos Macroeconómicos",
+            "category": "source",
+            "variant": "teal",
+            "description": "Contiene indicadores del Banco Mundial",
+        })
+    if "event" in source_kinds:
+        flags.append({
+            "id": "source-event",
+            "label": "Alerta Geosísmica",
+            "category": "source",
+            "variant": "warning",
+            "description": "Contiene eventos geosísmicos USGS",
+        })
+
+    # 5. Review trail actions
+    if notes:
+        flags.append({
+            "id": "action-notes",
+            "label": f"{len(notes)} Nota(s) Auditoría",
+            "category": "action",
+            "variant": "teal",
+            "description": f"El cliente/analista registró {len(notes)} nota(s) de revisión",
+        })
+
+    # 6. Modality
+    flags.append({
+        "id": f"modality-{case.modalidad}",
+        "label": f"Modalidad: {case.modalidad.upper()}",
+        "category": "modality",
+        "variant": "outline",
+        "description": f"Lead configurado en modalidad {case.modalidad}",
+    })
+
+    return flags
+
+
 def _case_detail(session: Session, case: models.Case) -> dict:
     evidence = session.exec(
         select(models.EvidenceItem).where(models.EvidenceItem.case_id == case.id)
@@ -58,9 +170,12 @@ def _case_detail(session: Session, case: models.Case) -> dict:
     notes = session.exec(
         select(models.VerificationNote).where(models.VerificationNote.case_id == case.id)
     ).all()
+    activity_flags = _compute_activity_flags(case, evidence, notes)
     return {
         "id": case.id, "titulo": case.titulo, "modalidad": case.modalidad,
         "queries": case.queries, "estado": case.estado,
+        "flags": case.flags or [],
+        "activity_flags": activity_flags,
         "created_at": case.created_at, "updated_at": case.updated_at,
         "evidence": [
             {"id": e.id, "fuente_tipo": e.fuente_tipo, "fuente_id": e.fuente_id,
@@ -77,7 +192,12 @@ def _case_detail(session: Session, case: models.Case) -> dict:
 
 @router.post("", status_code=201)
 def create_case(payload: CaseCreate, session: SessionDep) -> dict:
-    case = models.Case(titulo=payload.titulo, modalidad=payload.modalidad, queries=payload.queries)
+    case = models.Case(
+        titulo=payload.titulo,
+        modalidad=payload.modalidad,
+        queries=payload.queries,
+        flags=payload.flags,
+    )
     session.add(case)
     session.commit()
     session.refresh(case)
@@ -107,10 +227,41 @@ def update_case(case_id: int, payload: CaseUpdate, session: SessionDep) -> dict:
         if payload.estado not in REVIEW_STATES:
             raise HTTPException(status_code=422, detail=f"estado must be one of {REVIEW_STATES}")
         case.estado = payload.estado
+    if payload.flags is not None:
+        case.flags = payload.flags
     case.updated_at = datetime.now(timezone.utc)
     session.add(case)
     session.commit()
     session.refresh(case)
+    return _case_detail(session, case)
+
+
+@router.post("/{case_id}/flags", status_code=200)
+def add_flag(case_id: int, payload: FlagRequest, session: SessionDep) -> dict:
+    case = _get_case(session, case_id)
+    flag = payload.flag.strip()
+    current_flags = list(case.flags or [])
+    if flag and flag not in current_flags:
+        current_flags.append(flag)
+        case.flags = current_flags
+        case.updated_at = datetime.now(timezone.utc)
+        session.add(case)
+        session.commit()
+        session.refresh(case)
+    return _case_detail(session, case)
+
+
+@router.delete("/{case_id}/flags/{flag_name}", status_code=200)
+def remove_flag(case_id: int, flag_name: str, session: SessionDep) -> dict:
+    case = _get_case(session, case_id)
+    current_flags = list(case.flags or [])
+    if flag_name in current_flags:
+        current_flags.remove(flag_name)
+        case.flags = current_flags
+        case.updated_at = datetime.now(timezone.utc)
+        session.add(case)
+        session.commit()
+        session.refresh(case)
     return _case_detail(session, case)
 
 
@@ -172,8 +323,8 @@ def add_note(case_id: int, payload: NoteCreate, session: SessionDep) -> dict:
 
 
 @router.get("/{case_id}/tree")
-def case_tree(case_id: int, session: SessionDep, depth: int = Query(default=1, ge=1, le=3)) -> dict:
-    """Merged evidence trees (depth 1 per item) plus the case node."""
+def case_tree(case_id: int, session: SessionDep, depth: int = Query(default=5, ge=1, le=10)) -> dict:
+    """Merged evidence trees up to specified depth (default 5 levels) plus the case node."""
     from evidentia.graph.graph_service import evidence_tree
 
     case = _get_case(session, case_id)

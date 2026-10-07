@@ -123,7 +123,7 @@ def _node_label(tipo: str, ref: str, session: Session) -> str:
 
 
 def evidence_tree(
-    session: Session, root_tipo: str, root_id: str, depth: int = 2
+    session: Session, root_tipo: str, root_id: str, depth: int = 5
 ) -> dict[str, Any]:
     """Return the neighbourhood of a node as JSON-serializable nodes + edges."""
     graph = nx.DiGraph()

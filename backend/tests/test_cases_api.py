@@ -84,6 +84,20 @@ def test_case_lifecycle_evidence_notes_tree() -> None:
     kinds = {(n["tipo"], n["id"]) for n in resp.json()["nodes"]}
     assert ("case", str(case_id)) in kinds and ("news", "g1") in kinds
 
+    # Test flags and activity flags
+    resp_flags = client.post(f"/cases/{case_id}/flags", json={"flag": "Prioritario"})
+    assert resp_flags.status_code == 200
+    assert "Prioritario" in resp_flags.json()["flags"]
+    act_flag_ids = {af["id"] for af in resp_flags.json()["activity_flags"]}
+    assert "custom-Prioritario" in act_flag_ids
+    assert "action-evidence-linked" in act_flag_ids
+    assert "source-news" in act_flag_ids
+
+    # Remove flag
+    resp_del_flag = client.delete(f"/cases/{case_id}/flags/Prioritario")
+    assert resp_del_flag.status_code == 200
+    assert "Prioritario" not in resp_del_flag.json()["flags"]
+
     resp = client.get("/evidence/tree", params={"tipo": "news", "id": "g1"})
     assert resp.status_code == 200
     assert resp.json()["root"] == {"tipo": "news", "id": "g1"}

@@ -124,6 +124,7 @@ class Case(SQLModel, table=True):
     queries: list[str] = Field(default_factory=list, sa_column=_json_column())
     # nuevo | en_revision | requiere_evidencia | aprobado_borrador | descartado
     estado: str = Field(default="nuevo", index=True, max_length=32)
+    flags: list[str] = Field(default_factory=list, sa_column=_json_column())
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 

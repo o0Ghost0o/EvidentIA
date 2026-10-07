@@ -15,7 +15,7 @@ def get_tree(
     session: SessionDep,
     tipo: str = Query(pattern="^(news|indicator|event|entity)$"),
     id: str = Query(min_length=1),
-    depth: int = Query(default=2, ge=1, le=3),
+    depth: int = Query(default=5, ge=1, le=10),
 ) -> dict:
     """Return the neighbourhood of any graph node as nodes + typed edges."""
     return evidence_tree(session, tipo, id, depth=depth)
