@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # When true (or when fetchers have no connectivity), ingestion uses the
     # frozen snapshot under seed_dir instead of live APIs.
     use_seed_snapshot: bool = False
+    # Auto-ingestion background scheduler (Pitch mode)
+    auto_ingest_enabled: bool = False
+    auto_ingest_interval_minutes: int = 15
 
     # ── Ingestion chunking ───────────────────────────────────────────────────
     ingestion_chunk_size: int = 1000  # chars for child text chunks

@@ -250,3 +250,71 @@ def test_quality_report_on_full_seed_corpus(tmp_path: Path, monkeypatch) -> None
     assert persisted["source"] == "seed"
 
 
+def test_auto_ingest_scheduler_configuration_and_status() -> None:
+    from evidentia.ingestion.scheduler import AutoIngestScheduler
+
+    sched = AutoIngestScheduler()
+    assert sched.is_running is False
+    status = sched.get_status()
+    assert "enabled" in status
+    assert "interval_minutes" in status
+    assert "last_status" in status
+
+    # Configure enabled
+    updated = sched.configure(enabled=True, interval_minutes=25)
+    assert updated["enabled"] is True
+    assert updated["interval_minutes"] == 25
+    assert updated["next_run"] is not None
+
+    # Disable
+    disabled = sched.configure(enabled=False)
+    assert disabled["enabled"] is False
+    assert disabled["next_run"] is None
+
+
+def test_auto_ingest_endpoints() -> None:
+    from starlette.testclient import TestClient
+
+    from evidentia import models
+    from evidentia.auth.dependencies import get_current_user
+    from evidentia.main import create_app
+
+    app = create_app()
+    admin = models.User(
+        id=1,
+        email="admin@vertexdc.com",
+        nombre="Admin",
+        role="Super Admin",
+        org_id="VERTEXdc",
+        is_active=True,
+        hashed_password="",
+    )
+    app.dependency_overrides[get_current_user] = lambda: admin
+    client = TestClient(app, raise_server_exceptions=False)
+
+    # Get schedule status
+    resp = client.get("/ingest/auto-schedule")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "enabled" in data
+    assert "interval_minutes" in data
+
+    # Update schedule status
+    update_resp = client.post(
+        "/ingest/auto-schedule",
+        json={"enabled": True, "interval_minutes": 10},
+    )
+    assert update_resp.status_code == 200
+    updated_data = update_resp.json()
+    assert updated_data["enabled"] is True
+    assert updated_data["interval_minutes"] == 10
+
+    # Reset
+    reset_resp = client.post(
+        "/ingest/auto-schedule",
+        json={"enabled": False, "interval_minutes": 15},
+    )
+    assert reset_resp.status_code == 200
+    assert reset_resp.json()["enabled"] is False
+
+

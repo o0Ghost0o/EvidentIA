@@ -59,7 +59,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.qdrant_client = None
         logger.error("Qdrant initialisation failed (degraded mode): %s", exc)
 
+    # Start auto-ingest background scheduler
+    from evidentia.ingestion.scheduler import scheduler
+
+    scheduler.start()
+
     yield
+
+    # Clean shutdown
+    await scheduler.stop()
 
 
 def create_app() -> FastAPI:

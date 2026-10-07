@@ -15,6 +15,26 @@ ISO 8601 (UTC), autor, descripción y archivos afectados.
 
 ## Entradas
 
+### [2026-10-07T22:28:00Z] [CPS-92] [T-23] Ingesta automática periódica con feature flag y actualización en vivo para pitch
+
+- **Autor:** Pedro Carreras / AI
+- **Roadmap:** Fase 2, tarea 2.8 (Auto-Ingest Scheduler & Pitch Mode)
+- **Descripción:** Se incorporó un `AutoIngestScheduler` asíncrono no bloqueante en FastAPI
+  que escanea periódicamente los feeds RSS de TVN-2 y medios panameños en vivo. El sistema
+  está controlado por un feature flag dinámico (`auto_ingest_enabled`, `auto_ingest_interval_minutes`)
+  conmutable por variables de entorno y vía API (`GET/POST /ingest/auto-schedule`), respetando
+  el modo offline T10 cuando está inactivo. En el frontend se integró un panel interactivo con
+  toggle, selector de intervalo y botón de acción inmediata (`POST /ingest/live-now`) para
+  refrescar titulares de hoy minutos antes de presentar el pitch ante el jurado.
+- **Archivos:**
+  - `backend/src/evidentia/config.py`
+  - `backend/src/evidentia/ingestion/scheduler.py`
+  - `backend/src/evidentia/api/ingest.py`
+  - `backend/src/evidentia/main.py`
+  - `backend/tests/test_ingestion.py`
+  - `frontend/pages/ingest.vue`
+  - `docs/CHANGELOG.md`
+
 ### [2026-10-07T22:08:00Z] [CPS-91] [T-22] Migración total de Docker frontend y toolchain a Bun
 
 - **Autor:** Pedro Carreras / AI
