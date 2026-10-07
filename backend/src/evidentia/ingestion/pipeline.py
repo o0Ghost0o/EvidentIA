@@ -270,6 +270,21 @@ def run_ingestion(
             "error_count": len(res.errors),
         }
 
+    if (processed / "fichas.jsonl").exists():
+        fichas_raw = [
+            json.loads(line)
+            for line in (processed / "fichas.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        fichas_res = validators.validate_fichas(fichas_raw)
+        report["families"]["fichas.jsonl"] = {
+            "raw": len(fichas_raw),
+            "valid": len(fichas_res.valid),
+            "dropped": fichas_res.dropped,
+            "error_sample": fichas_res.errors[:10],
+            "error_count": len(fichas_res.errors),
+        }
+
     counts = {
         "noticias.csv": len(news.valid),
         "indicadores.csv": len(indicators.valid),

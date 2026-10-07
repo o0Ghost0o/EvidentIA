@@ -214,3 +214,31 @@ def test_seed_snapshot_manifest_and_fichas_complete() -> None:
         assert f["modalidad"] in {"tvn", "banca"}
         assert f["estado_revision"] in {"nuevo", "en_revision", "requiere_evidencia", "aprobado_borrador", "descartado"}
 
+
+def test_quality_report_on_full_seed_corpus(tmp_path: Path, monkeypatch) -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "data" / "seed"
+    data_dir = tmp_path / "data"
+
+    report = run_ingestion(use_seed=True, data_dir=data_dir, seed_dir=seed_dir)
+    assert report["source"] == "seed"
+
+    # All 4 families present in quality report with valid > 0
+    for family in ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl"):
+        assert family in report["families"]
+        stats = report["families"][family]
+        assert stats["valid"] > 0
+        assert stats["raw"] >= stats["valid"]
+        # Numerator/denominator format: valid / raw
+        assert "error_count" in stats
+
+    assert report["families"]["noticias.csv"]["valid"] >= 100
+    assert report["families"]["indicadores.csv"]["valid"] >= 500
+    assert report["families"]["fichas.jsonl"]["valid"] >= 5
+
+    # Check that quality_report.json was persisted
+    report_file = data_dir / "processed" / "quality_report.json"
+    assert report_file.exists()
+    persisted = json.loads(report_file.read_text(encoding="utf-8"))
+    assert persisted["source"] == "seed"
+
+
