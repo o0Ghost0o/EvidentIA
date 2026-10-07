@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets & local env
+.env
+!.env.example
+
+# Data (processed artifacts regenerate; the frozen seed ships with the repo)
+data/raw/
+data/processed/
+data/outputs/
+qdrant_storage/
+
+# Frontend
+frontend/node_modules/
+frontend/.nuxt/
+frontend/.output/
+frontend/dist/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

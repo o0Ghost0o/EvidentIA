@@ -1,0 +1,144 @@
+# EvidentIA — local / demo stack.
+#
+# Quick start:
+#   cp .env.example .env   # optional: every variable has a working default
+#   docker compose up --build
+#
+#   app (via proxy, Fase 7)  http://localhost:8080
+#   backend API docs         http://localhost:8000/docs
+#
+# The worker, frontend and proxy services land in Fases 2, 5 and 7; the file
+# grows with them so every phase stays green on `docker compose up --build`.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-evidentia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evidentia}
+      POSTGRES_DB: ${POSTGRES_DB:-evidentia}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evidentia}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ulimits:
+      nofile:
+        soft: 524288
+        hard: 524288
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-evidentia}:${POSTGRES_PASSWORD:-evidentia}@postgres:5432/${POSTGRES_DB:-evidentia}
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+      TOGETHER_API_KEY: ${TOGETHER_API_KEY:-}
+      TVN_RSS_URL: ${TVN_RSS_URL:-}
+      TOGETHER_BASE_URL: ${TOGETHER_BASE_URL:-https://api.together.xyz/v1}
+      LLM_MODEL: ${LLM_MODEL:-zai-org/GLM-5.3}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-base-en-v1.5}
+      USE_SEED_SNAPSHOT: ${USE_SEED_SNAPSHOT:-false}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command:
+      - sh
+      - -c
+      - .venv/bin/dramatiq evidentia.ingestion.dramatiq_actors --processes 1 --threads 2
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-evidentia}:${POSTGRES_PASSWORD:-evidentia}@postgres:5432/${POSTGRES_DB:-evidentia}
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+      TOGETHER_API_KEY: ${TOGETHER_API_KEY:-}
+      TVN_RSS_URL: ${TVN_RSS_URL:-}
+      USE_SEED_SNAPSHOT: ${USE_SEED_SNAPSHOT:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    volumes:
+      - ./data:/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      NUXT_BACKEND_URL: http://backend:8000
+      NITRO_PORT: 3000
+      NITRO_HOST: 0.0.0.0
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  proxy:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.proxy
+    ports:
+      - "8080:8080"
+      - "8001:8001"
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:8001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  redis_data:
