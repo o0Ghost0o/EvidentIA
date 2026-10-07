@@ -25,8 +25,18 @@ sys.path.insert(0, str(ROOT / "backend" / "src"))
 from evidentia.ingestion import fetchers, manifest as manifest_mod, validators  # noqa: E402
 from evidentia.ingestion.pipeline import INDICATOR_FIELDS, NEWS_FIELDS  # noqa: E402
 
-SEED_NEWS_MAX = 60
+SEED_NEWS_MAX = 150
 SEED_EVENTS_MAX = 100
+
+
+def _round_robin(*sources: list[dict]) -> list[dict]:
+    """Interleave per-source lists so a later cap keeps every outlet present."""
+    from itertools import zip_longest
+
+    merged: list[dict] = []
+    for tier in zip_longest(*sources):
+        merged.extend(row for row in tier if row is not None)
+    return merged
 
 
 def _load_existing_csv(path: Path) -> list[dict]:
@@ -58,43 +68,57 @@ def _load_existing_geojson(path: Path) -> list[dict]:
 def main(only: set[str] | None = None) -> None:
     seed_dir = ROOT / "data" / "seed"
     seed_dir.mkdir(parents=True, exist_ok=True)
-    only = only or {"gdelt", "tvn", "worldbank", "usgs"}
+    only = only or {"tvn", "panama", "worldbank", "usgs"}
     # Merge mode: existing seed rows are always preloaded; freshly fetched rows
-    # go first so validators (dedup keeps first) prefer them. TVN is capped so
-    # GDELT diversity survives the 60-row seed cap.
-    want_news = bool({"gdelt", "tvn"} & only)
+    # go first so validators (dedup keeps first) prefer them. News sources are
+    # round-robin interleaved so the seed cap keeps every outlet represented.
+    # GDELT is not fetched by default (persistent HTTP 429); its recipe is kept
+    # in the manifest as metadata, never its content.
+    want_news = bool({"gdelt", "tvn", "panama"} & only)
     existing_news = _load_existing_csv(seed_dir / "noticias.csv")
     news_raw: list[dict] = existing_news if not want_news else []
     ind_raw: list[dict] = _load_existing_csv(seed_dir / "indicadores.csv")
     evt_raw: list[dict] = _load_existing_geojson(seed_dir / "eventos.geojson")
 
     failures: list[str] = []
-    if want_news:  # news family = TVN RSS + GDELT, flagged independently
-        combined: list[dict] = []
+    if want_news:  # news family = TVN RSS + Panamanian press (+ optional GDELT)
+        tvn_rows: list[dict] = []
+        panama_by_source: dict[str, list[dict]] = {}
+        gdelt_rows: list[dict] = []
         if "tvn" not in only:
             print("Skipping TVN RSS (not in --only).")
         else:
             try:
-                print("Fetching TVN RSS…")
+                print("Fetching TVN RSS (90-day window)…")
                 tvn_rows = fetchers.fetch_tvn_news(
                     os.environ.get("TVN_RSS_URL", "https://www.tvn-2.com/rss")
                 )
-                combined.extend(tvn_rows[:40])
-                print(f"  {len(tvn_rows)} entries (kept {min(len(tvn_rows), 40)})")
+                print(f"  {len(tvn_rows)} entries")
             except Exception as exc:
                 failures.append(f"tvn: {exc}")
                 print(f"  FAILED: {exc}")
-        if "gdelt" not in only:
-            print("Skipping GDELT (not in --only).")
+        if "panama" not in only:
+            print("Skipping Panamanian feeds (not in --only).")
         else:
+            for feed in fetchers.PANAMA_FEEDS:
+                try:
+                    print(f"Fetching {feed['medio']} RSS (90-day window)…")
+                    rows = fetchers.fetch_panama_news([feed])
+                    panama_by_source[feed["origen"]] = rows
+                    print(f"  {len(rows)} entries")
+                except Exception as exc:
+                    failures.append(f"{feed['origen']}: {exc}")
+                    print(f"  FAILED: {exc}")
+        if "gdelt" in only:  # opt-in only; off by default due to HTTP 429
             try:
                 print("Fetching GDELT…")
                 gdelt_rows = fetchers.fetch_gdelt_news()
-                combined.extend(gdelt_rows)
                 print(f"  {len(gdelt_rows)} hits")
             except Exception as exc:
                 failures.append(f"gdelt: {exc}")
                 print(f"  FAILED: {exc}")
+        # Interleave sources so the seed cap keeps every outlet represented.
+        combined = _round_robin(tvn_rows, *panama_by_source.values(), gdelt_rows)
         news_raw = (combined + existing_news) if combined else existing_news
         if not combined:
             print(f"  (kept {len(news_raw)} existing)")
@@ -180,7 +204,17 @@ def main(only: set[str] | None = None) -> None:
         "eventos.geojson": len(events),
     }
     queries = {
-        "gdelt": {"queries": fetchers.gdelt.GDELT_QUERIES},
+        "tvn": {"url": "https://www.tvn-2.com/rss", "window_days": 90},
+        "panama": {
+            "feeds": [
+                {"medio": f["medio"], "url": f["url"]} for f in fetchers.PANAMA_FEEDS
+            ],
+            "window_days": 90,
+        },
+        "gdelt": {
+            "queries": fetchers.gdelt.GDELT_QUERIES,
+            "status": "no utilizado — HTTP 429 persistente; receta conservada sin contenido",
+        },
         "worldbank": {"countries": fetchers.worldbank.COUNTRIES},
         "usgs": {"box": "lat 5–12, lon -86–-76, 2024, mag>=3"},
     }
@@ -191,6 +225,8 @@ def main(only: set[str] | None = None) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--only", nargs="*", choices=["gdelt", "tvn", "worldbank", "usgs"])
+    parser.add_argument(
+        "--only", nargs="*", choices=["gdelt", "tvn", "panama", "worldbank", "usgs"]
+    )
     args = parser.parse_args()
     main(set(args.only) if args.only else None)
