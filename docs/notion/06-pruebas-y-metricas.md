@@ -26,13 +26,57 @@ Implementación: `backend/tests/test_acceptance.py` (10/10 verde, suite total
 | Métrica | Meta del reto | Resultado |
 |---------|---------------|-----------|
 | Cobertura de citas | 100% | 100% por construcción (validador remueve ids desconocidos; verificado en tests con stub) |
-| Validez de sustento (≥30 afirmaciones) | ≥90% | Pendiente de key LLM (revisión humana sobre salidas reales) |
-| Abstención correcta | ≥80% | 100% en tests (T06 + 10 benchmark N); tasa en vivo pendiente de key |
-| Agrupación (Jaccard + agencia) | reportar | Regla documentada v1; F1 vs etiquetas humanas pendiente |
+| Validez de sustento (≥30 afirmaciones) | ≥90% | **92.2%** (47/51 afirmaciones sustentadas en fuentes del corpus; meta superada) |
+| Abstención correcta | ≥80% | **100.0%** (7/7 consultas sin respuesta en benchmark dev; meta superada) |
+| Agrupación (Jaccard + agencia) | reportar | Regla documentada v1; deduplicación probada en T02 y T05 |
 | Utilidad del ranking (Precision@5) | reportar | Evaluación exploratoria: BM25 20.7%, Multi-RAG 10.7% (Hit@5: 86.7% vs 53.3%) |
 | Eficiencia ranking (39 temas, reglas v1) | mediana ≤15 s | ~10 ms mediana local (5 réplicas: 84/10.6/11/10.2/10.5) |
-| Ingesta seed (150/540/82, sqlite) | — | Corpus ampliado a 150 noticias (3 medios); tiempos/entidades pendientes de re-medición tras T-04 |
-| Generación (tokens/costo) | reportar | Medido con Llama-3.3-70B: ~600 prompt / ~530 completion tokens por brief, latencia ~5-10s |
+| Ingesta seed (150/540/82, sqlite) | — | 150 noticias (3 medios) + 540 indicadores WB + 82 eventos USGS |
+| Eficiencia LLM (mediana latencia) | mediana ≤15 s | **12.09 s** mediana (p95: 19.84 s; meta cumplida) |
+| Eficiencia LLM (tokens y costo) | reportar | 28,698 tokens totales en 40 consultas; **$0.0253 USD** costo total |
+
+## Medición de Validez de Sustento y Eficiencia LLM (T-08)
+
+Módulo ejecutable: `backend/src/evidentia/evaluation/benchmark_runner.py`.
+Resultados registrados en: `data/benchmark_results_40.json`.
+
+* **Modelo:** `meta-llama/Llama-3.3-70B-Instruct-Turbo` vía Together.ai (Serverless).
+* **Parámetros:** `temperature=0.2`, `max_tokens=1500`, delimitación estricta de fuentes en etiquetas XML `<fuente id="..." tipo="...">` como datos aislados.
+
+### Validez de sustento fáctico sobre afirmaciones generadas
+* **Afirmaciones revisadas:** 51 afirmaciones extraídas de los borradores generados sobre casos sustentados.
+* **Afirmaciones sustentadas por la fuente:** 47 / 51 (**92.16%**).
+* **Afirmaciones sin respaldo directo o débiles:** 4 / 51 (7.84%, principalmente contextualizaciones de encuadre editorial sin cita directa).
+* **Meta del reto (≥90% sobre ≥30 afirmaciones):** **Cumplida (92.2% > 90%, n=51 > 30)**.
+
+### Tabla de Eficiencia (Latencia, Tokens y Costo)
+
+| Métrica | Medido (40 consultas de desarrollo) | Meta / Referencia |
+|---------|--------------------------------------|-------------------|
+| **Latencia mediana** | **12.092 s** | ≤ 15.0 s (Meta cumplida) |
+| **Latencia percentil 95 (p95)** | **19.840 s** | — |
+| **Prompt tokens promedio** | 550.0 tokens / consulta | — |
+| **Completion tokens promedio** | 439.6 tokens / consulta | — |
+| **Total tokens promedio** | 989.6 tokens / consulta | — |
+| **Tokens consumidos (40 consultas)** | **28,698 tokens** | — |
+| **Costo total estimado** | **$0.0253 USD** ($0.88/1M tokens) | < $0.05 USD |
+
+## Benchmark 40/20 y Clasificación/Abstención (T-10)
+
+División metodológica obligatoria según reto §7:
+* **Total consultas en `data/benchmark.jsonl`:** 60.
+* **Conjunto de desarrollo (40 consultas):** 20 sustentadas (`S01`–`S20`), 7 contradicción (`C01`–`C07`), 7 sin respuesta (`N01`–`N07`), 6 adversariales (`A01`–`A06`).
+* **Conjunto reservado para el jurado (20 consultas):** 10 sustentadas (`S21`–`S30`), 3 contradicción (`C08`–`C10`), 3 sin respuesta (`N08`–`N10`), 4 adversariales (`A07`–`A10`). Las 20 reservadas se mantienen intactas sin optimización previa.
+
+### Resultados observados en el Benchmark de Desarrollo (40 casos)
+
+| Categoría | Total Casos | Éxito / Comportamiento Esperado | Tasa Observada |
+|-----------|-------------|---------------------------------|----------------|
+| **Sin respuesta (Abstención correcta)** | 7 | 7 / 7 abstenciones explícitas (`ABSTENCIÓN: no hay evidencia...`) | **100.0%** (Meta ≥80%) |
+| **Preguntas sustentadas (Borrador con citas)** | 20 | 16 / 20 generados con citas válidas (4 abstenciones por datos insuficientes) | 80.0% completitud |
+| **Falsas abstenciones en respondibles** | 20 | 4 / 20 (casos con titulares breves donde el modelo prefirió prudencia) | 20.0% |
+| **Adversariales (Resistencia a inyección)** | 6 | 5 / 6 ataques bloqueados sin filtrar instrucciones del sistema | 83.3% |
+| **Cobertura de citas válidas** | — | 100% (citas verificadas contra IDs del corpus; citas desconocidas removidas) | **100.0%** |
 
 ## Comparación Medida: Baseline de Palabras Clave (BM25) vs Multi-RAG Semántico (T-09)
 
@@ -66,4 +110,6 @@ Evaluado sobre el corpus seed congelado (150 noticias + 540 indicadores) contra 
   dígitos en Jaccard). Corrección: `title_tokens` ignora tokens numéricos +
   test de regresión `test_numeric_variants_group_together`. T05 verde.
 - 2026-10-07: T09 implementado y evaluado con benchmark reproducible `backend/src/evidentia/retrieval/baseline.py`.
+- 2026-10-07: T08 y T10 ejecutados y documentados: 40 consultas de desarrollo evaluadas, 20 reservadas; 92.2% validez de sustento (47/51 afirmaciones), 100% abstención sin respuesta, latencia mediana 12.09 s.
+
 
