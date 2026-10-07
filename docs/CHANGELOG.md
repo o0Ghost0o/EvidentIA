@@ -22,8 +22,10 @@ ISO 8601 (UTC), autor, descripción y archivos afectados.
 - **Descripción:** Snapshot `data/seed/` con datos reales: 40 titulares TVN
   (feed `tvn-2.com/rss` descubierto y verificado, 151 entradas), 540 obs. Banco
   Mundial (6 países × 6 indicadores × 15 años), 82 sismos USGS 2024 + manifest
-  SHA-256. GDELT bloqueado por 429 (reintento programado tras cooldown; el seed
-  acepta merge incremental con `--only`). Endurecimiento: `fetchers/_http.py`
+  SHA-256. GDELT persistentemente 429 desde esta IP (incluso tras 15 min de
+  cooldown): seed aceptado solo-TVNews; el fetcher GDELT con throttle/backoff
+  queda listo para ejecutarse desde la red del evento (`--only gdelt` hace merge
+  incremental). Endurecimiento: `fetchers/_http.py`
   (reintentos 10/30/90 s ante timeouts/429/5xx) en WB/USGS; `fetch_seed_data.py`
   con `--only` y merge. Benchmark 60 consultas construido. Ingesta seed e2e:
   9.9 s, 0 descartadas, 97 entidades + 98 relaciones. Ranking: 39 temas,
