@@ -24,6 +24,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -33,6 +34,7 @@ services:
       nofile:
         soft: 524288
         hard: 524288
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -43,23 +45,24 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    expose:
+      - "8000"
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-evidentia}:${POSTGRES_PASSWORD:-evidentia}@postgres:5432/${POSTGRES_DB:-evidentia}
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
       TOGETHER_API_KEY: ${TOGETHER_API_KEY:-}
-      TVN_RSS_URL: ${TVN_RSS_URL:-}
+      TVN_RSS_URL: ${TVN_RSS_URL:-https://www.tvn-2.com/rss}
       TOGETHER_BASE_URL: ${TOGETHER_BASE_URL:-https://api.together.xyz/v1}
       LLM_MODEL: ${LLM_MODEL:-zai-org/GLM-5.3}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-base-en-v1.5}
       USE_SEED_SNAPSHOT: ${USE_SEED_SNAPSHOT:-false}
-    ports:
-      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,6 +78,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    restart: unless-stopped
 
   worker:
     build:
@@ -89,7 +93,7 @@ services:
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
       TOGETHER_API_KEY: ${TOGETHER_API_KEY:-}
-      TVN_RSS_URL: ${TVN_RSS_URL:-}
+      TVN_RSS_URL: ${TVN_RSS_URL:-https://www.tvn-2.com/rss}
       USE_SEED_SNAPSHOT: ${USE_SEED_SNAPSHOT:-false}
     depends_on:
       postgres:
@@ -100,11 +104,14 @@ services:
         condition: service_started
     volumes:
       - ./data:/app/data
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    expose:
+      - "3000"
     environment:
       NUXT_BACKEND_URL: http://backend:8000
       NITRO_PORT: 3000
@@ -118,8 +125,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+    restart: unless-stopped
 
   proxy:
+    profiles:
+      - local
     build:
       context: ./docker
       dockerfile: Dockerfile.proxy

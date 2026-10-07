@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from evidentia.api.cases import router as cases_router
 from evidentia.api.evidence import router as evidence_router
@@ -61,6 +62,13 @@ def create_app() -> FastAPI:
         description="Copiloto de entorno y verificación trazable — hackIAthon Panamá, reto TVN Media.",
         version="0.1.0",
         lifespan=lifespan,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.include_router(health_router)
     app.include_router(ingest_router)
