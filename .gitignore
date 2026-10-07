@@ -27,3 +27,6 @@ frontend/dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Qdrant local-mode artifacts
+*.ses
