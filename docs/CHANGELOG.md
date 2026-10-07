@@ -15,6 +15,22 @@ ISO 8601 (UTC), autor, descripción y archivos afectados.
 
 ## Entradas
 
+### [2026-10-07T22:08:00Z] [CPS-91] [T-22] Migración total de Docker frontend y toolchain a Bun
+
+- **Autor:** Pedro Carreras / AI
+- **Roadmap:** Fase 5, tarea 5.6 (Estandarización de Toolchain y Optimización de Builds)
+- **Descripción:** Se migró el frontend Dockerfile a multi-stage con `oven/bun:1-alpine`
+  utilizando `bun install --frozen-lockfile` con `bun.lock`, eliminando de raíz `npm ci`
+  y reduciendo los tiempos de compilación de varios minutos a ~5 segundos. Se eliminó
+  `package-lock.json` (425 KB) del repositorio, se agregó a `.gitignore` y se actualizaron
+  las instrucciones de `Makefile` para invocar exclusivamente `bun install` y `bun run dev`.
+- **Archivos:**
+  - `frontend/Dockerfile`
+  - `frontend/package-lock.json` (eliminado)
+  - `Makefile`
+  - `.gitignore`
+  - `docs/CHANGELOG.md`
+
 ### [2026-10-07T00:00:00Z] Snapshot seed real + casos + métricas (2.7, 6.3–6.4, 7.5–7.6)
 
 - **Autor:** AI

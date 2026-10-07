@@ -6,7 +6,7 @@ help: ## Show targets
 setup: ## Copy env template, install deps and configure git hooks
 	cp -n .env.example .env || true
 	cd backend && uv sync
-	cd frontend && bun install || npm install
+	cd frontend && bun install
 	git config core.hooksPath .githooks
 	chmod +x .githooks/*
 
@@ -19,7 +19,7 @@ dev: ## Start infra in Docker; backend/frontend run locally (see output)
 	docker compose up -d postgres qdrant redis
 	@echo "Infra up. In two shells:"
 	@echo "  cd backend && uv run uvicorn evidentia.main:app --reload --port 8000"
-	@echo "  cd frontend && npm run dev   # http://localhost:3000"
+	@echo "  cd frontend && bun run dev   # http://localhost:3000"
 
 test: ## Backend test suite
 	cd backend && uv run pytest
