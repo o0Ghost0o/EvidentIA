@@ -99,3 +99,37 @@ def test_parent_docstore_roundtrip(mem_client) -> None:
     assert fetched[0] is not None
     assert fetched[0].metadata["url"] == "https://example.com/a"
     assert list(store.yield_keys(prefix="news:")) == [parent.metadata["parent_id"]]
+
+
+def test_bm25_baseline_index_and_search() -> None:
+    from evidentia.retrieval.baseline import BM25Index, tokenize
+
+    tokens = tokenize("¿Qué se reporta sobre el Canal de Panamá?")
+    assert "canal" in tokens
+    assert "panamá" in tokens
+    assert "de" not in tokens  # stopword removed
+
+    index = BM25Index()
+    docs = [
+        {"id": "doc1", "text": "Canal de Panamá anuncia aumento de calado"},
+        {"id": "doc2", "text": "Presupuesto de la nación aprobado por la Asamblea"},
+        {"id": "doc3", "text": "Turismo en las playas de Bocas del Toro"},
+    ]
+    index.index(docs)
+    results = index.search("aumento de calado en el Canal", top_k=2)
+    assert len(results) >= 1
+    assert results[0][0].doc_id == "doc1"
+    assert results[0][1] > 0.0
+
+
+def test_baseline_benchmark_evaluation_contract() -> None:
+    from evidentia.retrieval.baseline import evaluate_benchmark
+
+    res = evaluate_benchmark(benchmark_path="data/benchmark.jsonl", seed_dir="data/seed", top_k=5)
+    assert res["benchmark_total_queries"] == 60
+    assert res["sustentadas_count"] == 30
+    assert res["bm25"]["hit_at_5"] > 0.8
+    assert res["semantic_multirag"]["abstention_rate"] == 1.0
+    assert "donde_mejora_ia" in res["conclusions"]
+    assert "donde_no_aporta_ia" in res["conclusions"]
+
