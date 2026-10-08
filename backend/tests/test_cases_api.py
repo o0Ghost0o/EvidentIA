@@ -35,13 +35,28 @@ def _seed_news() -> None:
         session.commit()
 
 
-def test_ranking_orders_and_explains() -> None:
+def _auth_client(app=None) -> TestClient:
+    from evidentia.auth.dependencies import get_current_user
+    app = app or create_app()
+    admin = models.User(id=1, email="admin@vertexdc.com", nombre="Admin", role="Super Admin", org_id="VERTEXdc", is_active=True, hashed_password="")
+    app.dependency_overrides[get_current_user] = lambda: admin
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_unauthenticated_requests_are_blocked() -> None:
     _seed_news()
     client = TestClient(create_app(), raise_server_exceptions=False)
+    assert client.get("/ranking").status_code == 401
+    assert client.post("/cases", json={"titulo": "Test"}).status_code == 401
+
+
+def test_ranking_orders_and_explains() -> None:
+    _seed_news()
+    client = _auth_client()
     resp = client.get("/ranking", params={"modalidad": "tvn"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["rules_version"] == "v1"
+    assert body["rules_version"] == "v1.2"
     assert body["count"] == 2  # one group + one singleton
     first, second = body["items"]
     assert first["id"] == "evt-1"  # Panama+theme outranks off-topic
@@ -53,7 +68,7 @@ def test_ranking_orders_and_explains() -> None:
 
 def test_case_lifecycle_evidence_notes_tree() -> None:
     _seed_news()
-    client = TestClient(create_app(), raise_server_exceptions=False)
+    client = _auth_client()
 
     resp = client.post("/cases", json={"titulo": "Caso Canal", "modalidad": "tvn"})
     assert resp.status_code == 201, resp.text
@@ -103,9 +118,13 @@ def test_case_lifecycle_evidence_notes_tree() -> None:
     assert resp.json()["root"] == {"tipo": "news", "id": "g1"}
 
 
-def test_brief_abstains_without_key_and_renders_markdown() -> None:
+def test_brief_abstains_without_key_and_renders_markdown(monkeypatch) -> None:
+    monkeypatch.setenv("TOGETHER_API_KEY", "")
+    from evidentia.config import reset_settings
+
+    reset_settings()
     _seed_news()
-    client = TestClient(create_app(), raise_server_exceptions=False)
+    client = _auth_client()
     case_id = client.post("/cases", json={"titulo": "Caso Canal"}).json()["id"]
     client.post(f"/cases/{case_id}/evidence", json={
         "fuente_tipo": "news", "fuente_id": "g1",

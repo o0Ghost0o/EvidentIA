@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # the rest of the system keeps working on the local snapshot.
     together_api_key: str = ""
     together_base_url: str = "https://api.together.xyz/v1"
-    llm_model: str = "zai-org/GLM-5.3"
+    llm_model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
     # Local embedding model (fastembed/ONNX, no API key required)
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dimensions: int = 768
@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # When true (or when fetchers have no connectivity), ingestion uses the
     # frozen snapshot under seed_dir instead of live APIs.
     use_seed_snapshot: bool = False
+    # Auto-ingestion background scheduler (Pitch mode)
+    auto_ingest_enabled: bool = False
+    auto_ingest_interval_minutes: int = 15
 
     # ── Ingestion chunking ───────────────────────────────────────────────────
     ingestion_chunk_size: int = 1000  # chars for child text chunks
@@ -79,7 +82,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15  # 15 minutes
     refresh_token_expire_days: int = 7     # 7 days
     admin_email: str = "admin@vertexdc.com"
-    admin_password: str = "EvidentIA2026!"
+    admin_password: str = "Vtx-Dev-EvidentIA#2026!7x"
     admin_initial_name: str = "Pedro Carreras"
     admin_initial_role: str = "Super Admin"
     admin_initial_org: str = "VERTEXdc"

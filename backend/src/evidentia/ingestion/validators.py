@@ -175,3 +175,38 @@ def validate_events(rows: list[dict]) -> ValidationResult:
                     clean[numeric] = None
         result.valid.append(clean)
     return result
+
+
+def validate_fichas(rows: list[dict]) -> ValidationResult:
+    result = ValidationResult()
+    seen_ids: set[str] = set()
+    for i, row in enumerate(rows):
+        id_caso = (row.get("id_caso") or "").strip()
+        modalidad = (row.get("modalidad") or "").strip().lower()
+        if not id_caso or modalidad not in ("tvn", "banca"):
+            result.dropped += 1
+            result.errors.append({"row": i, "reason": "missing id_caso or invalid modalidad"})
+            continue
+        if id_caso in seen_ids:
+            result.dropped += 1
+            result.errors.append({"row": i, "reason": "duplicate id_caso", "id_caso": id_caso})
+            continue
+        seen_ids.add(id_caso)
+        clean = dict(row)
+        clean["id_caso"] = id_caso
+        clean["modalidad"] = modalidad
+        clean["ids_fuente"] = list(row.get("ids_fuente") or [])
+        clean["afirmaciones"] = list(row.get("afirmaciones") or [])
+        clean["citas"] = list(row.get("citas") or [])
+        try:
+            clean["puntaje"] = float(row.get("puntaje", 0.0))
+        except (TypeError, ValueError):
+            clean["puntaje"] = 0.0
+            result.errors.append({"row": i, "reason": "invalid puntaje, defaulted to 0.0"})
+        clean["componentes"] = dict(row.get("componentes") or {})
+        clean["estado_evidencia"] = str(row.get("estado_evidencia") or "insuficiente")
+        clean["borrador"] = str(row.get("borrador") or "")
+        clean["estado_revision"] = str(row.get("estado_revision") or "nuevo")
+        result.valid.append(clean)
+    return result
+

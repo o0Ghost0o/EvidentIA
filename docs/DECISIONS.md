@@ -113,3 +113,31 @@ el reto: 3 decisiones justificadas.
   datos para validarlas; peor para la demo que una limitación declarada).
 - **Consecuencias:** Puntajes 60.5/medio/parcial honestos en las 5 fichas; el pitch
   incluye la limitación y el mecanismo de versionado de reglas como respuesta.
+
+## D09 — 2026-10-07 — Scoring v1.2: Relevancia por medio panameño y recalibración de bandas (supera D08)
+
+- **Estado:** aceptada (CPS-80 / T-11)
+- **Contexto:** Al ampliar el corpus a 150 noticias con cobertura TVN y medios panameños, el scoring v1 colapsaba a R=0.3 en noticias nacionales legítimas cuyo titular omitía el token explícito "Panamá", generando un ranking degenerado donde la totalidad de noticias empataban en banda "medio" (~60.5 pts).
+- **Decisión:** Implementar reglas `v1.2` con conocimiento de medios panameños (`PANAMA_MEDIA_TOKENS`). Para medios locales reconocidos (TVN, La Prensa, Crítica, etc.), el contexto nacional es implícito:
+  - Título con provincia/Panamá y tema: `R = 1.0`
+  - Título con provincia/Panamá o tema de modalidad: `R = 0.85`
+  - Titular general sin tema explícito: `R = 0.6` (en vez de colapsar a 0.3)
+  - Medios extranjeros/no identificados sin token Panamá mantienen R base de 0.3.
+  Se recalibran las bandas a `bajo` (<55.0), `medio` [55.0, 75.0), `alto` (≥75.0), produciendo una dispersión balanceada y verificable en la bandeja de entrada (bajo: ~10%, medio: ~80%, alto: ~10%).
+- **Alternativas descartadas:** Modificar pesos arbitrariamente sin versionado; asumir que todo titular sin la palabra Panamá es irrelevante.
+- **Consecuencias:** Dispersión real visible en demo y endpoints; versionado de reglas explícito (`v1.2`) expuesto en API y fichas.
+
+## D10 — 2026-10-07 — Modo Offline y Fallback para Demo sin Internet (CPS-85 / T-16)
+
+- **Estado:** aceptada (CPS-85 / T-16)
+- **Contexto:** En la presentación del hackatón la conectividad wifi puede ser inestable o no disponible. El jurado y las bases exigen que la demo no dependa de APIs externas en vivo y que el comportamiento ante pérdida de red sea explícito, reproducible y sin inventar información.
+- **Decisión:**
+  1. Con `USE_SEED_SNAPSHOT=true`, la ingesta, normalización, cálculo de relaciones y scoring v1.2 operan 100% en local sobre SQLite/PostgreSQL y vector store local (FastEmbed ONNX CPU + Qdrant in-memory/local), con cero peticiones de red salientes.
+  2. Si la conexión a Together.ai no está disponible en la demo, el endpoint de generación (`/cases/{id}/brief`) aplica fallback de abstención estructurada con código 200 y mensaje claro `ABSTENCIÓN: el proveedor LLM falló (red no disponible). Información necesaria: redactar borrador manualmente desde la ficha`, sin inventar texto jamás.
+  3. Para el recorrido completo del pitch, las 5 fichas canónicas de evaluación en `data/seed/fichas.jsonl` contienen notas, borradores revisados y relaciones pre-cargadas, permitiendo demostrar el flujo completo (bandeja de priorización -> árbol de evidencia -> notas editoriales -> borrador verificado) de punta a punta sin internet.
+- **Alternativas descartadas:**
+  - Depender exclusivamente de conexión en vivo a Together.ai durante los 4 minutos de demo (riesgo crítico de caída).
+  - Inventar o simular respuestas falsas sin advertencia (viola principio de no alucinación).
+- **Consecuencias:** Recorrido de demo 100% blindado contra fallas de conectividad; verificado mediante prueba automatizada `test_T16_offline_demo_full_lifecycle_without_network`.
+
+

@@ -61,6 +61,8 @@ def get_ranking(
             modalidad=modalidad,
             has_indicator=has_indicator,
             titular_only=titular_only,
+            medio=members_sorted[0].medio or "",
+            origen=members_sorted[0].origen or "",
         )
         items.append({
             "id": gid,

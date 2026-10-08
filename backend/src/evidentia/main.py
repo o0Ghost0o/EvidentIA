@@ -15,7 +15,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from evidentia.api.auth import router as auth_router
@@ -24,6 +24,7 @@ from evidentia.api.evidence import router as evidence_router
 from evidentia.api.health import router as health_router
 from evidentia.api.ingest import router as ingest_router
 from evidentia.api.ranking import router as ranking_router
+from evidentia.auth.dependencies import get_current_user
 from evidentia.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.qdrant_client = None
         logger.error("Qdrant initialisation failed (degraded mode): %s", exc)
 
+    # Start auto-ingest background scheduler
+    from evidentia.ingestion.scheduler import scheduler
+
+    scheduler.start()
+
     yield
+
+    # Clean shutdown
+    await scheduler.stop()
 
 
 def create_app() -> FastAPI:
@@ -77,10 +86,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(health_router)
     app.include_router(auth_router)
-    app.include_router(ingest_router)
-    app.include_router(ranking_router)
-    app.include_router(cases_router)
-    app.include_router(evidence_router)
+    app.include_router(ingest_router, dependencies=[Depends(get_current_user)])
+    app.include_router(ranking_router, dependencies=[Depends(get_current_user)])
+    app.include_router(cases_router, dependencies=[Depends(get_current_user)])
+    app.include_router(evidence_router, dependencies=[Depends(get_current_user)])
     return app
 
 

@@ -9,9 +9,8 @@ import { useAuth } from "~/composables/useAuth";
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ (e: "update:modelValue", val: boolean): void }>();
 
-const auth = useAuth();
-const email = ref("admin@vertexdc.com");
-const password = ref("EvidentIA2026!");
+const email = ref("");
+const password = ref("");
 const error = ref("");
 const successMsg = ref("");
 const loading = ref(false);
@@ -51,11 +50,6 @@ async function handleRefresh() {
 async function handleLogout() {
   await auth.logout();
   successMsg.value = "Sesión cerrada.";
-}
-
-function fillSecretsAdmin() {
-  email.value = "admin@vertexdc.com";
-  password.value = "EvidentIA2026!";
 }
 
 function close() {
@@ -164,18 +158,10 @@ function close() {
               {{ successMsg }}
             </p>
 
-            <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+            <div class="flex items-center justify-end gap-2 pt-2">
               <Button size="sm" :disabled="loading" @click="handleLogin">
                 {{ loading ? "Ingresando…" : "Iniciar Sesión" }}
               </Button>
-
-              <button
-                type="button"
-                class="text-[11px] text-muted-foreground hover:text-foreground underline"
-                @click="fillSecretsAdmin"
-              >
-                Cargar secretos por defecto
-              </button>
             </div>
           </div>
         </div>

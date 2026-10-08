@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import AuthModal from "~/components/AuthModal.vue";
 import { useAuth } from "~/composables/useAuth";
 
+const route = useRoute();
 const auth = useAuth();
 const route = useRoute();
 const showAuthModal = ref(false);

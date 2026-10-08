@@ -22,6 +22,10 @@ frontend/node_modules/
 frontend/.nuxt/
 frontend/.output/
 frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+package-lock.json
+yarn.lock
 
 # OS / editors
 .DS_Store
