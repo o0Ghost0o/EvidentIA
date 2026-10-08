@@ -186,6 +186,8 @@ def run_ingestion(
     settings = get_settings()
     data_dir = Path(data_dir or settings.data_dir)
     seed_dir = Path(seed_dir or settings.seed_dir)
+    if not seed_dir.exists() and (Path("backend") / seed_dir).exists():
+        seed_dir = Path("backend") / seed_dir
     processed = data_dir / "processed"
     processed.mkdir(parents=True, exist_ok=True)
 

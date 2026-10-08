@@ -31,10 +31,12 @@ const props = withDefaults(
     tree: EvidenceTreeData | null;
     depth?: number;
     loading?: boolean;
+    initialMode?: "tree" | "graph";
   }>(),
   {
     depth: 5,
     loading: false,
+    initialMode: "tree",
   }
 );
 
@@ -44,7 +46,7 @@ const emit = defineEmits<{
 }>();
 
 // Visual mode: 'tree' (hierarchical list) vs 'graph' (interactive force-directed GraphRAG)
-const viewMode = ref<"tree" | "graph">("tree");
+const viewMode = ref<"tree" | "graph">(props.initialMode || "tree");
 
 // Depth level state (default 5 levels per specification)
 const selectedDepth = ref(props.depth || 5);

@@ -50,6 +50,9 @@ const treeLoading = ref(false);
 
 // Default hierarchy depth: 5 levels
 const currentDepth = ref(5);
+const initialTreeMode = ref<"tree" | "graph">(
+  (route.query.view === "graph" || route.query.mode === "graph") ? "graph" : "tree"
+);
 
 const evTipo = ref("news");
 const evId = ref("");
@@ -199,6 +202,17 @@ onMounted(refresh);
         </div>
 
         <div class="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            @click="initialTreeMode = initialTreeMode === 'graph' ? 'tree' : 'graph'"
+          >
+            <svg class="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>{{ initialTreeMode === 'graph' ? 'Ver como Árbol' : 'Ver Grafo Dinámico' }}</span>
+          </Button>
           <Button variant="outline" size="sm" @click="downloadMarkdown">
             Exportar Ficha (.md)
           </Button>
@@ -233,9 +247,11 @@ onMounted(refresh);
 
     <!-- Hierarchical Evidence Tree (5 default levels with user controls) -->
     <EvidenceTree
+      :key="initialTreeMode"
       :tree="tree"
       :depth="currentDepth"
       :loading="treeLoading"
+      :initial-mode="initialTreeMode"
       @change-depth="onDepthChange"
     />
 

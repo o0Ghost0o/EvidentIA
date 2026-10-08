@@ -112,7 +112,7 @@ export const NODES: Record<string, ChainNodeData> = {
 };
 
 // Relation of each provenance to its source (design D[p].r).
-const PROV_REL: Record<string, string> = {
+export const PROV_REL: Record<string, string> = {
   "aip-2209-114": "Contexto", "ere-gaceta": "Corrobora", "ine-ipc": "Corrobora", "oen-cons": "Corrobora",
   "atl-entrevista": "Contexto", "disca-com": "Corrobora", "corr-colon": "Contexto", "ccc-com": "Contexto",
 };

@@ -1,8 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
+import Badge from "~/components/ui/Badge.vue";
+import Card from "~/components/ui/Card.vue";
 import { Alert, AlertDescription } from "~/components/ui/alert";
-import { deriveEvidence } from "~/lib/leadEvidence";
+import ForceGraph, { type GraphNode, type GraphLink } from "~/components/ForceGraph.vue";
+import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
+import {
+  deriveEvidence,
+  CLAIM,
+  PROVENANCE,
+  PROV_REL,
+  SUB,
+  NODES,
+  CATALOG,
+} from "~/lib/leadEvidence";
 
 // Step 4 "Ficha" of the new-lead workspace. The ficha is composed only from what
 // has been linked: "Qué falta" matters as much as what is there. Confirming the
@@ -85,6 +97,99 @@ function confirm() {
 
 // The ficha is built from the linked set: if that set changes after a
 // confirmation, the ficha no longer reflects the evidence and must be re-confirmed.
+// Interactive Graph state & computation for the Ficha
+const showGraph = ref(true);
+const modalOpen = ref(false);
+const inspectedNode = ref<{ tipo: string; id: string } | null>(null);
+
+function onGraphNodeClick(node: GraphNode) {
+  let tipo = node.tipo || "news";
+  if (tipo === "caso") tipo = "case";
+  else if (tipo === "noticia") tipo = "news";
+  else if (tipo === "indicador") tipo = "indicator";
+  else if (tipo === "evento") tipo = "event";
+  else if (tipo === "entidad" || tipo === "procedencia" || tipo === "correlación") tipo = "entity";
+
+  inspectedNode.value = { tipo, id: node.id };
+  modalOpen.value = true;
+}
+
+const fichaGraph = computed(() => {
+  const nodesMap = new Map<string, GraphNode>();
+  const links: GraphLink[] = [];
+  const addedLinks = new Set<string>();
+
+  const rootId = "lead-claim";
+  nodesMap.set(rootId, {
+    id: rootId,
+    label: CLAIM,
+    tipo: "caso",
+  });
+
+  const linked = derived.value.linked;
+  for (const src of linked) {
+    nodesMap.set(src.id, {
+      id: src.id,
+      label: src.title,
+      tipo: src.type.toLowerCase(),
+    });
+
+    const linkKey1 = `${rootId}->${src.id}`;
+    if (!addedLinks.has(linkKey1)) {
+      links.push({ source: rootId, target: src.id, tipo: src.rel });
+      addedLinks.add(linkKey1);
+    }
+
+    const provId = src.p;
+    const prov = PROVENANCE[provId];
+    if (prov) {
+      nodesMap.set(provId, {
+        id: provId,
+        label: prov.t,
+        tipo: "procedencia",
+      });
+      const linkKey2 = `${src.id}->${provId}`;
+      if (!addedLinks.has(linkKey2)) {
+        links.push({ source: src.id, target: provId, tipo: PROV_REL[provId] || "Contexto" });
+        addedLinks.add(linkKey2);
+      }
+
+      const walk = (entries: any[], parentId: string) => {
+        for (const [subId, subRel, kids] of entries) {
+          const nodeInfo =
+            NODES[subId] ||
+            (CATALOG.find((c) => c.id === subId)
+              ? { k: "noticia", t: CATALOG.find((c) => c.id === subId)!.title }
+              : { k: "entidad", t: subId });
+          if (!nodesMap.has(subId)) {
+            nodesMap.set(subId, {
+              id: subId,
+              label: nodeInfo.t,
+              tipo: nodeInfo.k,
+            });
+          }
+          const linkKeySub = `${parentId}->${subId}`;
+          if (!addedLinks.has(linkKeySub)) {
+            links.push({ source: parentId, target: subId, tipo: subRel });
+            addedLinks.add(linkKeySub);
+          }
+          if (kids && kids.length) {
+            walk(kids, subId);
+          }
+        }
+      };
+      walk(SUB[provId] ?? [], provId);
+    }
+  }
+
+  return {
+    nodes: Array.from(nodesMap.values()),
+    links,
+  };
+});
+
+// The ficha is built from the linked set: if that set changes after a
+// confirmation, the ficha no longer reflects the evidence and must be re-confirmed.
 watch(
   () => props.linkedIds,
   () => {
@@ -131,6 +236,60 @@ watch(
         </span>
       </div>
     </div>
+
+    <!-- Módulo de Grafo de Relaciones de la Ficha -->
+    <Card class="mt-2">
+      <template #header>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="font-serif text-sm font-semibold text-ink">Grafo de Relaciones de la Ficha</span>
+            <Badge variant="outline" class="font-mono text-[11px] tabular-nums">
+              {{ fichaGraph.nodes.length }} nodos · {{ fichaGraph.links.length }} conexiones
+            </Badge>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-caption text-ink-muted hidden sm:inline">
+              Haz clic en cualquier nodo para ver evidencia y citas
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-7 text-xs"
+              @click="showGraph = !showGraph"
+            >
+              {{ showGraph ? "Ocultar grafo" : "Mostrar grafo" }}
+            </Button>
+          </div>
+        </div>
+      </template>
+
+      <div v-show="showGraph" class="space-y-3">
+        <div
+          v-if="!fichaGraph.nodes.length || fichaGraph.nodes.length <= 1"
+          class="py-6 text-center text-body-sm text-ink-muted"
+        >
+          No hay suficientes evidencias vinculadas para visualizar el grafo. Vincula fuentes en el paso anterior.
+        </div>
+        <div v-else class="space-y-2">
+          <ForceGraph
+            :nodes="fichaGraph.nodes"
+            :links="fichaGraph.links"
+            :show-controls="true"
+            :show-legend="true"
+            :initial-height="420"
+            @node-click="onGraphNodeClick"
+          />
+        </div>
+      </div>
+    </Card>
+
+    <!-- Modal interactivo para inspeccionar evidencia desde el grafo -->
+    <EvidenceDetailModal
+      v-model:open="modalOpen"
+      :tipo="inspectedNode?.tipo"
+      :id="inspectedNode?.id"
+      @navigate="(t, i) => { inspectedNode = { tipo: t, id: i }; modalOpen = true; }"
+    />
 
     <!-- Footer nav -->
     <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">

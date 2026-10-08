@@ -55,10 +55,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         qdrant = get_qdrant_client(settings)
         init_collections(qdrant, settings)
         app.state.qdrant_client = qdrant
-        logger.info("Qdrant collections initialised.")
     except Exception as exc:
         app.state.qdrant_client = None
         logger.error("Qdrant initialisation failed (degraded mode): %s", exc)
+
+    # Auto-bootstrap offline seed snapshot if USE_SEED_SNAPSHOT is true and database is empty
+    if settings.use_seed_snapshot:
+        try:
+            from sqlmodel import Session, select
+            from evidentia import models
+            from evidentia.db import get_engine
+
+            with Session(get_engine()) as session:
+                has_news = session.exec(select(models.NewsArticle)).first() is not None
+
+            if not has_news:
+                logger.info("USE_SEED_SNAPSHOT=true and database empty: auto-bootstrapping seed snapshot...")
+                from evidentia.ingestion.pipeline import run_ingestion
+
+                run_ingestion(use_seed=True)
+                logger.info("Seed snapshot auto-bootstrapped successfully.")
+        except Exception as exc:
+            logger.warning("Seed auto-bootstrap failed (skipping): %s", exc)
 
     # Start auto-ingest background scheduler
     from evidentia.ingestion.scheduler import scheduler
