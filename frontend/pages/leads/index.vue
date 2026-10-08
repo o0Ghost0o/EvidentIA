@@ -57,6 +57,9 @@ onMounted(refresh);
           Gestión jerárquica de fichas de investigación, correlación de fuentes y trazabilidad determinista.
         </p>
       </div>
+      <NuxtLink to="/leads/new">
+        <Button variant="outline">+ Nuevo lead</Button>
+      </NuxtLink>
     </div>
 
     <!-- Create Lead Card -->
