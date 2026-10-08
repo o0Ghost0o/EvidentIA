@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import EvidenceStep from "~/components/leads/EvidenceStep.vue";
 import Button from "~/components/ui/Button.vue";
 import Input from "~/components/ui/Input.vue";
 import Label from "~/components/ui/Label.vue";
@@ -7,10 +8,10 @@ import Select from "~/components/ui/Select.vue";
 import Textarea from "~/components/ui/Textarea.vue";
 import { api } from "~/composables/useApi";
 
-// New lead — step 1 "Definir" of the Lead Workspace. Captures the minimum that makes
-// a lead exist (título + modalidad), plus optional alcance and research question.
-// The backend case model (titulo / queries[] / flags[]) is the persistence target:
-// pregunta → queries[0]; modalidad label + alcance are carried as flags.
+// New lead — the Lead Workspace wizard. Step 1 "Definir" captures the minimum that
+// makes a lead exist (título + modalidad); once created, the flow advances in place
+// to step 2 "Evidencia" where sources are linked. The backend case model
+// (titulo / queries[] / flags[]) is the persistence target.
 
 const MODALIDAD_OPTIONS = [
   { value: "Investigación", label: "Investigación" },
@@ -26,20 +27,24 @@ const EXAMPLE = {
   q: "¿Cuánto aumentó la factura residencial promedio y qué parte del alza se explica por la resolución tarifaria frente a lecturas estimadas?",
 };
 
-// Step rail — step 1 is active; the rest unlock later in the workspace.
 const STEPS = [
-  { title: "Definir", lockReason: "", activeSub: "Título y modalidad" },
-  { title: "Evidencia", lockReason: "Crea el lead primero" },
-  { title: "Contexto & Priorización", lockReason: "Vincula ≥1 fuente" },
-  { title: "Ficha", lockReason: "Calcula la prioridad" },
-  { title: "Borrador", lockReason: "Confirma la ficha" },
-  { title: "Revisión", lockReason: "Requiere borrador o abstención" },
+  { title: "Definir", guide: "Empieza por el título y la modalidad: son lo mínimo para que el lead exista. Usa «Usar ejemplo» si quieres recorrer el flujo rápido.", desc: "Qué se investiga, con qué alcance y con qué pregunta.", lockReason: "" },
+  { title: "Evidencia", guide: "Prueba «Vincular ejemplo»: tres réplicas del mismo cable cuentan como 1 fuente. Toca una tarjeta para ver su cadena de evidencia.", desc: "Vincula fuentes del catálogo: cada una se ordena según respalde, contradiga o dé contexto a la afirmación.", lockReason: "Crea el lead primero" },
+  { title: "Contexto & Priorización", guide: "", desc: "", lockReason: "Vincula ≥1 fuente" },
+  { title: "Ficha", guide: "", desc: "", lockReason: "Calcula la prioridad" },
+  { title: "Borrador", guide: "", desc: "", lockReason: "Confirma la ficha" },
+  { title: "Revisión", guide: "", desc: "", lockReason: "Requiere borrador o abstención" },
 ];
 
 const form = reactive({ title: "", mod: "", alc: "", q: "" });
 const tried = ref(false);
 const submitting = ref(false);
 const submitError = ref("");
+
+// Wizard state. step is 1-based; leadId is set once the case is created.
+const step = ref(1);
+const leadId = ref<number | null>(null);
+const evidence = reactive({ count: 0, label: "sin fuentes", tone: "neutral" });
 
 const titleTrimmed = computed(() => form.title.trim());
 const titleOk = computed(() => titleTrimmed.value.length >= 10);
@@ -54,6 +59,25 @@ const titleHelp = computed(() => {
   }
   return `${form.title.length} caracteres · mínimo 10`;
 });
+
+// Progress & rail.
+const stepsDone = computed(() => (step.value > 1 ? 1 : 0));
+const progressPct = computed(() => `${(stepsDone.value / 6) * 100}%`);
+const cur = computed(() => STEPS[step.value - 1]);
+
+function railSub(i: number): string {
+  if (i === step.value - 1) {
+    if (i === 0) return "Título y modalidad";
+    if (i === 1) return evidence.count ? `${evidence.count} fuentes · ${evidence.label}` : "Vincula ≥1 fuente";
+    return STEPS[i].desc;
+  }
+  return STEPS[i].lockReason;
+}
+function railState(i: number): "done" | "active" | "locked" {
+  if (i < step.value - 1) return "done";
+  if (i === step.value - 1) return "active";
+  return "locked";
+}
 
 function fillExample() {
   Object.assign(form, EXAMPLE);
@@ -75,12 +99,25 @@ async function createLead() {
         flags,
       },
     });
-    await navigateTo(`/leads/${res.id}`);
+    leadId.value = res.id;
+    step.value = 2;
+    window.scrollTo({ top: 0 });
   } catch (err: any) {
     submitError.value =
       err?.data?.detail || err?.message || "No se pudo crear el lead. Inténtalo de nuevo.";
+  } finally {
     submitting.value = false;
   }
+}
+
+function onEvidenceChange(p: { count: number; label: string; tone: string }) {
+  evidence.count = p.count;
+  evidence.label = p.label;
+  evidence.tone = p.tone;
+}
+
+async function continueToContext() {
+  if (leadId.value != null) await navigateTo(`/leads/${leadId.value}`);
 }
 </script>
 
@@ -90,7 +127,7 @@ async function createLead() {
     <nav class="mb-3 flex items-center gap-1.5 text-caption font-medium text-ink-muted">
       <NuxtLink to="/leads" class="text-ink-muted no-underline hover:text-ink">← Leads</NuxtLink>
       <span>/</span>
-      <span>Nuevo lead</span>
+      <span>{{ step > 1 ? "Ficha" : "Nuevo lead" }}</span>
     </nav>
 
     <!-- Hero -->
@@ -102,10 +139,19 @@ async function createLead() {
         >
           {{ titleTrimmed || "Nuevo lead" }}
         </h1>
-        <!-- Chips appear as the lead progresses; empty at creation -->
-        <div class="flex min-h-6 flex-wrap items-center gap-2" />
+        <!-- Chips appear as the lead progresses -->
+        <div class="flex min-h-6 flex-wrap items-center gap-2">
+          <template v-if="step > 1">
+            <span class="rounded-full bg-surface-sunken px-2.5 py-0.5 font-mono text-caption uppercase text-ink-muted">
+              {{ form.mod }}
+            </span>
+            <span class="rounded-full bg-surface-sunken px-2.5 py-0.5 text-caption font-medium text-ink-muted">
+              Evidencia {{ evidence.label }}
+            </span>
+          </template>
+        </div>
       </div>
-      <div class="font-mono text-caption text-ink-muted">0/6 pasos completos</div>
+      <div class="font-mono text-caption text-ink-muted">{{ stepsDone }}/6 pasos completos</div>
     </div>
 
     <div class="flex flex-wrap items-start gap-6">
@@ -116,11 +162,12 @@ async function createLead() {
           <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-body-sm">
             <span class="text-ink-muted">Modalidad</span><span>{{ form.mod || "—" }}</span>
             <span class="text-ink-muted">Alcance</span><span>{{ form.alc.trim() || "—" }}</span>
-            <span class="text-ink-muted">Fuentes</span><span class="font-mono">—</span>
+            <span class="text-ink-muted">Fuentes</span>
+            <span class="font-mono">{{ evidence.count ? `${evidence.count} · ${evidence.label}` : "—" }}</span>
             <span class="text-ink-muted">Prioridad</span><span class="font-mono">—</span>
           </div>
           <div class="h-1 overflow-hidden rounded-full bg-surface-sunken">
-            <div class="h-full bg-success transition-[width] duration-500" style="width: 0%" />
+            <div class="h-full bg-success transition-[width] duration-500" :style="{ width: progressPct }" />
           </div>
         </div>
 
@@ -130,57 +177,58 @@ async function createLead() {
             :key="s.title"
             class="flex min-h-11 items-start gap-3 rounded-md border-l-[3px] px-3 py-2.5 transition-colors"
             :class="
-              i === 0
+              railState(i) === 'active'
                 ? 'border-primary bg-surface'
-                : 'cursor-not-allowed border-transparent opacity-50'
+                : railState(i) === 'done'
+                  ? 'border-success bg-surface'
+                  : 'cursor-not-allowed border-transparent opacity-50'
             "
           >
             <div
               class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] font-mono text-caption"
               :class="
-                i === 0
+                railState(i) === 'active'
                   ? 'border-primary bg-primary text-on-primary'
-                  : 'border-dashed border-ink-muted text-ink-muted'
+                  : railState(i) === 'done'
+                    ? 'border-success bg-success text-white'
+                    : 'border-dashed border-ink-muted text-ink-muted'
               "
             >
-              {{ i + 1 }}
+              <span v-if="railState(i) === 'done'">✓</span>
+              <span v-else>{{ i + 1 }}</span>
             </div>
             <div class="flex min-w-0 flex-col gap-0.5">
               <span
                 class="font-semibold leading-tight"
-                :class="i === 0 ? 'font-serif text-heading-md text-ink' : 'text-body-sm text-ink-muted'"
+                :class="railState(i) === 'active' ? 'font-serif text-heading-md text-ink' : 'text-body-sm text-ink-muted'"
               >
                 {{ s.title }}
               </span>
               <span class="text-caption font-medium leading-snug text-ink-muted">
-                {{ i === 0 ? s.activeSub : s.lockReason }}
+                {{ railSub(i) }}
               </span>
             </div>
           </div>
         </nav>
       </aside>
 
-      <!-- Main form card -->
+      <!-- Main card -->
       <section class="flex min-w-0 flex-1 basis-[560px] flex-col gap-6">
         <div class="flex flex-col gap-6 rounded-md border border-border bg-surface p-6 shadow-ev-1">
           <div class="flex flex-col gap-1.5 border-b border-border pb-4">
-            <span class="text-label uppercase text-ink-muted">Paso 1 de 6</span>
-            <h2 class="font-serif text-display-lg">Definir</h2>
-            <p class="max-w-[60ch] text-balance text-body-sm text-ink-muted">
-              Qué se investiga, con qué alcance y con qué pregunta.
-            </p>
+            <span class="text-label uppercase text-ink-muted">Paso {{ step }} de 6</span>
+            <h2 class="font-serif text-display-lg">{{ cur.title }}</h2>
+            <p class="max-w-[60ch] text-balance text-body-sm text-ink-muted">{{ cur.desc }}</p>
           </div>
 
           <!-- Guía -->
           <div class="flex items-start gap-3 rounded-md bg-primary-soft px-4 py-3">
             <span class="whitespace-nowrap pt-0.5 text-label uppercase text-primary">Guía</span>
-            <p class="text-balance text-body-sm text-ink">
-              Empieza por el título y la modalidad: son lo mínimo para que el lead exista. Usa
-              «Usar ejemplo» si quieres recorrer el flujo rápido.
-            </p>
+            <p class="text-balance text-body-sm text-ink">{{ cur.guide }}</p>
           </div>
 
-          <form class="flex flex-col gap-4" novalidate @submit.prevent="createLead">
+          <!-- Step 1 · Definir -->
+          <form v-if="step === 1" class="flex flex-col gap-4" novalidate @submit.prevent="createLead">
             <div class="flex justify-end">
               <Button type="button" variant="outline" @click="fillExample">Usar ejemplo</Button>
             </div>
@@ -231,9 +279,7 @@ async function createLead() {
 
             <p v-if="submitError" class="text-body-sm text-destructive">{{ submitError }}</p>
 
-            <!-- Footer action bar -->
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-              <!-- Atrás is hidden on step 1 but reserves layout, matching the design -->
               <button
                 type="button"
                 class="invisible h-11 px-3 font-semibold text-ink-muted"
@@ -247,6 +293,15 @@ async function createLead() {
               </Button>
             </div>
           </form>
+
+          <!-- Step 2 · Evidencia -->
+          <EvidenceStep
+            v-else-if="step === 2 && leadId != null"
+            :lead-id="leadId"
+            @back="step = 1"
+            @continue="continueToContext"
+            @change="onEvidenceChange"
+          />
         </div>
       </section>
     </div>
