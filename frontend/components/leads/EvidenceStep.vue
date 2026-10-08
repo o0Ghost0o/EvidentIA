@@ -25,7 +25,7 @@ const props = defineProps<{ leadId: number }>();
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "continue"): void;
-  (e: "change", payload: { count: number; label: string; tone: string; key: EvidenceLevel }): void;
+  (e: "change", payload: { count: number; label: string; tone: string; key: EvidenceLevel; linkedIds: string[] }): void;
 }>();
 
 const linkedIds = ref<string[]>([]);
@@ -43,7 +43,7 @@ const isLinked = (id: string) => linkedIds.value.includes(id);
 
 watch(
   derived,
-  (d) => emit("change", { count: d.linked.length, label: d.state.label, tone: d.state.tone, key: d.state.key }),
+  (d) => emit("change", { count: d.linked.length, label: d.state.label, tone: d.state.tone, key: d.state.key, linkedIds: [...linkedIds.value] }),
   { immediate: true, deep: false }
 );
 

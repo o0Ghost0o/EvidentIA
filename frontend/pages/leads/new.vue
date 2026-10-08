@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from "vue";
 import ContextStep from "~/components/leads/ContextStep.vue";
 import EvidenceStep from "~/components/leads/EvidenceStep.vue";
+import FichaStep from "~/components/leads/FichaStep.vue";
 import Button from "~/components/ui/Button.vue";
 import Input from "~/components/ui/Input.vue";
 import Label from "~/components/ui/Label.vue";
@@ -33,7 +34,7 @@ const STEPS = [
   { title: "Definir", guide: "Empieza por el título y la modalidad: son lo mínimo para que el lead exista. Usa «Usar ejemplo» si quieres recorrer el flujo rápido.", desc: "Qué se investiga, con qué alcance y con qué pregunta.", lockReason: "" },
   { title: "Evidencia", guide: "Prueba «Vincular ejemplo»: tres réplicas del mismo cable cuentan como 1 fuente. Toca una tarjeta para ver su cadena de evidencia.", desc: "Vincula fuentes del catálogo: cada una se ordena según respalde, contradiga o dé contexto a la afirmación.", lockReason: "Crea el lead primero" },
   { title: "Contexto & Priorización", guide: "La prioridad se calcula con reglas versionadas, no a criterio del modelo. Cada componente es explicable.", desc: "Cuánto importa ahora y cuánto respalda la evidencia disponible.", lockReason: "Vincula ≥1 fuente" },
-  { title: "Ficha", guide: "", desc: "", lockReason: "Calcula la prioridad" },
+  { title: "Ficha", guide: "La ficha se compone solo con lo vinculado. «Qué falta» es tan importante como lo que hay.", desc: "Qué se reporta, quién, qué lo respalda, qué falta y la acción sugerida.", lockReason: "Calcula la prioridad" },
   { title: "Borrador", guide: "", desc: "", lockReason: "Confirma la ficha" },
   { title: "Revisión", guide: "", desc: "", lockReason: "Requiere borrador o abstención" },
 ];
@@ -47,7 +48,9 @@ const submitError = ref("");
 const step = ref(1);
 const leadId = ref<number | null>(null);
 const evidence = reactive({ count: 0, label: "sin fuentes", tone: "neutral", key: "none" as EvidenceLevel });
+const linkedIds = ref<string[]>([]);
 const priority = reactive({ scored: false, total: 0, band: "", bandLabel: "" });
+const ficha = reactive({ confirmed: false });
 
 const BAND_CHIP: Record<string, string> = {
   alto: "bg-destructive/10 text-destructive",
@@ -80,6 +83,7 @@ function railSub(i: number): string {
   if (i === 0) return form.mod || "Título y modalidad";
   if (i === 1) return evidence.count ? `${evidence.count} ${evidence.count === 1 ? "fuente" : "fuentes"} · ${evidence.label}` : "Sin fuentes";
   if (i === 2) return priority.scored ? `P ${priority.total} · ${priority.bandLabel}` : "Por calcular";
+  if (i === 3) return ficha.confirmed ? "Confirmada" : "Por confirmar";
   return STEPS[i].desc;
 }
 function railState(i: number): "done" | "active" | "locked" {
@@ -119,11 +123,12 @@ async function createLead() {
   }
 }
 
-function onEvidenceChange(p: { count: number; label: string; tone: string; key: EvidenceLevel }) {
+function onEvidenceChange(p: { count: number; label: string; tone: string; key: EvidenceLevel; linkedIds: string[] }) {
   evidence.count = p.count;
   evidence.label = p.label;
   evidence.tone = p.tone;
   evidence.key = p.key;
+  linkedIds.value = p.linkedIds;
 }
 
 // Step 2 → step 3, in place. The wizard keeps advancing inside the page.
@@ -139,8 +144,18 @@ function onPriorityChange(p: { total: number; band: string; bandLabel: string })
   priority.bandLabel = p.bandLabel;
 }
 
-// Step 3 → the lead detail workspace, where Ficha and later steps live.
-async function continueToFicha() {
+// Step 3 → step 4 "Ficha", in place.
+function continueToFicha() {
+  step.value = 4;
+  window.scrollTo({ top: 0 });
+}
+
+function onFichaChange(p: { confirmed: boolean }) {
+  ficha.confirmed = p.confirmed;
+}
+
+// Step 4 → the lead detail workspace, where Borrador and later steps live.
+async function continueToDraft() {
   if (leadId.value != null) await navigateTo(`/leads/${leadId.value}`);
 }
 </script>
@@ -342,6 +357,16 @@ async function continueToFicha() {
             @back="step = 2"
             @continue="continueToFicha"
             @change="onPriorityChange"
+          />
+
+          <!-- Step 4 · Ficha -->
+          <FichaStep
+            v-else-if="step === 4"
+            :linked-ids="linkedIds"
+            :alcance="form.alc"
+            @back="step = 3"
+            @continue="continueToDraft"
+            @change="onFichaChange"
           />
         </div>
       </section>
