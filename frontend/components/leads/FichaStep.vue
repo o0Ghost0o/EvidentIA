@@ -1,28 +1,25 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
 import Badge from "~/components/ui/Badge.vue";
 import Card from "~/components/ui/Card.vue";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import ForceGraph, { type GraphNode, type GraphLink } from "~/components/ForceGraph.vue";
 import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
-import {
-  deriveEvidence,
-  CLAIM,
-  PROVENANCE,
-  PROV_REL,
-  SUB,
-  NODES,
-  CATALOG,
-  type CatalogSource,
-} from "~/lib/leadEvidence";
+import { api } from "~/composables/useApi";
+import { type ScoreResponse, evidenceLevelFrom, normaliseRol } from "~/lib/leadWizard";
+import type { CatalogSource } from "~/lib/leadEvidence";
 
 // Step 4 "Ficha" of the new-lead workspace. The ficha is composed only from what
-// has been linked: "Qué falta" matters as much as what is there. Confirming the
-// ficha is the gate that unlocks the Borrador step. If the evidence changes after
-// a confirmation, the ficha goes stale and must be confirmed again.
+// has been linked: the relations graph is the real evidence tree (GET
+// /cases/{id}/tree), and the rows are derived from the linked items, their roles,
+// the entities in the tree and the deterministic score. "Qué falta" matters as
+// much as what is there. Confirming the ficha unlocks the Borrador step; if the
+// evidence changes after a confirmation, the ficha goes stale and must be
+// confirmed again.
 const props = withDefaults(
   defineProps<{
+    leadId: number;
     linkedIds: string[];
     alcance: string;
     readonly?: boolean;
@@ -39,44 +36,85 @@ const emit = defineEmits<{
 const confirmed = ref(false);
 const stale = ref(false);
 
-const catalog = computed(() => props.customCatalog?.length ? props.customCatalog : CATALOG);
-const derived = computed(() => deriveEvidence(props.linkedIds, catalog.value));
+interface CaseEvidence {
+  id: number;
+  fuente_tipo: string;
+  fuente_id: string;
+  rol: string;
+  nota: string | null;
+}
+interface TreeNode { tipo: string; id: string; label: string }
+interface TreeEdge {
+  origen_tipo: string; origen_id: string;
+  destino_tipo: string; destino_id: string;
+  tipo: string; peso?: number;
+}
 
-// Ficha rows, derived from the linked set exactly as the Lead Workspace design
-// composes them. Only "Qué falta" carries the amber label; the rest stay muted.
+const items = ref<CaseEvidence[]>([]);
+const tree = ref<{ nodes: TreeNode[]; edges: TreeEdge[] } | null>(null);
+const score = ref<ScoreResponse | null>(null);
+const loading = ref(false);
+const error = ref("");
+
+async function load() {
+  loading.value = true;
+  error.value = "";
+  try {
+    const [detail, treeRes, scoreRes] = await Promise.all([
+      api<{ evidence: CaseEvidence[] }>(`cases/${props.leadId}`),
+      api<{ nodes: TreeNode[]; edges: TreeEdge[] }>(`cases/${props.leadId}/tree`),
+      api<ScoreResponse>(`cases/${props.leadId}/score`),
+    ]);
+    items.value = detail.evidence ?? [];
+    tree.value = treeRes;
+    score.value = scoreRes;
+  } catch (err: any) {
+    error.value = err?.data?.detail || err?.message || "No se pudo componer la ficha.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+// --- Derived signals ------------------------------------------------------
+const evLevel = computed(() => evidenceLevelFrom(score.value?.evidence_state, items.value.length));
+const respaldo = computed(() => items.value.filter((e) => normaliseRol(e.rol) === "respaldo"));
+const contra = computed(() => items.value.filter((e) => normaliseRol(e.rol) === "contradiccion"));
+const primaries = computed(() => respaldo.value.filter((e) => e.fuente_tipo !== "news"));
+const entityLabels = computed(() =>
+  (tree.value?.nodes ?? []).filter((n) => n.tipo === "entity").map((n) => n.label)
+);
+
 const rows = computed(() => {
-  const linked = derived.value.linked;
-  const sup = linked.filter((s) => s.rel === "Respalda");
-  const con = linked.filter((s) => s.rel === "Contradice");
-  const primaries = linked.filter((s) => s.rel === "Respalda" && s.type !== "Noticia");
-  const primN = derived.value.primN;
-  const ev = derived.value.state.key;
+  const ev = evLevel.value;
   const insuf = ev === "insuficiente";
   const alc = props.alcance.trim();
-
-  const mediums = Array.from(new Set(linked.map((s) => s.m).filter(Boolean)));
-  const actorsText = mediums.length
-    ? `${mediums.slice(0, 3).join("; ")}${alc ? ` en ${alc}` : ""}`
-    : `Hogares y comercios de ${alc || "la zona"}; entidades reguladoras.`;
+  const sup = respaldo.value[0];
+  const primList = primaries.value.length
+    ? primaries.value.map((e) => e.fuente_id).join(", ")
+    : respaldo.value.map((e) => e.fuente_id).slice(0, 3).join(", ");
 
   return [
     {
       label: "Qué se reporta",
-      text: sup[0] ? sup[0].s : "Sin afirmación respaldada.",
-      cite: sup[0] ? `[${sup[0].id}:${sup[0].c}]` : "—",
+      text: sup ? (sup.nota || sup.fuente_id) : "Sin afirmación respaldada.",
+      cite: sup ? `[${sup.fuente_id}]` : "—",
       amber: false,
     },
     {
       label: "Quién",
-      text: actorsText,
+      text: entityLabels.value.length
+        ? entityLabels.value.slice(0, 4).join("; ")
+        : alc
+          ? `Actores de ${alc}.`
+          : "Sin entidades resueltas en la evidencia vinculada.",
       cite: "—",
       amber: false,
     },
     {
       label: "Qué respalda",
-      text: primN
-        ? `${primN} ${primN === 1 ? "fuente primaria" : "fuentes primarias"}: ${primaries.map((s) => s.id).join(", ")}.`
-        : "Solo testimonios en prensa; sin fuente primaria.",
+      text: respaldo.value.length
+        ? `${respaldo.value.length} fuente(s) respaldan${primList ? `: ${primList}` : ""}.`
+        : "Sin fuentes que respalden la afirmación.",
       cite: "—",
       amber: false,
     },
@@ -84,9 +122,9 @@ const rows = computed(() => {
       label: "Qué falta",
       text:
         ev === "suficiente"
-          ? con.length
-            ? "Respuesta formal del ente regulador a la versión contraria."
-            : "Versión de la distribuidora: no hay fuente contraria vinculada."
+          ? contra.value.length
+            ? "Respuesta formal a la versión contraria."
+            : "Versión contraria: no hay fuente que contradiga vinculada."
           : ev === "parcial"
             ? "Una segunda fuente primaria que corrobore la cifra central."
             : "Fuente primaria (documento o indicador) para la cifra central.",
@@ -97,7 +135,7 @@ const rows = computed(() => {
       label: "Acción",
       text: insuf
         ? "Solicitar documentación antes de redactar, o abstenerse."
-        : `Redactar nota explicativa${con.length ? " con ambas versiones." : "."}`,
+        : `Redactar nota explicativa${contra.value.length ? " con ambas versiones." : "."}`,
       cite: "—",
       amber: false,
     },
@@ -110,100 +148,31 @@ function confirm() {
   emit("change", { confirmed: true });
 }
 
-// The ficha is built from the linked set: if that set changes after a
-// confirmation, the ficha no longer reflects the evidence and must be re-confirmed.
-// Interactive Graph state & computation for the Ficha
+// --- Graph from the real evidence tree ------------------------------------
 const showGraph = ref(true);
 const modalOpen = ref(false);
 const inspectedNode = ref<{ tipo: string; id: string } | null>(null);
 
 function onGraphNodeClick(node: GraphNode) {
-  let tipo = node.tipo || "news";
-  if (tipo === "caso") tipo = "case";
-  else if (tipo === "noticia") tipo = "news";
-  else if (tipo === "indicador") tipo = "indicator";
-  else if (tipo === "evento") tipo = "event";
-  else if (tipo === "entidad" || tipo === "procedencia" || tipo === "correlación") tipo = "entity";
-
-  inspectedNode.value = { tipo, id: node.id };
+  // Tree node ids are "${tipo}:${id}"; recover the type and id for the modal.
+  const [tipo, ...rest] = node.id.split(":");
+  inspectedNode.value = { tipo: tipo || node.tipo || "news", id: rest.join(":") };
   modalOpen.value = true;
 }
 
-const fichaGraph = computed(() => {
-  const nodesMap = new Map<string, GraphNode>();
-  const links: GraphLink[] = [];
-  const addedLinks = new Set<string>();
-
-  const sup = linked.filter((s) => s.rel === "Respalda");
-  const rootId = "lead-claim";
-  nodesMap.set(rootId, {
-    id: rootId,
-    label: sup[0]?.title || CLAIM,
-    tipo: "caso",
-  });
-
-  const linked = derived.value.linked;
-  for (const src of linked) {
-    nodesMap.set(src.id, {
-      id: src.id,
-      label: src.title,
-      tipo: src.type.toLowerCase(),
-    });
-
-    const linkKey1 = `${rootId}->${src.id}`;
-    if (!addedLinks.has(linkKey1)) {
-      links.push({ source: rootId, target: src.id, tipo: src.rel });
-      addedLinks.add(linkKey1);
-    }
-
-    const provId = src.p;
-    const prov = PROVENANCE[provId];
-    const provLabel = prov ? prov.t : `${src.m || "Fuente Oficial"}`;
-    nodesMap.set(provId, {
-      id: provId,
-      label: provLabel,
-      tipo: "procedencia",
-    });
-    const linkKey2 = `${src.id}->${provId}`;
-    if (!addedLinks.has(linkKey2)) {
-      links.push({ source: src.id, target: provId, tipo: PROV_REL[provId] || "Contexto" });
-      addedLinks.add(linkKey2);
-    }
-
-    if (prov) {
-
-      const walk = (entries: any[], parentId: string) => {
-        for (const [subId, subRel, kids] of entries) {
-          const nodeInfo =
-            NODES[subId] ||
-            (CATALOG.find((c) => c.id === subId)
-              ? { k: "noticia", t: CATALOG.find((c) => c.id === subId)!.title }
-              : { k: "entidad", t: subId });
-          if (!nodesMap.has(subId)) {
-            nodesMap.set(subId, {
-              id: subId,
-              label: nodeInfo.t,
-              tipo: nodeInfo.k,
-            });
-          }
-          const linkKeySub = `${parentId}->${subId}`;
-          if (!addedLinks.has(linkKeySub)) {
-            links.push({ source: parentId, target: subId, tipo: subRel });
-            addedLinks.add(linkKeySub);
-          }
-          if (kids && kids.length) {
-            walk(kids, subId);
-          }
-        }
-      };
-      walk(SUB[provId] ?? [], provId);
-    }
-  }
-
-  return {
-    nodes: Array.from(nodesMap.values()),
-    links,
-  };
+const fichaGraph = computed<{ nodes: GraphNode[]; links: GraphLink[] }>(() => {
+  if (!tree.value) return { nodes: [], links: [] };
+  const nodes: GraphNode[] = tree.value.nodes.map((n) => ({
+    id: `${n.tipo}:${n.id}`,
+    label: n.label,
+    tipo: n.tipo,
+  }));
+  const links: GraphLink[] = tree.value.edges.map((e) => ({
+    source: `${e.origen_tipo}:${e.origen_id}`,
+    target: `${e.destino_tipo}:${e.destino_id}`,
+    tipo: e.tipo,
+  }));
+  return { nodes, links };
 });
 
 // The ficha is built from the linked set: if that set changes after a
@@ -216,9 +185,12 @@ watch(
       stale.value = true;
       emit("change", { confirmed: false });
     }
+    void load();
   },
   { deep: true }
 );
+
+onMounted(load);
 </script>
 
 <template>
@@ -230,6 +202,8 @@ watch(
       </AlertDescription>
     </Alert>
 
+    <p v-if="error" class="text-body-sm text-destructive">{{ error }}</p>
+
     <!-- Ficha · composed only from linked evidence -->
     <div class="overflow-hidden rounded-md border border-border">
       <div
@@ -237,10 +211,7 @@ watch(
         :key="row.label"
         class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-4 gap-y-1 border-b border-border px-4 py-3.5 last:border-b-0"
       >
-        <span
-          class="text-label uppercase"
-          :class="row.amber ? 'text-warning' : 'text-ink-muted'"
-        >
+        <span class="text-label uppercase" :class="row.amber ? 'text-warning' : 'text-ink-muted'">
           {{ row.label }}
         </span>
         <span class="text-pretty text-body-sm leading-relaxed [grid-column:span_2]">
@@ -255,7 +226,7 @@ watch(
       </div>
     </div>
 
-    <!-- Módulo de Grafo de Relaciones de la Ficha -->
+    <!-- Relations graph · the real evidence tree -->
     <Card class="mt-2">
       <template #header>
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -269,12 +240,7 @@ watch(
             <span class="text-caption text-ink-muted hidden sm:inline">
               Haz clic en cualquier nodo para ver evidencia y citas
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              class="h-7 text-xs"
-              @click="showGraph = !showGraph"
-            >
+            <Button variant="outline" size="sm" class="h-7 text-xs" @click="showGraph = !showGraph">
               {{ showGraph ? "Ocultar grafo" : "Mostrar grafo" }}
             </Button>
           </div>
@@ -282,8 +248,9 @@ watch(
       </template>
 
       <div v-show="showGraph" class="space-y-3">
+        <div v-if="loading" class="py-6 text-center text-body-sm text-ink-muted">Componiendo la ficha…</div>
         <div
-          v-if="!fichaGraph.nodes.length || fichaGraph.nodes.length <= 1"
+          v-else-if="fichaGraph.nodes.length <= 1"
           class="py-6 text-center text-body-sm text-ink-muted"
         >
           No hay suficientes evidencias vinculadas para visualizar el grafo. Vincula fuentes en el paso anterior.
@@ -301,7 +268,7 @@ watch(
       </div>
     </Card>
 
-    <!-- Modal interactivo para inspeccionar evidencia desde el grafo -->
+    <!-- Modal to inspect evidence from the graph (real /evidence/item) -->
     <EvidenceDetailModal
       v-model:open="modalOpen"
       :tipo="inspectedNode?.tipo"

@@ -7,15 +7,8 @@ import FichaStep from "~/components/leads/FichaStep.vue";
 import ReviewStep from "~/components/leads/ReviewStep.vue";
 import StateChip from "~/components/ui/StateChip.vue";
 import { api } from "~/composables/useApi";
-import {
-  CATALOG,
-  deriveEvidence,
-  type EvidenceLevel,
-  type CatalogSource,
-  catalogSourceFromEvidenceItem,
-  registerDynamicSources,
-} from "~/lib/leadEvidence";
-import { BAND_LABEL, computePriority } from "~/lib/leadPriority";
+import { EVIDENCE_STATES, type EvidenceLevel } from "~/lib/leadEvidence";
+import { BAND_LABEL, type ScoreResponse, evidenceLevelFrom } from "~/lib/leadWizard";
 import { modalidadLabel, reviewMeta } from "~/lib/leadList";
 
 // Lead detail — the read-only ficha. It renders the finished artifact the New-lead
@@ -61,29 +54,35 @@ interface CaseDetail {
 }
 
 const detail = ref<CaseDetail | null>(null);
+const score = ref<ScoreResponse | null>(null);
 
 onMounted(async () => {
   detail.value = await api<CaseDetail>(`cases/${id}`);
+  try {
+    score.value = await api<ScoreResponse>(`cases/${id}/score`);
+  } catch {
+    score.value = null;
+  }
 });
 
 // --- Derived props for the reused steps ------------------------------------
-// Reconstruct catalog sources dynamically from the lead's evidence items,
-// and merge with local CATALOG so real news, indicators and events are never lost.
-const dynamicCatalog = computed<CatalogSource[]>(() => {
-  const dyn = (detail.value?.evidence ?? []).map(catalogSourceFromEvidenceItem);
-  const map = new Map<string, CatalogSource>();
-  for (const s of CATALOG) map.set(s.id, s);
-  for (const s of dyn) map.set(s.id, s);
-  const result = Array.from(map.values());
-  registerDynamicSources(result);
-  return result;
-});
-
-const linkedIds = computed(() =>
-  (detail.value?.evidence ?? []).map((e) => e.fuente_id)
+// All linked evidence is real; the steps fetch their own backend data from the
+// case id, so this only feeds the hero summary and the stale-on-change watchers.
+const linkedIds = computed(() => (detail.value?.evidence ?? []).map((e) => e.fuente_id));
+// Real linked evidence, mapped onto the EvidenceStep view model.
+const evidenceItems = computed(() =>
+  (detail.value?.evidence ?? []).map((e) => ({
+    rowId: e.id,
+    fuenteId: e.fuente_id,
+    fuenteTipo: e.fuente_tipo,
+    rol: e.rol,
+    titulo: e.titulo || e.nota || e.fuente_id,
+  }))
 );
-const evidence = computed(() => deriveEvidence(linkedIds.value, dynamicCatalog.value));
-const evidenceLevel = computed<EvidenceLevel>(() => evidence.value.state.key);
+const evidenceLevel = computed<EvidenceLevel>(() =>
+  evidenceLevelFrom(score.value?.evidence_state, linkedIds.value.length)
+);
+const evidenceState = computed(() => EVIDENCE_STATES[evidenceLevel.value]);
 
 // "Alcance: …" and the modalidad live in the case flags the wizard writes.
 const alcance = computed(() => {
@@ -110,7 +109,7 @@ const review = computed(() => reviewMeta(detail.value?.estado ?? "nuevo"));
 // With no primary source the workspace treats the lead as an abstention.
 const abstained = computed(() => evidenceLevel.value === "insuficiente");
 
-// Priority extraction: check if priority score and band were recorded in flags
+// Priority extraction: score endpoint prioritized, flags fallback
 const scoreFromFlag = computed(() => {
   const f = (detail.value?.flags ?? []).find((x) => x.startsWith("p:"));
   return f ? parseFloat(f.slice(2)) : null;
@@ -119,19 +118,12 @@ const bandFromFlag = computed(() => {
   const f = (detail.value?.flags ?? []).find((x) => x.startsWith("band:"));
   return f ? (f.slice(5) as "alto" | "medio" | "bajo") : null;
 });
-const priority = computed(() => {
-  const base = computePriority();
-  if (scoreFromFlag.value != null) {
-    const band = bandFromFlag.value || (scoreFromFlag.value >= 70 ? "alto" : scoreFromFlag.value >= 40 ? "medio" : "bajo");
-    return {
-      ...base,
-      total: scoreFromFlag.value,
-      band,
-    };
-  }
-  return base;
-});
-const priorityBand = computed(() => BAND_LABEL[priority.value.band] || priority.value.band);
+
+const priorityTotal = computed(() => score.value?.P ?? scoreFromFlag.value ?? 0);
+const priorityBandKey = computed<"alto" | "medio" | "bajo">(() =>
+  score.value?.band ?? bandFromFlag.value ?? "bajo"
+);
+const priorityBand = computed(() => BAND_LABEL[priorityBandKey.value] || priorityBandKey.value);
 
 // Static step copy, mirroring the New-lead workspace rail.
 const STEPS = [
@@ -169,20 +161,20 @@ function scrollToStep(i: number) {
             {{ modalidad }}
           </span>
           <StateChip :tone="review.tone">{{ review.label }}</StateChip>
-          <StateChip :tone="evidence.state.tone" dot>
-            {{ linkedIds.length ? `Evidencia ${evidence.state.label}` : "Sin fuentes" }}
+          <StateChip :tone="evidenceState.tone" dot>
+            {{ linkedIds.length ? `Evidencia ${evidenceState.label}` : "Sin fuentes" }}
           </StateChip>
           <span
             class="rounded-full px-2.5 py-0.5 text-caption font-semibold"
             :class="
-              priority.band === 'alto'
+              priorityBandKey === 'alto'
                 ? 'bg-destructive/10 text-destructive'
-                : priority.band === 'medio'
+                : priorityBandKey === 'medio'
                   ? 'bg-warning/10 text-warning'
                   : 'bg-surface-sunken text-ink-muted'
             "
           >
-            Prioridad {{ priorityBand }} · P {{ priority.total }}
+            Prioridad {{ priorityBand }} · P {{ priorityTotal }}
           </span>
         </div>
       </div>
@@ -198,9 +190,9 @@ function scrollToStep(i: number) {
             <span class="text-ink-muted">Modalidad</span><span>{{ modalidad || "—" }}</span>
             <span class="text-ink-muted">Alcance</span><span>{{ alcance || "—" }}</span>
             <span class="text-ink-muted">Fuentes</span>
-            <span class="font-mono">{{ linkedIds.length ? `${linkedIds.length} · ${evidence.state.label}` : "—" }}</span>
+            <span class="font-mono">{{ linkedIds.length ? `${linkedIds.length} · ${evidenceState.label}` : "—" }}</span>
             <span class="text-ink-muted">Prioridad</span>
-            <span class="font-mono">{{ priority.total }} · {{ priorityBand }}</span>
+            <span class="font-mono">{{ priorityTotal }} · {{ priorityBand }}</span>
           </div>
         </div>
 
@@ -262,12 +254,12 @@ function scrollToStep(i: number) {
             v-if="i === 0"
             readonly
             :lead-id="detail.id"
-            :initial-linked-ids="linkedIds"
-            :custom-catalog="dynamicCatalog"
+            :modalidad="detail.modalidad"
+            :initial-items="evidenceItems"
           />
-          <ContextStep v-else-if="i === 1" readonly :evidence-level="evidenceLevel" />
-          <FichaStep v-else-if="i === 2" readonly :linked-ids="linkedIds" :alcance="alcance" :custom-catalog="dynamicCatalog" />
-          <DraftStep v-else-if="i === 3" readonly :linked-ids="linkedIds" :title="detail.titulo" :custom-catalog="dynamicCatalog" />
+          <ContextStep v-else-if="i === 1" readonly :lead-id="detail.id" :evidence-level="evidenceLevel" />
+          <FichaStep v-else-if="i === 2" readonly :lead-id="detail.id" :linked-ids="linkedIds" :alcance="alcance" />
+          <DraftStep v-else-if="i === 3" readonly :lead-id="detail.id" :linked-ids="linkedIds" :title="detail.titulo" />
           <ReviewStep
             v-else-if="i === 4"
             readonly

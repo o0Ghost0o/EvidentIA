@@ -18,16 +18,26 @@ import type { EvidenceLevel } from "~/lib/leadEvidence";
 // to step 2 "Evidencia" where sources are linked. The backend case model
 // (titulo / queries[] / flags[]) is the persistence target.
 
+// "Tipo" is an editorial flag on the lead; it is descriptive and does not change
+// how the backend scores or drafts.
 const MODALIDAD_OPTIONS = [
   { value: "Investigación", label: "Investigación" },
   { value: "Verificación", label: "Verificación" },
   { value: "Seguimiento", label: "Seguimiento" },
 ];
 
+// "Modalidad" is the backend lens (tvn | banca): it drives the ranking catalog,
+// the priority scoring and the brief generation, so it is stored on the case.
+const LENS_OPTIONS = [
+  { value: "tvn", label: "TVN (editorial)" },
+  { value: "banca", label: "Banca (económico)" },
+];
+
 // Mirrors the design's "Usar ejemplo" seed so the flow can be walked quickly.
 const EXAMPLE = {
   title: "Alza en tarifas eléctricas residenciales en Colón tras la revisión de septiembre",
   mod: "Investigación",
+  modalidad: "tvn",
   alc: "Provincia de Colón",
   q: "¿Cuánto aumentó la factura residencial promedio y qué parte del alza se explica por la resolución tarifaria frente a lecturas estimadas?",
 };
@@ -41,7 +51,7 @@ const STEPS = [
   { title: "Revisión", guide: "", desc: "", lockReason: "Requiere borrador o abstención" },
 ];
 
-const form = reactive({ title: "", mod: "", alc: "", q: "" });
+const form = reactive({ title: "", mod: "", modalidad: "tvn", alc: "", q: "" });
 const tried = ref(false);
 const submitting = ref(false);
 const submitError = ref("");
@@ -118,6 +128,7 @@ async function createLead() {
       method: "POST",
       body: {
         titulo: titleTrimmed.value,
+        modalidad: form.modalidad,
         queries: form.q.trim() ? [form.q.trim()] : [],
         flags,
       },
@@ -188,7 +199,7 @@ function onReviewChange(p: { saved: boolean; estado: string; label: string }) {
 
 // "Crear otro lead" — reset the wizard to a blank step 1.
 function restartWizard() {
-  Object.assign(form, { title: "", mod: "", alc: "", q: "" });
+  Object.assign(form, { title: "", mod: "", modalidad: "tvn", alc: "", q: "" });
   tried.value = false;
   submitError.value = "";
   leadId.value = null;
@@ -338,7 +349,7 @@ function restartWizard() {
               </div>
 
               <div class="flex flex-col gap-1.5">
-                <Label class="normal-case">Modalidad *</Label>
+                <Label class="normal-case">Tipo *</Label>
                 <Select
                   v-model="form.mod"
                   :options="MODALIDAD_OPTIONS"
@@ -346,7 +357,19 @@ function restartWizard() {
                   :invalid="modInvalid"
                 />
                 <span class="text-caption font-medium text-destructive">
-                  {{ modInvalid ? "Elige una modalidad" : "" }}
+                  {{ modInvalid ? "Elige un tipo" : "" }}
+                </span>
+              </div>
+
+              <div class="flex flex-col gap-1.5">
+                <Label class="normal-case">Modalidad *</Label>
+                <Select
+                  v-model="form.modalidad"
+                  :options="LENS_OPTIONS"
+                  placeholder="Selecciona…"
+                />
+                <span class="text-caption font-medium text-ink-muted">
+                  Lente de priorización y borrador
                 </span>
               </div>
 
@@ -388,6 +411,7 @@ function restartWizard() {
           <EvidenceStep
             v-else-if="step === 2 && leadId != null"
             :lead-id="leadId"
+            :modalidad="form.modalidad"
             @back="step = 1"
             @continue="continueToContext"
             @change="onEvidenceChange"
@@ -395,7 +419,8 @@ function restartWizard() {
 
           <!-- Step 3 · Contexto & Priorización -->
           <ContextStep
-            v-else-if="step === 3"
+            v-else-if="step === 3 && leadId != null"
+            :lead-id="leadId"
             :evidence-level="evidence.key"
             @back="step = 2"
             @continue="continueToFicha"
@@ -404,7 +429,8 @@ function restartWizard() {
 
           <!-- Step 4 · Ficha -->
           <FichaStep
-            v-else-if="step === 4"
+            v-else-if="step === 4 && leadId != null"
+            :lead-id="leadId"
             :linked-ids="linkedIds"
             :alcance="form.alc"
             @back="step = 3"
@@ -414,7 +440,8 @@ function restartWizard() {
 
           <!-- Step 5 · Borrador -->
           <DraftStep
-            v-else-if="step === 5"
+            v-else-if="step === 5 && leadId != null"
+            :lead-id="leadId"
             :linked-ids="linkedIds"
             :title="form.title"
             @back="step = 4"
