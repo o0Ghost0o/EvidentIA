@@ -1,29 +1,38 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
 import Input from "~/components/ui/Input.vue";
 import { api } from "~/composables/useApi";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "~/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "~/components/ui/sheet";
+import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
+import type { EvidenceLevel } from "~/lib/leadEvidence";
 import {
-  CATALOG,
-  EXAMPLE_LINK,
-  type CatalogSource,
-  type ChainNode,
-  type EvidenceLevel,
-  type LaneCard,
-  type Relation,
-  buildSourceChain,
-  deriveEvidence,
-  evidencePayload,
-} from "~/lib/leadEvidence";
+  BAND_LABEL,
+  type LinkedItem,
+  type RankItem,
+  type RankingResponse,
+  type Rol,
+  ROL_META,
+  ROL_ORDER,
+  type ScoreResponse,
+  evidenceLevelFrom,
+  normaliseRol,
+} from "~/lib/leadWizard";
 
-// Step 2 "Evidencia" of the new-lead workspace. Links sources from the ingest
-// catalog; the evidence state, role lanes and requirement checklist are derived
-// from the linked set. Links persist to the real evidence API, optimistically.
+// Step 2 "Evidencia" of the new-lead workspace. Sources are linked from the real
+// ranking catalog (GET /ranking) and persisted to the evidence API. The evidence
+// state, role lanes and requirement checklist are derived from the linked set and
+// the deterministic score endpoint (GET /cases/{id}/score) — no local fixtures.
+interface InitialItem {
+  rowId: number | null;
+  fuenteId: string;
+  fuenteTipo: string;
+  rol: string;
+  titulo: string;
+}
 const props = withDefaults(
-  defineProps<{ leadId: number; readonly?: boolean; initialLinkedIds?: string[] }>(),
-  { readonly: false, initialLinkedIds: () => [] }
+  defineProps<{ leadId: number; modalidad?: string; readonly?: boolean; initialItems?: InitialItem[] }>(),
+  { modalidad: "tvn", readonly: false, initialItems: () => [] }
 );
 const emit = defineEmits<{
   (e: "back"): void;
@@ -31,81 +40,212 @@ const emit = defineEmits<{
   (e: "change", payload: { count: number; label: string; tone: string; key: EvidenceLevel; linkedIds: string[] }): void;
 }>();
 
-// Seed from already-linked sources (lead detail) so the lanes, checklist and
-// chains render the saved evidence without any catalog interaction.
-const linkedIds = ref<string[]>([...props.initialLinkedIds]);
-// Catalog id → backend evidence row id, so unlinks can DELETE the right row.
-const evidenceRowId = reactive<Record<string, number>>({});
+// Linked set, seeded from any already-saved evidence (lead detail / resume).
+const linked = ref<LinkedItem[]>(
+  props.initialItems.map((it) => ({
+    rowId: it.rowId,
+    fuenteId: it.fuenteId,
+    fuenteTipo: it.fuenteTipo,
+    rol: normaliseRol(it.rol),
+    titulo: it.titulo,
+  }))
+);
 const persistError = ref("");
 
+// Backend score for the current linked set; drives the evidence state label/tone.
+const score = ref<ScoreResponse | null>(null);
+const scoreLoading = ref(false);
+
+// Catalog drawer (ranking).
 const catOpen = ref(false);
+const catalog = ref<RankItem[]>([]);
+const catalogLoading = ref(false);
+const catalogError = ref("");
 const query = ref("");
 const onlyLinked = ref(false);
-const chainSource = ref<CatalogSource | null>(null);
+// Role chosen for the next link, per catalog row.
+const pendingRol = reactive<Record<string, Rol>>({});
 
-const derived = computed(() => deriveEvidence(linkedIds.value));
-const isLinked = (id: string) => linkedIds.value.includes(id);
+// Source-detail modal (real GET /evidence/item).
+const modalOpen = ref(false);
+const inspected = ref<{ tipo: string; id: string } | null>(null);
+
+const linkedIds = computed(() => linked.value.map((l) => l.fuenteId));
+const isLinked = (fuenteId: string) => linked.value.some((l) => l.fuenteId === fuenteId);
+
+const level = computed<EvidenceLevel>(() =>
+  evidenceLevelFrom(score.value?.evidence_state, linked.value.length)
+);
+const STATE: Record<EvidenceLevel, { label: string; short: string; tone: "neutral" | "error" | "warning" | "success" }> = {
+  none: { label: "sin fuentes", short: "Aún no hay fuentes vinculadas.", tone: "neutral" },
+  insuficiente: { label: "insuficiente", short: "Ninguna fuente primaria respalda la afirmación.", tone: "error" },
+  parcial: { label: "parcial", short: "Una fuente primaria respalda; falta corroborar.", tone: "warning" },
+  suficiente: { label: "suficiente", short: "La afirmación está respaldada por fuentes primarias.", tone: "success" },
+};
+const state = computed(() => STATE[level.value]);
+
+// --- Score refresh --------------------------------------------------------
+async function refreshScore() {
+  scoreLoading.value = true;
+  try {
+    score.value = await api<ScoreResponse>(`cases/${props.leadId}/score`);
+  } catch {
+    score.value = null;
+  } finally {
+    scoreLoading.value = false;
+  }
+}
 
 watch(
-  derived,
-  (d) => emit("change", { count: d.linked.length, label: d.state.label, tone: d.state.tone, key: d.state.key, linkedIds: [...linkedIds.value] }),
-  { immediate: true, deep: false }
+  [level, linkedIds],
+  () => {
+    emit("change", {
+      count: linked.value.length,
+      label: state.value.label,
+      tone: state.value.tone,
+      key: level.value,
+      linkedIds: [...linkedIds.value],
+    });
+  },
+  { immediate: true }
 );
 
 // --- Persistence (optimistic) --------------------------------------------
-async function persistLink(src: CatalogSource) {
+async function persistLink(item: LinkedItem) {
   try {
     const res = await api<{ id: number }>(`cases/${props.leadId}/evidence`, {
       method: "POST",
-      body: evidencePayload(src),
+      body: {
+        fuente_tipo: item.fuenteTipo,
+        fuente_id: item.fuenteId,
+        rol: item.rol,
+        nota: item.titulo,
+        marcado_manual: true,
+      },
     });
-    if (res?.id != null) evidenceRowId[src.id] = res.id;
+    if (res?.id != null) item.rowId = res.id;
   } catch (err: any) {
     persistError.value = err?.data?.detail || "No se pudo guardar el vínculo; se mantiene localmente.";
   }
+  await refreshScore();
 }
-async function persistUnlink(id: string) {
-  const rowId = evidenceRowId[id];
-  if (rowId == null) return;
+async function persistUnlink(item: LinkedItem) {
+  if (item.rowId == null) return;
   try {
-    await api(`cases/${props.leadId}/evidence/${rowId}`, { method: "DELETE" });
-    delete evidenceRowId[id];
+    await api(`cases/${props.leadId}/evidence/${item.rowId}`, { method: "DELETE" });
   } catch (err: any) {
     persistError.value = err?.data?.detail || "No se pudo quitar el vínculo en el servidor.";
   }
+  await refreshScore();
 }
 
-function link(src: CatalogSource) {
-  if (isLinked(src.id)) return;
-  linkedIds.value = [...linkedIds.value, src.id];
+function linkRow(row: RankItem) {
+  if (isLinked(row.id)) return;
+  const fuenteId = row.ids_fuente[0] ?? row.id;
+  const item: LinkedItem = {
+    rowId: null,
+    fuenteId,
+    fuenteTipo: "news",
+    rol: pendingRol[row.id] ?? "respaldo",
+    titulo: row.titulo,
+  };
+  // Key the linked item by the ranking id so toggles line up with the drawer.
+  (item as LinkedItem & { catId?: string }).catId = row.id;
+  linked.value = [...linked.value, item];
   persistError.value = "";
-  void persistLink(src);
+  void persistLink(item);
 }
-function unlink(id: string) {
-  if (!isLinked(id)) return;
-  linkedIds.value = linkedIds.value.filter((x) => x !== id);
+function unlinkByFuente(fuenteId: string) {
+  const item = linked.value.find((l) => l.fuenteId === fuenteId);
+  if (!item) return;
+  linked.value = linked.value.filter((l) => l.fuenteId !== fuenteId);
   persistError.value = "";
-  void persistUnlink(id);
+  void persistUnlink(item);
 }
-function toggle(src: CatalogSource) {
-  isLinked(src.id) ? unlink(src.id) : link(src);
+function toggleRow(row: RankItem) {
+  const fuenteId = row.ids_fuente[0] ?? row.id;
+  isLinked(fuenteId) ? unlinkByFuente(fuenteId) : linkRow(row);
 }
-function linkExample() {
-  for (const id of EXAMPLE_LINK) {
-    const src = CATALOG.find((s) => s.id === id);
-    if (src) link(src);
+function rowLinked(row: RankItem) {
+  return isLinked(row.ids_fuente[0] ?? row.id);
+}
+
+function setRol(item: LinkedItem, rol: Rol) {
+  item.rol = rol;
+  if (item.rowId != null) {
+    // rol is only captured at link time by the API; a change relinks the row.
+    void api(`cases/${props.leadId}/evidence/${item.rowId}`, { method: "DELETE" })
+      .then(() => {
+        item.rowId = null;
+        return persistLink(item);
+      })
+      .catch(() => {});
   }
 }
 
-// --- Catalog drawer filtering --------------------------------------------
+// --- Catalog --------------------------------------------------------------
+async function loadCatalog() {
+  if (catalog.value.length || catalogLoading.value) return;
+  catalogLoading.value = true;
+  catalogError.value = "";
+  try {
+    const res = await api<RankingResponse>("ranking", { query: { modalidad: props.modalidad } });
+    catalog.value = res.items;
+  } catch {
+    catalogError.value = "No se pudo cargar el catálogo de fuentes. ¿Está corriendo el backend?";
+  } finally {
+    catalogLoading.value = false;
+  }
+}
+function openCatalog() {
+  catOpen.value = true;
+  void loadCatalog();
+}
+
 const catalogFiltered = computed(() => {
   const q = query.value.trim().toLowerCase();
-  return CATALOG.filter((s) => {
-    if (onlyLinked.value && !isLinked(s.id)) return false;
+  return catalog.value.filter((row) => {
+    if (onlyLinked.value && !rowLinked(row)) return false;
     if (!q) return true;
-    return s.title.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);
+    return row.titulo.toLowerCase().includes(q) || row.id.toLowerCase().includes(q);
   });
 });
+
+// --- Lanes & checklist ----------------------------------------------------
+const lanes = computed(() =>
+  ROL_ORDER.map((rol) => ({
+    rol,
+    label: ROL_META[rol].laneLabel,
+    empty: ROL_META[rol].empty,
+    cards: linked.value.filter((l) => l.rol === rol),
+  }))
+);
+const contraCount = computed(() => linked.value.filter((l) => l.rol === "contradiccion").length);
+const checks = computed(() => [
+  {
+    label: "Al menos una fuente vinculada",
+    note: "Requerido para continuar a Contexto",
+    detail: String(linked.value.length),
+    status: linked.value.length ? "ok" : "todo",
+  },
+  {
+    label: "Evidencia suficiente",
+    note:
+      level.value === "suficiente"
+        ? "Respaldo primario confirmado por las reglas"
+        : "Dos fuentes primarias independientes · la prensa replicada cuenta como una",
+    detail: level.value === "suficiente" ? "✓" : level.value === "parcial" ? "parcial" : "falta",
+    status: level.value === "suficiente" ? "ok" : level.value === "parcial" ? "warn" : "todo",
+  },
+  {
+    label: "Versión contraria identificada",
+    note: contraCount.value ? "El borrador presentará ambas versiones" : "Recomendado · p. ej. la versión de la distribuidora",
+    detail: String(contraCount.value),
+    status: contraCount.value ? "ok" : "todo",
+  },
+]);
+
+const bandLabel = computed(() => (score.value ? BAND_LABEL[score.value.band] : ""));
 
 // --- Presentation helpers -------------------------------------------------
 const STATE_CARD: Record<string, string> = {
@@ -127,97 +267,50 @@ const CHECK_CIRCLE: Record<string, string> = {
   todo: "border-ink-muted/50 text-ink-muted",
   info: "border-ink-muted/50 text-ink-muted",
 };
-const REL_ACCENT: Record<Relation, string> = {
-  Respalda: "border-t-success",
-  Contradice: "border-t-destructive",
-  Contexto: "border-t-ink-muted",
+const REL_ACCENT: Record<Rol, string> = {
+  respaldo: "border-t-success",
+  contradiccion: "border-t-destructive",
+  contexto: "border-t-ink-muted",
 };
-const REL_LABEL_COLOR: Record<Relation, string> = {
-  Respalda: "text-success",
-  Contradice: "text-destructive",
-  Contexto: "text-ink-muted",
+const REL_LABEL_COLOR: Record<Rol, string> = {
+  respaldo: "text-success",
+  contradiccion: "text-destructive",
+  contexto: "text-ink-muted",
 };
-function kindClass(type: string) {
-  switch (type) {
-    case "Noticia": return "text-info bg-info/10";
-    case "Documento": return "text-primary bg-primary-soft";
-    case "Indicador": return "text-teal-700 dark:text-teal-300 bg-teal-500/15";
-    case "Evento": return "text-warning bg-warning/10";
-    default: return "text-ink-muted bg-surface-sunken";
-  }
+
+function inspect(fuenteId: string, fuenteTipo: string) {
+  inspected.value = { tipo: fuenteTipo, id: fuenteId };
+  modalOpen.value = true;
 }
-function kindTone(kind: string) {
-  switch (kind) {
-    case "noticia": return "text-info bg-info/10";
-    case "documento": return "text-primary bg-primary-soft";
-    case "indicador": return "text-teal-700 dark:text-teal-300 bg-teal-500/15";
-    case "evento": return "text-warning bg-warning/10";
-    case "entidad": return "text-purple-700 dark:text-purple-300 bg-purple-500/15";
-    case "correlación": return "text-ink bg-surface-sunken";
-    default: return "text-ink-muted bg-surface-sunken"; // procedencia
-  }
-}
-const meter = computed(() => {
-  const n = Math.min(derived.value.primN, 2);
-  return { n, a: n >= 1, b: n >= 2 };
+
+onMounted(() => {
+  if (props.leadId != null) void refreshScore();
 });
-function cardVia(card: LaneCard) {
-  return card.head.m;
-}
-function replicaNote(card: LaneCard) {
-  return card.members.length > 1 ? `+${card.members.length - 1} réplicas · cuentan como 1` : "";
-}
-
-const chain = computed(() => (chainSource.value ? buildSourceChain(chainSource.value.id) : null));
-function nodeRelClass(rel: string) {
-  if (rel === "Respalda" || rel === "Corrobora") return "text-success border-success/40 bg-success/10";
-  if (rel === "Contradice") return "text-destructive border-destructive/40 bg-destructive/10";
-  return "text-ink-muted border-border bg-surface";
-}
-function openChain(card: LaneCard) {
-  chainSource.value = card.head;
-  selectedNode.value = null;
-}
-
-// Node detail modal — opened by clicking a node inside the chain tree.
-const selectedNode = ref<ChainNode | null>(null);
-function openNode(node: ChainNode) {
-  selectedNode.value = node;
-}
-function nodeLinked(node: ChainNode) {
-  return node.catId != null && isLinked(node.catId);
-}
-function toggleNode(node: ChainNode) {
-  if (!node.catId) return;
-  const src = CATALOG.find((s) => s.id === node.catId);
-  if (src) toggle(src);
-}
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
     <!-- Evidence state + requirement checklist -->
-    <div class="flex flex-col gap-3 rounded-md border p-4 transition-colors" :class="STATE_CARD[derived.state.tone]">
+    <div class="flex flex-col gap-3 rounded-md border p-4 transition-colors" :class="STATE_CARD[state.tone]">
       <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <span class="font-serif text-heading-md" :class="STATE_TEXT[derived.state.tone]">
-          Evidencia {{ derived.state.label }}
+        <span class="font-serif text-heading-md" :class="STATE_TEXT[state.tone]">
+          Evidencia {{ state.label }}
         </span>
-        <span class="text-body-sm text-ink">{{ derived.state.short }}</span>
+        <span class="text-body-sm text-ink">{{ state.short }}</span>
       </div>
 
-      <!-- Primaries meter -->
-      <div class="flex items-center gap-1.5">
-        <span class="h-1.5 w-6 rounded-full transition-colors" :class="meter.a ? (meter.b ? 'bg-success' : 'bg-warning') : 'bg-border'" />
-        <span class="h-1.5 w-6 rounded-full transition-colors" :class="meter.b ? 'bg-success' : 'bg-border'" />
-        <span class="ml-1 font-mono text-caption text-ink-muted">{{ meter.n }}/2 primarias</span>
+      <div v-if="score" class="flex flex-wrap items-center gap-2 font-mono text-caption text-ink-muted">
+        <span>P {{ score.P }} · banda {{ bandLabel }}</span>
+        <span class="rounded-sm bg-surface-sunken px-1">reglas {{ score.rules_version }}</span>
+        <span v-if="scoreLoading">· actualizando…</span>
       </div>
 
       <div class="flex flex-col overflow-hidden rounded-md border border-border bg-surface">
         <div
-          v-for="(ck, i) in derived.checks"
+          v-for="(ck, i) in checks"
           :key="ck.label"
           class="grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-3 px-3.5 py-2.5"
-          :class="i < derived.checks.length - 1 ? 'border-b border-surface-sunken' : ''"
+          :class="i < checks.length - 1 ? 'border-b border-surface-sunken' : ''"
         >
           <span
             class="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] text-caption font-semibold transition-colors"
@@ -238,11 +331,10 @@ function toggleNode(node: ChainNode) {
     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
       <div class="flex min-w-0 flex-col gap-0.5">
         <span class="text-label uppercase text-ink-muted">Fuentes por papel</span>
-        <span class="text-caption text-ink-muted">Toca una fuente para ver su cadena de evidencia.</span>
+        <span class="text-caption text-ink-muted">Toca una fuente para ver su detalle y citas.</span>
       </div>
       <div v-if="!readonly" class="flex flex-wrap gap-2">
-        <Button variant="outline" @click="linkExample">Vincular ejemplo</Button>
-        <Button @click="catOpen = true">+ Vincular fuentes</Button>
+        <Button @click="openCatalog">+ Vincular fuentes</Button>
       </div>
     </div>
 
@@ -251,13 +343,13 @@ function toggleNode(node: ChainNode) {
     <!-- Role lanes -->
     <div class="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] items-start gap-3">
       <div
-        v-for="lane in derived.lanes"
-        :key="lane.rel"
+        v-for="lane in lanes"
+        :key="lane.rol"
         class="flex flex-col gap-2 rounded-md border-t-[3px] bg-surface-sunken p-3"
-        :class="REL_ACCENT[lane.rel]"
+        :class="REL_ACCENT[lane.rol]"
       >
         <div class="flex items-center justify-between">
-          <span class="text-label uppercase" :class="REL_LABEL_COLOR[lane.rel]">{{ lane.label }}</span>
+          <span class="text-label uppercase" :class="REL_LABEL_COLOR[lane.rol]">{{ lane.label }}</span>
           <span class="font-mono text-caption text-ink-muted">{{ lane.cards.length }}</span>
         </div>
 
@@ -265,244 +357,151 @@ function toggleNode(node: ChainNode) {
           {{ lane.empty }}
         </p>
 
-        <button
+        <div
           v-for="card in lane.cards"
-          :key="card.key"
-          type="button"
-          class="flex flex-col gap-1.5 rounded-md border border-border bg-surface p-3 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-          @click="openChain(card)"
+          :key="card.fuenteId"
+          class="flex flex-col gap-1.5 rounded-md border border-border bg-surface p-3"
         >
-          <div class="flex flex-wrap items-center gap-1.5">
-            <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindClass(card.head.type)">
-              {{ card.head.type.toLowerCase() }}
-            </span>
-            <span class="font-mono text-caption text-ink-muted">{{ card.head.id }}</span>
-            <span
-              v-if="card.primary"
-              class="rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-[11px] font-semibold text-success"
+          <button
+            type="button"
+            class="flex flex-col gap-1.5 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+            @click="inspect(card.fuenteId, card.fuenteTipo)"
+          >
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="rounded-full bg-info/10 px-2 py-0.5 text-[11px] font-semibold text-info">
+                {{ card.fuenteTipo }}
+              </span>
+              <span class="font-mono text-caption text-ink-muted">{{ card.fuenteId }}</span>
+            </div>
+            <span class="text-body-sm leading-snug">{{ card.titulo }}</span>
+          </button>
+
+          <div v-if="!readonly" class="flex flex-wrap items-center gap-1.5 border-t border-surface-sunken pt-2">
+            <button
+              v-for="rol in ROL_ORDER"
+              :key="rol"
+              type="button"
+              class="h-6 rounded-full border px-2 text-[11px] font-semibold transition-colors"
+              :class="card.rol === rol ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface text-ink-muted'"
+              @click="setRol(card, rol)"
             >
-              primaria
-            </span>
-          </div>
-          <span class="text-body-sm leading-snug">{{ card.head.title }}</span>
-          <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[11px] text-ink-muted">
-            <span>vía {{ cardVia(card) }}</span>
-            <span v-if="card.members.length > 1">{{ replicaNote(card) }}</span>
-          </div>
-          <div v-if="card.chain.levels.length" class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span class="font-mono text-[11px] text-ink-muted">
-              {{ card.chain.counts.ent }} ent · {{ card.chain.counts.datos }} datos · {{ card.chain.counts.corr }} corr
-            </span>
-            <span
-              v-if="card.chain.contradictions"
-              class="rounded-full bg-destructive px-2 py-0.5 text-[10px] font-semibold uppercase text-white"
+              {{ ROL_META[rol].label }}
+            </button>
+            <button
+              type="button"
+              class="ml-auto h-6 rounded-md px-2 text-[11px] font-semibold text-destructive hover:bg-destructive/5"
+              @click="unlinkByFuente(card.fuenteId)"
             >
-              ▲ {{ card.chain.contradictions }} {{ card.chain.contradictions === 1 ? "contradicción" : "contradicciones" }}
-            </span>
+              Quitar
+            </button>
           </div>
-        </button>
+        </div>
       </div>
     </div>
 
     <!-- Footer nav -->
     <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
       <Button variant="outline" @click="emit('back')">← Atrás</Button>
-      <Button :disabled="!derived.linked.length" @click="emit('continue')">
+      <Button :disabled="!linked.length" @click="emit('continue')">
         Continuar · Contexto →
       </Button>
     </div>
 
-    <!-- Catalog drawer -->
+    <!-- Catalog drawer (ranking) -->
     <Sheet v-model:open="catOpen">
       <SheetContent side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
         <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
           <SheetTitle class="font-serif text-heading-md text-ink">Vincular fuentes</SheetTitle>
           <SheetDescription class="text-caption text-ink-muted">
-            Catálogo de ingesta · cada fuente vinculada se agrega al árbol como nodo N1
+            Catálogo priorizado · modalidad {{ modalidad }} · cada grupo cuenta como una fuente
           </SheetDescription>
         </div>
-      <div class="min-h-0 flex-1 overflow-y-auto">
-        <div class="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
-          <Input v-model="query" placeholder="Buscar por título o ID" class="h-8 flex-1 font-mono text-caption" />
-          <div class="flex gap-1.5">
-            <button
-              type="button"
-              class="h-8 rounded-full border px-3 text-caption font-semibold transition-colors"
-              :class="!onlyLinked ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface text-ink'"
-              @click="onlyLinked = false"
-            >
-              Todas · {{ CATALOG.length }}
-            </button>
-            <button
-              type="button"
-              class="h-8 rounded-full border px-3 text-caption font-semibold transition-colors"
-              :class="onlyLinked ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface text-ink'"
-              @click="onlyLinked = true"
-            >
-              Vinculadas · {{ linkedIds.length }}
-            </button>
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <div class="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
+            <Input v-model="query" placeholder="Buscar por título o ID" class="h-8 flex-1 font-mono text-caption" />
+            <div class="flex gap-1.5">
+              <button
+                type="button"
+                class="h-8 rounded-full border px-3 text-caption font-semibold transition-colors"
+                :class="!onlyLinked ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface text-ink'"
+                @click="onlyLinked = false"
+              >
+                Todas · {{ catalog.length }}
+              </button>
+              <button
+                type="button"
+                class="h-8 rounded-full border px-3 text-caption font-semibold transition-colors"
+                :class="onlyLinked ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface text-ink'"
+                @click="onlyLinked = true"
+              >
+                Vinculadas · {{ linked.length }}
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div
-          v-for="src in catalogFiltered"
-          :key="src.id"
-          class="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3 transition-colors"
-          :class="isLinked(src.id) ? 'bg-primary-soft/40' : ''"
-        >
-          <span class="shrink-0 rounded-sm bg-surface-sunken px-1 font-mono text-caption text-ink-muted">{{ src.id }}</span>
-          <span class="min-w-0 flex-1 basis-[200px] text-body-sm leading-snug">{{ src.title }}</span>
-          <span class="flex items-center gap-1.5 whitespace-nowrap text-caption font-semibold" :class="REL_LABEL_COLOR[src.rel]">
-            <span class="h-2 w-2 rounded-full" :class="REL_ACCENT[src.rel].replace('border-t-', 'bg-')" />
-            {{ src.rel }}
-          </span>
-          <button
-            type="button"
-            class="ml-auto h-8 min-w-[96px] rounded-md border px-3 text-caption font-semibold transition-colors"
-            :class="isLinked(src.id)
-              ? 'border-border bg-surface text-ink hover:bg-surface-sunken'
-              : 'border-transparent bg-primary text-on-primary hover:bg-primary-deep'"
-            @click="toggle(src)"
+          <p v-if="catalogLoading" class="px-5 py-4 text-body-sm text-ink-muted">Cargando catálogo…</p>
+          <p v-else-if="catalogError" class="px-5 py-4 text-body-sm text-destructive">{{ catalogError }}</p>
+
+          <div
+            v-for="row in catalogFiltered"
+            :key="row.id"
+            class="flex flex-col gap-2 border-b border-border px-5 py-3 transition-colors"
+            :class="rowLinked(row) ? 'bg-primary-soft/40' : ''"
           >
-            {{ isLinked(src.id) ? "Quitar" : "Vincular" }}
-          </button>
-        </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="shrink-0 rounded-sm bg-surface-sunken px-1 font-mono text-caption text-ink-muted">
+                P {{ row.P }}
+              </span>
+              <span class="min-w-0 flex-1 basis-[200px] text-body-sm leading-snug">{{ row.titulo }}</span>
+              <button
+                type="button"
+                class="ml-auto h-8 min-w-[96px] rounded-md border px-3 text-caption font-semibold transition-colors"
+                :class="rowLinked(row)
+                  ? 'border-border bg-surface text-ink hover:bg-surface-sunken'
+                  : 'border-transparent bg-primary text-on-primary hover:bg-primary-deep'"
+                @click="toggleRow(row)"
+              >
+                {{ rowLinked(row) ? "Quitar" : "Vincular" }}
+              </button>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 font-mono text-[11px] text-ink-muted">
+              <span>{{ row.group_size }} {{ row.group_size === 1 ? "nota" : "notas" }}</span>
+              <span>· {{ row.dedup.primary_sources }} primaria(s)</span>
+              <span>· evidencia {{ row.evidence_state }}</span>
+              <template v-if="!rowLinked(row)">
+                <span class="ml-auto">papel:</span>
+                <button
+                  v-for="rol in ROL_ORDER"
+                  :key="rol"
+                  type="button"
+                  class="rounded-full border px-2 py-0.5 font-semibold transition-colors"
+                  :class="(pendingRol[row.id] ?? 'respaldo') === rol ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface'"
+                  @click="pendingRol[row.id] = rol"
+                >
+                  {{ ROL_META[rol].label }}
+                </button>
+              </template>
+            </div>
+          </div>
 
-        <p v-if="!catalogFiltered.length" class="px-5 py-4 text-body-sm text-ink-muted">Sin resultados.</p>
+          <p v-if="!catalogLoading && !catalogError && !catalogFiltered.length" class="px-5 py-4 text-body-sm text-ink-muted">
+            Sin resultados.
+          </p>
         </div>
 
         <div class="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
-          <span class="text-caption text-ink-muted">{{ linkedIds.length }} fuentes vinculadas</span>
+          <span class="text-caption text-ink-muted">{{ linked.length }} fuentes vinculadas</span>
           <Button variant="outline" @click="catOpen = false">Listo</Button>
         </div>
       </SheetContent>
     </Sheet>
 
-    <!-- Evidence-chain drawer — the source's hierarchical tree only.
-         Clicking a node opens its detail modal. -->
-    <Sheet :open="!!chainSource" @update:open="(v) => { if (!v) chainSource = null; }">
-      <SheetContent side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-[480px]">
-        <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
-          <SheetTitle class="font-serif text-heading-md text-ink">
-            {{ chainSource ? `Cadena de evidencia · ${chainSource.id}` : "" }}
-          </SheetTitle>
-          <SheetDescription class="text-caption text-ink-muted">
-            Toca un nodo para ver su ficha completa.
-          </SheetDescription>
-        </div>
-      <div v-if="chain" class="min-h-0 flex-1 overflow-y-auto flex flex-col gap-3 px-5 py-4">
-        <!-- N0 · central claim (tree root) -->
-        <button
-          type="button"
-          class="flex flex-col gap-1.5 rounded-md border border-primary/40 bg-primary-soft/40 p-3 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-          @click="openNode(chain.claim)"
-        >
-          <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">N0 · Afirmación central</span>
-          <span class="text-body-sm italic leading-snug text-ink">{{ chain.claim.title }}</span>
-        </button>
-
-        <!-- N1..N5, grouped by level and indented -->
-        <div
-          v-for="lvl in chain.levels"
-          :key="lvl.level"
-          class="flex flex-col gap-1.5 border-l border-border pl-3"
-          :style="{ marginLeft: (lvl.level - 1) * 10 + 'px' }"
-        >
-          <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">N{{ lvl.level }} · {{ lvl.name }}</span>
-          <button
-            v-for="node in lvl.nodes"
-            :key="node.id"
-            type="button"
-            class="flex flex-col gap-1 rounded-md border bg-surface px-3 py-2 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-            :class="node.rel === 'Contradice' ? 'border-destructive/50' : 'border-border'"
-            @click="openNode(node)"
-          >
-            <div class="flex flex-wrap items-center gap-1.5">
-              <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindTone(node.kind)">
-                {{ node.kind }}
-              </span>
-              <span class="font-mono text-caption text-ink-muted">{{ node.id }}</span>
-              <span
-                v-if="node.rel"
-                class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase"
-                :class="nodeRelClass(node.rel)"
-              >
-                {{ node.rel }}
-              </span>
-            </div>
-            <span class="text-caption leading-snug">{{ node.title }}</span>
-          </button>
-        </div>
-      </div>
-      </SheetContent>
-    </Sheet>
-
-    <!-- Node detail modal — the complete evidence information. -->
-    <Dialog :open="!!selectedNode" @update:open="(v) => { if (!v) selectedNode = null; }">
-      <DialogContent class="flex max-h-[calc(100vh-48px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
-        <div v-if="selectedNode" class="flex min-h-0 flex-1 flex-col">
-        <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
-          <DialogTitle class="font-serif text-heading-md text-ink">{{ selectedNode.title }}</DialogTitle>
-          <DialogDescription class="font-mono text-caption text-ink-muted">
-            N{{ selectedNode.depth }} · {{ selectedNode.levelName }}
-          </DialogDescription>
-        </div>
-        <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
-        <div class="flex flex-wrap items-center gap-1.5">
-          <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindTone(selectedNode.kind)">
-            {{ selectedNode.kind }}
-          </span>
-          <span class="font-mono text-caption text-ink-muted">{{ selectedNode.id }}</span>
-          <span
-            v-if="selectedNode.rel"
-            class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase"
-            :class="nodeRelClass(selectedNode.rel)"
-          >
-            {{ selectedNode.rel }} · {{ selectedNode.parentTitle }}
-          </span>
-        </div>
-
-        <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-body-sm">
-          <dt class="text-ink-muted">Fuente / medio</dt><dd>{{ selectedNode.medio }}</dd>
-          <dt class="text-ink-muted">Fecha</dt><dd class="font-mono">{{ selectedNode.fecha }}</dd>
-          <dt class="text-ink-muted">Alcance</dt><dd>{{ selectedNode.alcance }}</dd>
-          <dt class="text-ink-muted">Rol en el caso</dt><dd>{{ selectedNode.role }}</dd>
-        </dl>
-
-        <blockquote class="rounded-md border-l-[3px] border-primary bg-primary-soft/40 px-3 py-2 text-body-sm italic text-ink">
-          {{ selectedNode.excerpt }}
-          <span class="mt-1 block font-mono text-caption not-italic text-ink-muted">{{ selectedNode.cite }}</span>
-        </blockquote>
-
-        <a
-          :href="`https://ingesta.evidentia.app/f/${selectedNode.id}`"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="font-mono text-caption text-primary hover:underline"
-        >
-          Abrir en ingesta ↗
-        </a>
-        </div>
-
-        <div
-          v-if="selectedNode.catId && !readonly"
-          class="flex items-center justify-between gap-3 border-t border-border px-5 py-4"
-        >
-          <span
-            class="rounded-full border px-2 py-0.5 text-caption font-semibold"
-            :class="nodeLinked(selectedNode) ? 'border-success/40 bg-success/10 text-success' : 'border-border bg-surface text-ink-muted'"
-          >
-            {{ nodeLinked(selectedNode) ? "Vinculada al caso" : "No vinculada" }}
-          </span>
-          <Button
-            :variant="nodeLinked(selectedNode) ? 'outline' : 'default'"
-            @click="toggleNode(selectedNode)"
-          >
-            {{ nodeLinked(selectedNode) ? "Desvincular" : "Vincular al caso" }}
-          </Button>
-        </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <!-- Source detail (real /evidence/item) -->
+    <EvidenceDetailModal
+      v-model:open="modalOpen"
+      :tipo="inspected?.tipo"
+      :id="inspected?.id"
+      @navigate="(t, i) => { inspected = { tipo: t, id: i }; modalOpen = true; }"
+    />
   </div>
 </template>

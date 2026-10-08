@@ -59,6 +59,16 @@ const catalogIds = new Set(CATALOG.map((s) => s.id));
 const linkedIds = computed(() =>
   (detail.value?.evidence ?? []).map((e) => e.fuente_id).filter((fid) => catalogIds.has(fid))
 );
+// Real linked evidence, mapped onto the EvidenceStep view model.
+const evidenceItems = computed(() =>
+  (detail.value?.evidence ?? []).map((e) => ({
+    rowId: e.id,
+    fuenteId: e.fuente_id,
+    fuenteTipo: e.fuente_tipo,
+    rol: e.rol,
+    titulo: e.nota || e.fuente_id,
+  }))
+);
 const evidence = computed(() => deriveEvidence(linkedIds.value));
 const evidenceLevel = computed<EvidenceLevel>(() => evidence.value.state.key);
 
@@ -210,7 +220,8 @@ function scrollToStep(i: number) {
             v-if="i === 0"
             readonly
             :lead-id="detail.id"
-            :initial-linked-ids="linkedIds"
+            :modalidad="detail.modalidad"
+            :initial-items="evidenceItems"
           />
           <ContextStep v-else-if="i === 1" readonly :evidence-level="evidenceLevel" />
           <FichaStep v-else-if="i === 2" readonly :linked-ids="linkedIds" :alcance="alcance" />
