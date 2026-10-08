@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import {
   RefreshCw,
   Download,
@@ -12,7 +12,9 @@ import {
 import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
 import StateChip from "~/components/ui/StateChip.vue";
+import Pagination from "~/components/ui/Pagination.vue";
 import { api } from "~/composables/useApi";
+import { usePagination } from "~/composables/usePagination";
 
 interface AutoScheduleStatus {
   enabled: boolean;
@@ -175,6 +177,14 @@ interface UploadRecord {
 }
 
 const uploadHistory = ref<UploadRecord[]>([]);
+const {
+  page: historyPage,
+  pageCount: historyPageCount,
+  total: historyTotal,
+  rangeStart: historyRangeStart,
+  rangeEnd: historyRangeEnd,
+  paged: pagedHistory,
+} = usePagination(uploadHistory, { pageSize: 10 });
 const uploading = ref<Record<string, boolean>>({});
 const uploadResultMsg = ref<Record<string, string>>({});
 const uploadErrorMsg = ref<Record<string, string>>({});
@@ -690,7 +700,7 @@ onUnmounted(() => {
           </thead>
           <tbody class="divide-y divide-hairline">
             <tr
-              v-for="item in uploadHistory"
+              v-for="item in pagedHistory"
               :key="item.upload_id"
               class="hover:bg-surface-sunken/60 transition-colors"
             >
@@ -737,6 +747,14 @@ onUnmounted(() => {
           </tbody>
         </table>
       </div>
+      <Pagination
+        v-model:page="historyPage"
+        :page-count="historyPageCount"
+        :total="historyTotal"
+        :range-start="historyRangeStart"
+        :range-end="historyRangeEnd"
+        class="mt-3"
+      />
     </Card>
 
     <!-- Modal de Detalle de Duplicados (Elevación Nivel 3) -->
