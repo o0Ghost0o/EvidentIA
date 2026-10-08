@@ -199,12 +199,19 @@ def run_ingestion(
     queries: dict[str, object] = {}
 
     if use_seed:
+        from evidentia.config import ensure_seed_files
+
+        ensure_seed_files(seed_dir)
         for name in ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl"):
             src = seed_dir / name
             if not src.exists():
                 alt = resolve_data_path(Path("data/seed") / name)
                 if alt.exists():
                     src = alt
+            if not src.exists():
+                alt2 = Path("/app/seed_frozen") / name
+                if alt2.exists():
+                    src = alt2
             if not src.exists():
                 report["warnings"].append(f"seed file missing: {name}")
                 continue

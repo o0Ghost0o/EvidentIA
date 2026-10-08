@@ -59,6 +59,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.qdrant_client = None
         logger.error("Qdrant initialisation failed (degraded mode): %s", exc)
 
+    # Ensure persistent storage volume has seed files (auto-copied from /app/seed_frozen if fresh volume)
+    try:
+        from evidentia.config import ensure_seed_files
+
+        copied_seeds = ensure_seed_files()
+        if copied_seeds:
+            logger.info("Auto-provisioned missing seed snapshot files to persistent storage: %s", copied_seeds)
+    except Exception as exc:
+        logger.warning("Could not ensure seed files on persistent storage: %s", exc)
+
     # Auto-bootstrap offline seed snapshot if USE_SEED_SNAPSHOT is true and database is empty
     if settings.use_seed_snapshot:
         try:
@@ -72,6 +82,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             if not has_news:
                 logger.info("USE_SEED_SNAPSHOT=true and database empty: auto-bootstrapping seed snapshot...")
                 from evidentia.ingestion.pipeline import run_ingestion
+
 
                 run_ingestion(use_seed=True)
                 logger.info("Seed snapshot auto-bootstrapped successfully.")

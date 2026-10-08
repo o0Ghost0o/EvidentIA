@@ -107,8 +107,42 @@ def reset_settings() -> None:
     _settings = None
 
 
+def ensure_seed_files(target_dir: Path | None = None) -> list[str]:
+    """Ensure all 4 seed snapshot files exist in target_dir, auto-copying from frozen backup if missing."""
+    import shutil
+
+    settings = get_settings()
+    dest = target_dir or resolve_data_path(settings.seed_dir)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    required_files = ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl")
+    copied = []
+
+    # Potential source directories in order of preference
+    source_candidates = [
+        Path("/app/seed_frozen"),
+        Path("/app/data/seed"),
+        Path(__file__).resolve().parents[3] / "data/seed",
+        Path(__file__).resolve().parents[3] / "backend/data/seed",
+        Path.cwd() / "data/seed",
+        Path.cwd() / "backend/data/seed",
+    ]
+
+    for filename in required_files:
+        target_file = dest / filename
+        if not target_file.exists() or target_file.stat().st_size == 0:
+            for cand in source_candidates:
+                src_file = cand / filename
+                if src_file.exists() and src_file.stat().st_size > 0 and src_file.resolve() != target_file.resolve():
+                    shutil.copy(src_file, target_file)
+                    copied.append(filename)
+                    break
+
+    return copied
+
+
 def resolve_data_path(rel_path: str | Path = "data") -> Path:
-    """Resolve a data or seed path reliably whether run from repo root or backend/."""
+    """Resolve a data or seed path reliably whether run from repo root, backend/, or container."""
     p = Path(rel_path)
     if p.is_absolute() and p.exists():
         return p
@@ -125,5 +159,10 @@ def resolve_data_path(rel_path: str | Path = "data") -> Path:
         return (curr / p).resolve()
     if (curr.parent / p).exists():
         return (curr.parent / p).resolve()
+    # Check container frozen seeds
+    frozen = Path("/app/seed_frozen") / (p.name if p.name in ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl") else p)
+    if frozen.exists():
+        return frozen.resolve()
     return candidate
+
 

@@ -1,9 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { marked } from "marked";
 import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
 import StateChip from "~/components/ui/StateChip.vue";
 import { api } from "~/composables/useApi";
+
+const mdViewMode = ref<"render" | "raw">("render");
+
+const renderedMarkdown = computed(() => {
+  const md = informe.value?.markdown;
+  if (!md) return "<p class='text-ink-muted italic'>Generando reporte Markdown oficial...</p>";
+  return marked.parse(md, { gfm: true, breaks: true });
+});
 
 interface PruebaDetalle {
   prueba: string;
@@ -465,17 +474,56 @@ const PREGUNTAS_JURADO = [
       </div>
 
       <div class="rounded-md border border-hairline bg-surface shadow-ev-1 overflow-hidden">
-        <div class="border-b border-hairline bg-surface-sunken px-4 py-2.5 flex items-center justify-between text-caption font-mono text-ink-muted">
+        <div class="border-b border-hairline bg-surface-sunken px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-caption font-mono text-ink-muted">
           <div class="flex items-center gap-2">
             <span class="inline-block h-2 w-2 rounded-full bg-success"></span>
-            <span>reporte_jurado_evidentia.md</span>
+            <span class="font-semibold text-ink">reporte_jurado_evidentia.md</span>
           </div>
-          <span>{{ (informe?.markdown?.length || 0).toLocaleString() }} caracteres</span>
+
+          <div class="flex items-center gap-3">
+            <span class="text-caption font-mono hidden sm:inline">{{ (informe?.markdown?.length || 0).toLocaleString() }} caracteres</span>
+
+            <!-- Single view toggle (Explicitly NO split view) -->
+            <div class="inline-flex rounded-md border border-hairline bg-surface p-0.5 text-caption font-sans">
+              <button
+                type="button"
+                class="px-2.5 py-1 rounded text-caption font-medium transition-colors"
+                :class="mdViewMode === 'render' ? 'bg-primary text-white shadow-xs font-semibold' : 'text-ink-muted hover:text-ink'"
+                @click="mdViewMode = 'render'"
+              >
+                Vista Renderizada
+              </button>
+              <button
+                type="button"
+                class="px-2.5 py-1 rounded text-caption font-medium transition-colors"
+                :class="mdViewMode === 'raw' ? 'bg-primary text-white shadow-xs font-semibold' : 'text-ink-muted hover:text-ink'"
+                @click="mdViewMode = 'raw'"
+              >
+                Código Markdown (.md)
+              </button>
+            </div>
+          </div>
         </div>
 
-        <pre class="p-6 font-mono text-mono text-ink bg-surface overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-[700px]">{{ informe?.markdown || "Generando reporte Markdown..." }}</pre>
+        <!-- Vista Renderizada (Default, single view a ancho completo) -->
+        <div
+          v-if="mdViewMode === 'render'"
+          class="p-6 md:p-8 overflow-y-auto max-h-[750px] bg-surface"
+        >
+          <div
+            class="evidentia-markdown-content max-w-none text-ink leading-relaxed"
+            v-html="renderedMarkdown"
+          ></div>
+        </div>
+
+        <!-- Vista Código Markdown Crudo -->
+        <pre
+          v-else
+          class="p-6 font-mono text-mono text-ink bg-surface overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-[750px]"
+        >{{ informe?.markdown || "Generando reporte Markdown..." }}</pre>
       </div>
     </section>
+
 
     <!-- Agente EvidentIA vs. Baseline BM25 -->
     <section class="space-y-4 pt-4 border-t border-hairline">
@@ -568,3 +616,148 @@ const PREGUNTAS_JURADO = [
     </section>
   </div>
 </template>
+
+<style scoped>
+.evidentia-markdown-content :deep(h1) {
+  font-family: var(--font-serif, serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-ink, #0f172a);
+  margin-top: 1rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.evidentia-markdown-content :deep(h2) {
+  font-family: var(--font-serif, serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-ink, #0f172a);
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--color-hairline, #f1f5f9);
+}
+
+.evidentia-markdown-content :deep(h3) {
+  font-family: var(--font-serif, serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-ink, #0f172a);
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.evidentia-markdown-content :deep(h4) {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink, #0f172a);
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.evidentia-markdown-content :deep(p) {
+  margin-bottom: 0.75rem;
+  line-height: 1.6;
+  font-size: 0.875rem;
+  color: var(--color-ink, #1e293b);
+}
+
+.evidentia-markdown-content :deep(strong) {
+  font-weight: 600;
+  color: var(--color-ink, #0f172a);
+}
+
+.evidentia-markdown-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.8125rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.evidentia-markdown-content :deep(th) {
+  background-color: var(--color-surface-sunken, #f8fafc);
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  font-weight: 600;
+  text-align: left;
+  color: var(--color-ink, #0f172a);
+}
+
+.evidentia-markdown-content :deep(td) {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  color: var(--color-ink, #1e293b);
+}
+
+.evidentia-markdown-content :deep(tr:nth-child(even)) {
+  background-color: rgba(248, 250, 252, 0.5);
+}
+
+.evidentia-markdown-content :deep(ul) {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.evidentia-markdown-content :deep(ol) {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.evidentia-markdown-content :deep(li) {
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
+}
+
+.evidentia-markdown-content :deep(code) {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8125rem;
+  background-color: var(--color-surface-sunken, #f1f5f9);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  color: var(--color-primary, #0284c7);
+}
+
+.evidentia-markdown-content :deep(pre) {
+  background-color: var(--color-surface-sunken, #f8fafc);
+  border: 1px solid var(--color-border, #e2e8f0);
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8125rem;
+}
+
+.evidentia-markdown-content :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  border: none;
+  color: inherit;
+}
+
+.evidentia-markdown-content :deep(blockquote) {
+  border-left: 4px solid var(--color-primary, #0284c7);
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  font-style: italic;
+  color: var(--color-ink-muted, #64748b);
+}
+
+.evidentia-markdown-content :deep(hr) {
+  border: 0;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  margin: 1.5rem 0;
+}
+</style>
+

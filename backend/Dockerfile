@@ -26,6 +26,7 @@ RUN uv run python -m spacy download es_core_news_sm
 COPY src ./src
 COPY tests ./tests
 COPY data/seed ./data/seed
+COPY data/seed /app/seed_frozen
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/src
