@@ -6,7 +6,6 @@ import { useAuth } from "~/composables/useAuth";
 
 const route = useRoute();
 const auth = useAuth();
-const route = useRoute();
 const showAuthModal = ref(false);
 
 const nav = [
