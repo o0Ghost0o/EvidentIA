@@ -141,7 +141,79 @@ export const SUB: Record<string, SubEntry[]> = {
   "ccc-com": [["ent-ccc", "Menciona", [["res-1187", "Contexto", [["cor-congelar", "Respalda"]]]]]],
 }; // NOTE: `disca-com` is normalized to a single array of two branches.
 
-const CATALOG_BY_ID = Object.fromEntries(CATALOG.map((s) => [s.id, s]));
+const CATALOG_BY_ID: Record<string, CatalogSource> = Object.fromEntries(CATALOG.map((s) => [s.id, s]));
+
+export function catalogSourceFromEvidenceItem(item: {
+  id?: number;
+  fuente_tipo: string;
+  fuente_id: string;
+  rol?: string;
+  nota?: string | null;
+  titulo?: string;
+  descripcion?: string | null;
+  fuente_nombre?: string | null;
+  fecha?: string | null;
+  cita_codigo?: string | null;
+  cita_texto?: string | null;
+  detalles?: Record<string, any>;
+}): CatalogSource {
+  const tipo = (item.fuente_tipo || "").toLowerCase();
+  let type: SourceType = "Noticia";
+  let clause = "cifra";
+  let medium = item.fuente_nombre || "Medio Informativo";
+  let rel: Relation = "Respalda";
+
+  if (item.rol === "contradice" || item.rol === "Contradice") rel = "Contradice";
+  else if (item.rol === "contexto" || item.rol === "Contexto") rel = "Contexto";
+
+  if (tipo === "indicator") {
+    type = "Indicador";
+    clause = "valor";
+    medium = item.fuente_nombre || "Banco Mundial";
+    rel = "Respalda";
+  } else if (tipo === "event") {
+    type = "Evento";
+    clause = "registro";
+    medium = item.fuente_nombre || "USGS";
+    rel = "Contexto";
+  } else if (tipo === "document") {
+    type = "Documento";
+    clause = "artículo";
+  }
+
+  const title = item.titulo || item.fuente_id;
+  const quote = item.cita_texto || item.descripcion || title;
+  const dateStr = item.fecha ? String(item.fecha).slice(0, 10) : "";
+
+  return {
+    id: item.fuente_id,
+    title,
+    type,
+    rel,
+    s: quote,
+    c: clause,
+    p: item.fuente_id,
+    ag: false,
+    m: medium,
+    d: dateStr,
+    x: quote,
+  };
+}
+
+export function registerDynamicSources(sources: CatalogSource[]): void {
+  for (const s of sources) {
+    CATALOG_BY_ID[s.id] = s;
+    if (!PROVENANCE[s.p]) {
+      PROVENANCE[s.p] = {
+        t: `${s.m} · Procedencia Oficial`,
+        m: s.m,
+        d: s.d,
+        f: s.c,
+        x: s.x,
+      };
+    }
+  }
+}
 
 // One node of a source's evidence chain, carrying everything the detail modal shows.
 export interface ChainNode {
@@ -339,8 +411,8 @@ function mergeCards(sources: CatalogSource[]): LaneCard[] {
   }));
 }
 
-export function deriveEvidence(linkedIds: string[]): DerivedEvidence {
-  const linked = CATALOG.filter((s) => linkedIds.includes(s.id));
+export function deriveEvidence(linkedIds: string[], catalog: CatalogSource[] = CATALOG): DerivedEvidence {
+  const linked = catalog.filter((s) => linkedIds.includes(s.id));
 
   // Independent primaries: primary sources deduped by provenance.
   const primProvenances = new Set(linked.filter(isPrimary).map((s) => s.p));

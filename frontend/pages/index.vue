@@ -270,12 +270,18 @@ const sortOptions = [
 ];
 
 async function openAsLead(item: RankItem) {
-  const flags = [item.id, `band:${item.band}`, item.tipo || "news"].filter(Boolean);
+  const flags = [
+    `topic_id:${item.id}`,
+    `band:${item.band}`,
+    `p:${item.P}`,
+    `tipo:${item.tipo || "news"}`,
+    "Investigación",
+  ].filter(Boolean);
   const created = await api<{ id: number }>("cases", {
     method: "POST",
     body: {
       titulo: item.titulo,
-      modalidad: item.modalidad,
+      modalidad: item.modalidad || mod.value,
       queries: [item.titulo],
       flags,
       evidence_ids: item.ids_fuente || [],

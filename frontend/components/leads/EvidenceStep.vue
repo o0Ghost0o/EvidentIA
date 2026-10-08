@@ -16,14 +16,20 @@ import {
   buildSourceChain,
   deriveEvidence,
   evidencePayload,
+  registerDynamicSources,
 } from "~/lib/leadEvidence";
 
 // Step 2 "Evidencia" of the new-lead workspace. Links sources from the ingest
 // catalog; the evidence state, role lanes and requirement checklist are derived
 // from the linked set. Links persist to the real evidence API, optimistically.
 const props = withDefaults(
-  defineProps<{ leadId: number; readonly?: boolean; initialLinkedIds?: string[] }>(),
-  { readonly: false, initialLinkedIds: () => [] }
+  defineProps<{
+    leadId: number;
+    readonly?: boolean;
+    initialLinkedIds?: string[];
+    customCatalog?: CatalogSource[];
+  }>(),
+  { readonly: false, initialLinkedIds: () => [], customCatalog: () => [] }
 );
 const emit = defineEmits<{
   (e: "back"): void;
@@ -34,6 +40,15 @@ const emit = defineEmits<{
 // Seed from already-linked sources (lead detail) so the lanes, checklist and
 // chains render the saved evidence without any catalog interaction.
 const linkedIds = ref<string[]>([...props.initialLinkedIds]);
+
+watch(
+  () => props.initialLinkedIds,
+  (ids) => {
+    if (ids) linkedIds.value = [...ids];
+  },
+  { deep: true }
+);
+
 // Catalog id → backend evidence row id, so unlinks can DELETE the right row.
 const evidenceRowId = reactive<Record<string, number>>({});
 const persistError = ref("");
@@ -43,7 +58,36 @@ const query = ref("");
 const onlyLinked = ref(false);
 const chainSource = ref<CatalogSource | null>(null);
 
-const derived = computed(() => deriveEvidence(linkedIds.value));
+// Combined catalog: props.customCatalog if provided, merged with CATALOG + dynamic backend items
+const backendCatalog = ref<CatalogSource[]>([]);
+const catalog = computed(() => {
+  const base = props.customCatalog?.length ? props.customCatalog : CATALOG;
+  if (!backendCatalog.value.length) return base;
+  const map = new Map<string, CatalogSource>();
+  for (const s of base) map.set(s.id, s);
+  for (const s of backendCatalog.value) map.set(s.id, s);
+  return Array.from(map.values());
+});
+
+async function loadBackendCatalog() {
+  try {
+    const res = await api<CatalogSource[]>("cases/catalog", { query: { limit: 150 } });
+    if (res && Array.isArray(res)) {
+      backendCatalog.value = res;
+      registerDynamicSources(res);
+    }
+  } catch {
+    // fallback
+  }
+}
+
+watch(catOpen, (open) => {
+  if (open && backendCatalog.value.length === 0) {
+    void loadBackendCatalog();
+  }
+});
+
+const derived = computed(() => deriveEvidence(linkedIds.value, catalog.value));
 const isLinked = (id: string) => linkedIds.value.includes(id);
 
 watch(
@@ -100,7 +144,7 @@ function linkExample() {
 // --- Catalog drawer filtering --------------------------------------------
 const catalogFiltered = computed(() => {
   const q = query.value.trim().toLowerCase();
-  return CATALOG.filter((s) => {
+  return catalog.value.filter((s) => {
     if (onlyLinked.value && !isLinked(s.id)) return false;
     if (!q) return true;
     return s.title.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);

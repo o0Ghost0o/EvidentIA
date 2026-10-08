@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
 import { Alert, AlertDescription } from "~/components/ui/alert";
-import { deriveEvidence } from "~/lib/leadEvidence";
+import { type CatalogSource, deriveEvidence } from "~/lib/leadEvidence";
 import { type DraftClass, type DraftMode, draftGaps, draftSents, words } from "~/lib/leadDraft";
 
 // Step 5 "Borrador" of the new-lead workspace. The draft is written only from the
@@ -11,7 +11,13 @@ import { type DraftClass, type DraftMode, draftGaps, draftSents, words } from "~
 // is blocked — the reporter can link more evidence or register an abstention. A
 // generated draft (or an abstention) is what unlocks the Revisión step.
 const props = withDefaults(
-  defineProps<{ linkedIds: string[]; title: string; genDelay?: number; readonly?: boolean }>(),
+  defineProps<{
+    linkedIds: string[];
+    title: string;
+    genDelay?: number;
+    readonly?: boolean;
+    customCatalog?: CatalogSource[];
+  }>(),
   { genDelay: 1800, readonly: false }
 );
 const emit = defineEmits<{
@@ -41,7 +47,7 @@ function clearGen() {
 }
 
 // --- Derived evidence & draft ----------------------------------------------
-const derived = computed(() => deriveEvidence(props.linkedIds));
+const derived = computed(() => deriveEvidence(props.linkedIds, props.customCatalog));
 const ev = computed(() => derived.value.state.key);
 const insuf = computed(() => ev.value === "insuficiente");
 const isParcial = computed(() => ev.value === "parcial");
@@ -51,8 +57,8 @@ const draftSrcCount = computed(
   () => linked.value.filter((s) => s.rel === "Respalda" || s.rel === "Contradice").length
 );
 
-const dList = computed(() => draftSents(props.linkedIds, dMode, props.title.trim()));
-const dGaps = computed(() => draftGaps(props.linkedIds, ev.value));
+const dList = computed(() => draftSents(props.linkedIds, dMode, props.title.trim(), props.customCatalog));
+const dGaps = computed(() => draftGaps(props.linkedIds, ev.value, props.customCatalog));
 const dWords = computed(() => words(props.title) + dList.value.reduce((a, s) => a + words(s.text), 0));
 const dCites = computed(() => dList.value.filter((s) => !flags.value[s.key]).length);
 const modeLabel = computed(
@@ -273,6 +279,10 @@ watch(
     abstained.value = false;
     tr.value = 0;
     typed.value = 0;
+    if (props.readonly && !insuf.value) {
+      tr.value = 5;
+      draft.value = true;
+    }
   },
   { deep: true }
 );
@@ -282,6 +292,18 @@ watch([draft, abstained], () => emit("change", { draft: draft.value, abstained: 
 // Read-only (lead detail): the draft is already settled. When the evidence backs a
 // draft, present the finished text at once — no generation animation; otherwise the
 // blocked state stands on its own.
+watch(
+  [() => props.readonly, insuf],
+  ([ro, isInsuf]) => {
+    if (ro && !isInsuf) {
+      tr.value = 5;
+      gen.value = false;
+      draft.value = true;
+    }
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
   if (props.readonly && !insuf.value) {
     tr.value = 5;

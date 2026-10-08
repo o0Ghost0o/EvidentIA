@@ -14,6 +14,7 @@ import {
   SUB,
   NODES,
   CATALOG,
+  type CatalogSource,
 } from "~/lib/leadEvidence";
 
 // Step 4 "Ficha" of the new-lead workspace. The ficha is composed only from what
@@ -21,8 +22,13 @@ import {
 // ficha is the gate that unlocks the Borrador step. If the evidence changes after
 // a confirmation, the ficha goes stale and must be confirmed again.
 const props = withDefaults(
-  defineProps<{ linkedIds: string[]; alcance: string; readonly?: boolean }>(),
-  { readonly: false }
+  defineProps<{
+    linkedIds: string[];
+    alcance: string;
+    readonly?: boolean;
+    customCatalog?: CatalogSource[];
+  }>(),
+  { readonly: false, customCatalog: () => [] }
 );
 const emit = defineEmits<{
   (e: "back"): void;
@@ -33,7 +39,8 @@ const emit = defineEmits<{
 const confirmed = ref(false);
 const stale = ref(false);
 
-const derived = computed(() => deriveEvidence(props.linkedIds));
+const catalog = computed(() => props.customCatalog?.length ? props.customCatalog : CATALOG);
+const derived = computed(() => deriveEvidence(props.linkedIds, catalog.value));
 
 // Ficha rows, derived from the linked set exactly as the Lead Workspace design
 // composes them. Only "Qué falta" carries the amber label; the rest stay muted.
@@ -47,6 +54,11 @@ const rows = computed(() => {
   const insuf = ev === "insuficiente";
   const alc = props.alcance.trim();
 
+  const mediums = Array.from(new Set(linked.map((s) => s.m).filter(Boolean)));
+  const actorsText = mediums.length
+    ? `${mediums.slice(0, 3).join("; ")}${alc ? ` en ${alc}` : ""}`
+    : `Hogares y comercios de ${alc || "la zona"}; entidades reguladoras.`;
+
   return [
     {
       label: "Qué se reporta",
@@ -56,7 +68,7 @@ const rows = computed(() => {
     },
     {
       label: "Quién",
-      text: `Hogares y comercios de ${alc || "la zona"}; distribuidora; ente regulador.`,
+      text: actorsText,
       cite: "—",
       amber: false,
     },
@@ -122,10 +134,11 @@ const fichaGraph = computed(() => {
   const links: GraphLink[] = [];
   const addedLinks = new Set<string>();
 
+  const sup = linked.filter((s) => s.rel === "Respalda");
   const rootId = "lead-claim";
   nodesMap.set(rootId, {
     id: rootId,
-    label: CLAIM,
+    label: sup[0]?.title || CLAIM,
     tipo: "caso",
   });
 
@@ -145,17 +158,19 @@ const fichaGraph = computed(() => {
 
     const provId = src.p;
     const prov = PROVENANCE[provId];
+    const provLabel = prov ? prov.t : `${src.m || "Fuente Oficial"}`;
+    nodesMap.set(provId, {
+      id: provId,
+      label: provLabel,
+      tipo: "procedencia",
+    });
+    const linkKey2 = `${src.id}->${provId}`;
+    if (!addedLinks.has(linkKey2)) {
+      links.push({ source: src.id, target: provId, tipo: PROV_REL[provId] || "Contexto" });
+      addedLinks.add(linkKey2);
+    }
+
     if (prov) {
-      nodesMap.set(provId, {
-        id: provId,
-        label: prov.t,
-        tipo: "procedencia",
-      });
-      const linkKey2 = `${src.id}->${provId}`;
-      if (!addedLinks.has(linkKey2)) {
-        links.push({ source: src.id, target: provId, tipo: PROV_REL[provId] || "Contexto" });
-        addedLinks.add(linkKey2);
-      }
 
       const walk = (entries: any[], parentId: string) => {
         for (const [subId, subRel, kids] of entries) {

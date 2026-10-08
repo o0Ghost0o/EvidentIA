@@ -213,3 +213,41 @@ def test_case_auto_healing_populates_empty_case_from_matching_articles() -> None
     assert "g2" in node_ids
     assert len(tree["edges"]) >= 2
 
+
+def test_case_indicator_auto_healing_and_catalog():
+    init_db()
+    with Session(get_engine()) as session:
+        session.add(models.Indicator(
+            pais_iso3="PAN", indicador_id="FP.CPI.TOTL.ZG", anio=2023, valor=1.5, fuente="World Bank"
+        ))
+        session.add(models.Indicator(
+            pais_iso3="PAN", indicador_id="FP.CPI.TOTL.ZG", anio=2024, valor=1.8, fuente="World Bank"
+        ))
+        session.commit()
+
+    client = _auth_client()
+
+    # Catalog endpoint returns indicator
+    cat_resp = client.get("/cases/catalog")
+    assert cat_resp.status_code == 200
+    catalog = cat_resp.json()
+    assert any(c["id"].startswith("PAN:FP.CPI.TOTL.ZG") for c in catalog)
+
+    # Creating a case with ind topic flag auto-heals its evidence
+    case_resp = client.post("/cases", json={
+        "titulo": "Inflación Panamá",
+        "modalidad": "tvn",
+        "flags": ["topic_id:ind:PAN:FP.CPI.TOTL.ZG", "band:alto", "p:75.5"],
+    })
+    assert case_resp.status_code == 201
+    cid = case_resp.json()["id"]
+
+    detail_resp = client.get(f"/cases/{cid}")
+    assert detail_resp.status_code == 200
+    detail = detail_resp.json()
+    assert len(detail["evidence"]) >= 2
+    assert any("2024" in e["fuente_id"] for e in detail["evidence"])
+    assert detail["evidence"][0]["fuente_tipo"] == "indicator"
+
+
+

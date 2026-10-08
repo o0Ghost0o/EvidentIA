@@ -7,7 +7,14 @@ import FichaStep from "~/components/leads/FichaStep.vue";
 import ReviewStep from "~/components/leads/ReviewStep.vue";
 import StateChip from "~/components/ui/StateChip.vue";
 import { api } from "~/composables/useApi";
-import { CATALOG, deriveEvidence, type EvidenceLevel } from "~/lib/leadEvidence";
+import {
+  CATALOG,
+  deriveEvidence,
+  type EvidenceLevel,
+  type CatalogSource,
+  catalogSourceFromEvidenceItem,
+  registerDynamicSources,
+} from "~/lib/leadEvidence";
 import { BAND_LABEL, computePriority } from "~/lib/leadPriority";
 import { modalidadLabel, reviewMeta } from "~/lib/leadList";
 
@@ -26,6 +33,14 @@ interface EvidenceItem {
   rol: string;
   nota: string | null;
   marcado_manual: boolean;
+  titulo?: string;
+  descripcion?: string | null;
+  fuente_nombre?: string | null;
+  fecha?: string | null;
+  cita_codigo?: string | null;
+  cita_texto?: string | null;
+  url?: string | null;
+  detalles?: Record<string, any>;
 }
 interface NoteItem {
   id: number;
@@ -52,14 +67,22 @@ onMounted(async () => {
 });
 
 // --- Derived props for the reused steps ------------------------------------
-// Only catalog sources reconstruct into the evidence lanes/chains; a lead created
-// outside the wizard yields an empty set and the steps show their "sin fuentes"
-// states.
-const catalogIds = new Set(CATALOG.map((s) => s.id));
+// Reconstruct catalog sources dynamically from the lead's evidence items,
+// and merge with local CATALOG so real news, indicators and events are never lost.
+const dynamicCatalog = computed<CatalogSource[]>(() => {
+  const dyn = (detail.value?.evidence ?? []).map(catalogSourceFromEvidenceItem);
+  const map = new Map<string, CatalogSource>();
+  for (const s of CATALOG) map.set(s.id, s);
+  for (const s of dyn) map.set(s.id, s);
+  const result = Array.from(map.values());
+  registerDynamicSources(result);
+  return result;
+});
+
 const linkedIds = computed(() =>
-  (detail.value?.evidence ?? []).map((e) => e.fuente_id).filter((fid) => catalogIds.has(fid))
+  (detail.value?.evidence ?? []).map((e) => e.fuente_id)
 );
-const evidence = computed(() => deriveEvidence(linkedIds.value));
+const evidence = computed(() => deriveEvidence(linkedIds.value, dynamicCatalog.value));
 const evidenceLevel = computed<EvidenceLevel>(() => evidence.value.state.key);
 
 // "Alcance: …" and the modalidad live in the case flags the wizard writes.
@@ -67,19 +90,48 @@ const alcance = computed(() => {
   const f = (detail.value?.flags ?? []).find((x) => x.toLowerCase().startsWith("alcance:"));
   return f ? f.slice(f.indexOf(":") + 1).trim() : "";
 });
+
+// Modalidad: prioritize detail.modalidad (tvn / banca) formatted, or workflow modality from flags ("Investigación", "Verificación", "Seguimiento")
+const WORKFLOW_MODALITIES = new Set(["investigación", "investigacion", "verificación", "verificacion", "seguimiento"]);
 const modalidadFlag = computed(() => {
-  const f = (detail.value?.flags ?? []).find((x) => !x.toLowerCase().startsWith("alcance:"));
+  const f = (detail.value?.flags ?? []).find((x) => WORKFLOW_MODALITIES.has(x.toLowerCase()));
   return f ?? "";
 });
-const modalidad = computed(() => modalidadFlag.value || modalidadLabel(detail.value?.modalidad ?? ""));
+const modalidad = computed(() => {
+  if (modalidadFlag.value) return modalidadFlag.value;
+  const mod = (detail.value?.modalidad ?? "").toLowerCase();
+  if (mod === "tvn") return "TVN";
+  if (mod === "banca") return "Banca";
+  return modalidadLabel(detail.value?.modalidad ?? "") || "Investigación";
+});
 const pregunta = computed(() => detail.value?.queries?.[0] ?? "");
 
 const review = computed(() => reviewMeta(detail.value?.estado ?? "nuevo"));
 // With no primary source the workspace treats the lead as an abstention.
 const abstained = computed(() => evidenceLevel.value === "insuficiente");
 
-const priority = computed(() => computePriority());
-const priorityBand = computed(() => BAND_LABEL[priority.value.band]);
+// Priority extraction: check if priority score and band were recorded in flags
+const scoreFromFlag = computed(() => {
+  const f = (detail.value?.flags ?? []).find((x) => x.startsWith("p:"));
+  return f ? parseFloat(f.slice(2)) : null;
+});
+const bandFromFlag = computed(() => {
+  const f = (detail.value?.flags ?? []).find((x) => x.startsWith("band:"));
+  return f ? (f.slice(5) as "alto" | "medio" | "bajo") : null;
+});
+const priority = computed(() => {
+  const base = computePriority();
+  if (scoreFromFlag.value != null) {
+    const band = bandFromFlag.value || (scoreFromFlag.value >= 70 ? "alto" : scoreFromFlag.value >= 40 ? "medio" : "bajo");
+    return {
+      ...base,
+      total: scoreFromFlag.value,
+      band,
+    };
+  }
+  return base;
+});
+const priorityBand = computed(() => BAND_LABEL[priority.value.band] || priority.value.band);
 
 // Static step copy, mirroring the New-lead workspace rail.
 const STEPS = [
@@ -211,10 +263,11 @@ function scrollToStep(i: number) {
             readonly
             :lead-id="detail.id"
             :initial-linked-ids="linkedIds"
+            :custom-catalog="dynamicCatalog"
           />
           <ContextStep v-else-if="i === 1" readonly :evidence-level="evidenceLevel" />
-          <FichaStep v-else-if="i === 2" readonly :linked-ids="linkedIds" :alcance="alcance" />
-          <DraftStep v-else-if="i === 3" readonly :linked-ids="linkedIds" :title="detail.titulo" />
+          <FichaStep v-else-if="i === 2" readonly :linked-ids="linkedIds" :alcance="alcance" :custom-catalog="dynamicCatalog" />
+          <DraftStep v-else-if="i === 3" readonly :linked-ids="linkedIds" :title="detail.titulo" :custom-catalog="dynamicCatalog" />
           <ReviewStep
             v-else-if="i === 4"
             readonly
