@@ -38,17 +38,19 @@ interface CaseItem {
   flags: string[];
   evidence: EvidenceRef[];
   notes: NoteRef[];
+  created_at?: string | null;
   updated_at?: string | null;
 }
 
 const cases = ref<CaseItem[]>([]);
 const loading = ref(true);
 
-// Filters — the four controls from the design (tabs + search + modalidad + evidence).
+// Filters — the controls from the design (tabs + search + modalidad + evidence + sort).
 const reviewFilter = ref<"all" | ReviewState>("all");
 const query = ref("");
 const modalidadFilter = ref<"all" | "tvn" | "banca">("all");
 const evidenceFilter = ref<"all" | "suficiente" | "parcial" | "insuficiente" | "none">("all");
+const sortOrder = ref<"recent" | "oldest">("recent");
 
 // A single-select toggle lets you click the active item off; keep "Todas" as the
 // floor so the modalidad filter is never left blank.
@@ -62,6 +64,11 @@ const evidenceOptions = [
   { value: "parcial", label: "Evidencia parcial" },
   { value: "insuficiente", label: "Evidencia insuficiente" },
   { value: "none", label: "Sin fuentes" },
+];
+
+const sortOptions = [
+  { value: "recent", label: "Más reciente primero" },
+  { value: "oldest", label: "Más antiguo primero" },
 ];
 
 async function refresh() {
@@ -125,6 +132,7 @@ const hasFilters = computed(
     reviewFilter.value !== "all" ||
     modalidadFilter.value !== "all" ||
     evidenceFilter.value !== "all" ||
+    sortOrder.value !== "recent" ||
     query.value.trim() !== "",
 );
 
@@ -132,12 +140,13 @@ function clearFilters() {
   reviewFilter.value = "all";
   modalidadFilter.value = "all";
   evidenceFilter.value = "all";
+  sortOrder.value = "recent";
   query.value = "";
 }
 
 const rows = computed<LeadRow[]>(() => {
   const q = query.value.trim().toLowerCase();
-  return allRows.value.filter((r) => {
+  const filtered = allRows.value.filter((r) => {
     if (reviewFilter.value !== "all" && r.review.key !== reviewFilter.value) return false;
     if (modalidadFilter.value !== "all" && r.raw.modalidad !== modalidadFilter.value) return false;
     if (evidenceFilter.value !== "all" && r.evidence.key !== evidenceFilter.value) return false;
@@ -146,6 +155,15 @@ const rows = computed<LeadRow[]>(() => {
       if (!hay.includes(q)) return false;
     }
     return true;
+  });
+
+  return filtered.sort((a, b) => {
+    const timeA = a.raw.created_at ? new Date(a.raw.created_at).getTime() : 0;
+    const timeB = b.raw.created_at ? new Date(b.raw.created_at).getTime() : 0;
+    if (timeA && timeB && timeA !== timeB) {
+      return sortOrder.value === "recent" ? timeB - timeA : timeA - timeB;
+    }
+    return sortOrder.value === "recent" ? b.raw.id - a.raw.id : a.raw.id - b.raw.id;
   });
 });
 
@@ -302,6 +320,7 @@ function openLead(id: number) {
             </ToggleGroupItem>
           </ToggleGroup>
           <Select v-model="evidenceFilter" :options="evidenceOptions" class="w-56" />
+          <Select v-model="sortOrder" :options="sortOptions" class="w-52" />
           <button
             v-if="hasFilters"
             type="button"
