@@ -15,7 +15,7 @@
 │   00:00 ─── 01:00  [Minuto 1] El Dolor Editorial de TVN                     │
 │   01:00 ─── 02:00  [Minuto 2] La Tesis: "Repetir no es corroborar"          │
 │   02:00 ─── 03:45  [Minuto 3-4] DEMO EN VIVO: Grafo 60FPS + Citas + Abst.   │
-│   03:45 ─── 04:30  [Minuto 4.5] Modo Jurado T01-T10 en vivo en 7 seg.       │
+│   03:45 ─── 04:30  [Minuto 4.5] Corrida de Evaluación T01-T10 en vivo en 7 seg.│
 │   04:30 ─── 05:00  [Minuto 5] Arquitectura, ROI y Cierre de Impacto         │
 │   ───────────────────────────────────────────────────────────────────────   │
 │   05:00 ─── 10:00  [5 MINUTOS] Ronda de Preguntas Técnicas del Jurado       │
@@ -57,14 +57,15 @@
 
 ### ⏱️ MINUTO 02:00 – 03:45 | Demostración en Vivo: Grafo a 60 FPS, Ficha y Abstención
 * **[PANTALLA: Cambiar a la pestaña `/graph` en la barra de navegación]**
-* **[ACCIÓN DEL OPERADOR: Arrastrar con el cursor un nodo de noticia (círculo azul) y conectarlo visualmente con el nodo del Banco Mundial (verde) y el sismo del USGS (rojo)]**
+* **[ACCIÓN DEL OPERADOR: Mostrar la vista de Red Radial por defecto con filtrado de Noticias y control de 3 niveles, alternando a Jerarquía Causal y arrastrando un nodo]**
 
 > *[02:00]* *"A diferencia de otras soluciones que solo muestran capturas estáticas en un documento, EvidentIA integra un motor **Light GraphRAG en SVG nativo que corre a 60 cuadros por segundo**.*  
+> *La vista inicial presenta la Red Radial con filtro enfocado en Noticias y profundidad configurable de hasta tres niveles por defecto.*  
 > *Vean cómo el sistema vincula automáticamente un reporte de afectación vial en Chiriquí con el evento geofísico del USGS de magnitud 4.8 y con la serie histórica de producción agropecuaria del Banco Mundial.*  
 > *El periodista no tiene que adivinar las conexiones: el grafo revela la causalidad al instante."*
 
 * **[PANTALLA: Hacer clic en un Lead y abrir el detalle de la Ficha de Evidencia: `/leads/1` o `/leads/new`]**
-* **[ACCIÓN DEL OPERADOR: Señalar con el cursor una cita que contenga `[WB:PAN:NY.GDP.MKTP.KD.ZG:2023]`]**
+* **[ACCIÓN DEL OPERADOR: Señalar con el cursor una cita que contenga `[WB:PAN:NY.GDP.MKTP.KD.ZG:2023]` y el control de niveles del grafo en la ficha]**
 
 > *[02:45]* *"Cuando el redactor entra a la Ficha de Investigación, cada afirmación factual cuenta con un identificador canónico inmutable. Aquí vemos la cita oficial del Banco Mundial con su año de corte exacto: dos mil veintitrés, y su unidad: porcentaje anual.*  
 > *Y al generar el borrador para el noticiero o la web, el sistema clasifica obligatoriamente cada párrafo con etiquetas estrictas:*  
@@ -75,13 +76,13 @@
 
 ---
 
-### ⏱️ MINUTO 03:45 – 04:30 | Modo Jurado en Vivo (T01 a T10 en Menos de 7 Segundos)
+### ⏱️ MINUTO 03:45 – 04:30 | Corrida de Evaluación en Vivo (T01 a T10 en Menos de 7 Segundos)
 * **[PANTALLA: Clic directo en la pestaña superior `/jurado`]**
 * **[ACCIÓN DEL OPERADOR: Presionar el botón destacado 'Ejecutar Suite T01–T10 en Vivo']**
 * **[DIRECCIÓN ESCÉNICA: Señalar la pantalla mientras las barras de progreso se completan en tiempo real]**
 
 > *[03:45]* *"No les pedimos que confíen en nuestra palabra; los invitamos a auditarlo en vivo.*  
-> *En nuestra consola de Modo Jurado, con un solo clic ejecutamos los diez criterios oficiales del pliego técnico de la hackIAthon:*  
+> *En nuestra consola de Corrida de Evaluación, con un solo clic ejecutamos los diez criterios oficiales del pliego técnico de la hackIAthon:*  
 > *Ingesta multifuente, deduplicación léxica, scoring matemático, trazabilidad de citas, GraphRAG causal, abstención estructurada, blindaje contra prompt injection, seguridad JWT y modo offline.*  
 > *[Pausa de 2 segundos mientras termina]*  
 > *Observen el cronómetro: **diez de diez pruebas superadas en menos de siete segundos**. Cada prueba con sus aserciones visibles, milisegundos de latencia y código abierto."*

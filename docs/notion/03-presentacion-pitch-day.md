@@ -130,7 +130,7 @@ el mismo cable de EFE         "El PIB subió 7%"           alucinan datos
 
 ## Diapositiva 6: Auditoría Técnica — Suite T01 a T10 en Vivo en 7 Segundos
 
-> ### 🧪 El Modo Jurado Integrado (`/jurado`)
+> ### 🧪 Corrida de Evaluación Integrada (`/jurado`)
 > *Demostración empírica de cumplimiento del pliego en tiempo real.*
 
 ```
