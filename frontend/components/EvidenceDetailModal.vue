@@ -1,0 +1,385 @@
+<script setup lang="ts">
+import { ref, watch, onMounted, onUnmounted } from "vue";
+import Badge from "~/components/ui/Badge.vue";
+import Button from "~/components/ui/Button.vue";
+import { api } from "~/composables/useApi";
+
+export interface EvidenceItemDetail {
+  tipo: string;
+  id: string;
+  titulo: string;
+  descripcion?: string | null;
+  url?: string | null;
+  fuente_nombre?: string | null;
+  fecha?: string | null;
+  detalles: Record<string, any>;
+  relaciones: {
+    origen_tipo: string;
+    origen_id: string;
+    destino_tipo: string;
+    destino_id: string;
+    tipo: string;
+    peso?: number;
+  }[];
+}
+
+const props = defineProps<{
+  open: boolean;
+  tipo?: string;
+  id?: string;
+  initialItem?: EvidenceItemDetail | null;
+}>();
+
+const emit = defineEmits<{
+  (e: "update:open", value: boolean): void;
+  (e: "close"): void;
+  (e: "navigate", tipo: string, id: string): void;
+}>();
+
+const loading = ref(false);
+const error = ref<string | null>(null);
+const item = ref<EvidenceItemDetail | null>(null);
+const copied = ref(false);
+
+async function fetchItem(tipo: string, idVal: string) {
+  loading.value = true;
+  error.value = null;
+  item.value = null;
+
+  try {
+    const res = await api<EvidenceItemDetail>("evidence/item", {
+      query: { tipo, id: idVal },
+    });
+    item.value = res;
+  } catch (err: any) {
+    error.value = err?.data?.detail || err?.message || "No se pudo cargar el detalle de la fuente.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+watch(
+  () => [props.open, props.tipo, props.id],
+  ([isOpen, newTipo, newId]) => {
+    if (isOpen) {
+      copied.value = false;
+      if (props.initialItem) {
+        item.value = props.initialItem;
+        loading.value = false;
+        error.value = null;
+      } else if (newTipo && newId) {
+        fetchItem(String(newTipo), String(newId));
+      }
+    } else {
+      item.value = null;
+      error.value = null;
+    }
+  },
+  { immediate: true }
+);
+
+function closeModal() {
+  emit("update:open", false);
+  emit("close");
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape" && props.open) {
+    closeModal();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener("keydown", handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleKeydown);
+});
+
+async function copyCitation() {
+  if (!item.value) return;
+  const citation = `[${item.value.tipo}:${item.value.id}]`;
+  try {
+    await navigator.clipboard.writeText(citation);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  } catch {
+    // Fallback if clipboard api not available
+  }
+}
+
+function typeBadgeProps(tipo: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive" | "success" | "warning" | "info" | "purple" | "teal" } {
+  switch (tipo) {
+    case "news":
+      return { label: "Noticia de Prensa", variant: "info" };
+    case "indicator":
+      return { label: "Indicador Oficial WB", variant: "teal" };
+    case "event":
+      return { label: "Evento Sísmico USGS", variant: "warning" };
+    case "entity":
+      return { label: "Entidad del Grafo", variant: "purple" };
+    case "case":
+      return { label: "Lead Editorial", variant: "default" };
+    default:
+      return { label: tipo, variant: "secondary" };
+  }
+}
+
+function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return "Fecha no registrada";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleString("es-PA", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+</script>
+
+<template>
+  <Teleport to="body">
+    <div
+      v-if="open"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+    >
+      <!-- Backdrop -->
+      <div
+        class="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
+        @click="closeModal"
+      ></div>
+
+      <!-- Modal Card -->
+      <div
+        class="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl border bg-card text-card-foreground shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+      >
+        <!-- Modal Header -->
+        <div class="flex items-start justify-between border-b px-6 py-4 bg-muted/20">
+          <div class="space-y-1.5 pr-6">
+            <div class="flex flex-wrap items-center gap-2">
+              <Badge
+                v-if="item || tipo"
+                :variant="typeBadgeProps(item?.tipo || tipo || '').variant"
+                class="text-xs"
+              >
+                {{ typeBadgeProps(item?.tipo || tipo || "").label }}
+              </Badge>
+              <span class="font-mono text-xs text-muted-foreground bg-muted/60 px-2 py-0.5 rounded">
+                {{ item?.id || id }}
+              </span>
+            </div>
+            <h3 class="text-lg font-semibold tracking-tight text-foreground leading-snug">
+              {{ item?.titulo || (loading ? "Cargando contenido de la evidencia..." : "Detalle de Evidencia") }}
+            </h3>
+          </div>
+
+          <!-- Close button -->
+          <button
+            type="button"
+            class="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            title="Cerrar modal (Esc)"
+            @click="closeModal"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-5">
+          <!-- Loading state -->
+          <div v-if="loading" class="space-y-4 py-8">
+            <div class="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+              <svg class="animate-spin h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              <span>Consultando repositorio de evidencia y relaciones...</span>
+            </div>
+          </div>
+
+          <!-- Error state -->
+          <div v-else-if="error" class="p-4 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm space-y-2">
+            <div class="font-semibold flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>Fuente no encontrada</span>
+            </div>
+            <p>{{ error }}</p>
+          </div>
+
+          <!-- Content display -->
+          <template v-else-if="item">
+            <!-- Source & Date Strip -->
+            <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-lg bg-muted/40 border text-xs">
+              <div class="flex items-center gap-2">
+                <span class="text-muted-foreground font-medium">Fuente:</span>
+                <span class="font-semibold text-foreground">{{ item.fuente_nombre || "Oficial" }}</span>
+              </div>
+              <div class="flex items-center gap-2 text-muted-foreground">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>{{ formatDate(item.fecha) }}</span>
+              </div>
+            </div>
+
+            <!-- Description / Extract -->
+            <div class="space-y-1.5">
+              <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Contenido / Registro
+              </h4>
+              <div class="p-4 rounded-lg border bg-background/50 text-sm leading-relaxed text-foreground whitespace-pre-line">
+                {{ item.descripcion || "Sin texto adicional registrado para este nodo." }}
+              </div>
+            </div>
+
+            <!-- News specific details -->
+            <div v-if="item.tipo === 'news'" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Medio emisor</div>
+                <div class="font-semibold mt-0.5">{{ item.detalles.medio }}</div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Alcance textual</div>
+                <div class="font-semibold capitalize mt-0.5">{{ item.detalles.alcance_texto }}</div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Agencia primaria</div>
+                <div class="font-semibold mt-0.5">{{ item.detalles.agencia_primaria || "Producción propia" }}</div>
+              </div>
+              <div v-if="item.detalles.tema" class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Categoría / Tema</div>
+                <div class="font-semibold mt-0.5">{{ item.detalles.tema }}</div>
+              </div>
+              <div v-if="item.detalles.grupo_evento_id" class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Grupo de evento</div>
+                <div class="font-mono mt-0.5 text-[11px] truncate">{{ item.detalles.grupo_evento_id }}</div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Idioma</div>
+                <div class="font-semibold uppercase mt-0.5">{{ item.detalles.idioma }}</div>
+              </div>
+            </div>
+
+            <!-- Indicator specific details -->
+            <div v-else-if="item.tipo === 'indicator'" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">País</div>
+                <div class="font-semibold mt-0.5">{{ item.detalles.pais_nombre }} ({{ item.detalles.pais_iso3 }})</div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Valor Medido</div>
+                <div class="font-semibold text-teal-600 dark:text-teal-400 text-sm mt-0.5">
+                  {{ item.detalles.valor !== null ? `${item.detalles.valor} ${item.detalles.unidad || ''}` : 'Sin dato' }}
+                </div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Año de observación</div>
+                <div class="font-semibold mt-0.5">{{ item.detalles.anio }}</div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Indicador ID</div>
+                <div class="font-mono text-[11px] mt-0.5 truncate">{{ item.detalles.indicador_id }}</div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Licencia de datos</div>
+                <div class="font-semibold mt-0.5">{{ item.detalles.licencia }}</div>
+              </div>
+            </div>
+
+            <!-- Event specific details -->
+            <div v-else-if="item.tipo === 'event'" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Magnitud</div>
+                <div class="font-semibold text-warning text-sm mt-0.5">M{{ item.detalles.magnitude }}</div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Profundidad</div>
+                <div class="font-semibold mt-0.5">{{ item.detalles.depth }} km</div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20">
+                <div class="text-muted-foreground">Estado</div>
+                <div class="font-semibold capitalize mt-0.5">{{ item.detalles.status }}</div>
+              </div>
+              <div class="p-2.5 rounded-md border bg-muted/20 col-span-2">
+                <div class="text-muted-foreground">Lugar / Epicentro</div>
+                <div class="font-semibold mt-0.5 truncate">{{ item.detalles.place }}</div>
+              </div>
+            </div>
+
+            <!-- Graph relations -->
+            <div v-if="item.relaciones && item.relaciones.length" class="space-y-2">
+              <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Conexiones en Grafo ({{ item.relaciones.length }})
+              </h4>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="(rel, idx) in item.relaciones"
+                  :key="idx"
+                  type="button"
+                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs border bg-background hover:bg-muted/80 transition-colors"
+                  @click="emit('navigate', rel.destino_tipo === item.tipo ? rel.origen_tipo : rel.destino_tipo, rel.destino_tipo === item.tipo ? rel.origen_id : rel.destino_id)"
+                >
+                  <span class="text-muted-foreground font-mono text-[10px]">{{ rel.tipo }}:</span>
+                  <span class="font-medium">
+                    {{ rel.destino_tipo === item.tipo ? `${rel.origen_tipo}:${rel.origen_id}` : `${rel.destino_tipo}:${rel.destino_id}` }}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Citation citation helper -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-muted/30 border text-xs">
+              <div class="flex items-center gap-2">
+                <span class="text-muted-foreground">Cita para borrador:</span>
+                <code class="font-mono bg-muted/80 px-2 py-0.5 rounded text-foreground font-semibold">
+                  [{{ item.tipo }}:{{ item.id }}]
+                </code>
+              </div>
+              <Button variant="outline" size="sm" class="h-7 text-xs self-start sm:self-auto gap-1.5" @click="copyCitation">
+                <svg v-if="!copied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
+                <svg v-else class="w-3.5 h-3.5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>{{ copied ? "¡Copiado!" : "Copiar Cita" }}</span>
+              </Button>
+            </div>
+          </template>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="border-t px-6 py-3.5 bg-muted/20 flex items-center justify-between gap-3">
+          <div>
+            <a
+              v-if="item?.url"
+              :href="item.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+            >
+              <span>Abrir fuente original</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+
+          <Button variant="default" size="sm" @click="closeModal">
+            Cerrar
+          </Button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+</template>

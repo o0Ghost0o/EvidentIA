@@ -5,6 +5,7 @@ import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
 import Input from "~/components/ui/Input.vue";
 import TreeBranch, { type Branch } from "~/components/TreeBranch.vue";
+import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
 
 export interface TreeNode {
   tipo: string;
@@ -38,6 +39,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: "changeDepth", newDepth: number): void;
+  (e: "inspectNode", node: TreeNode): void;
 }>();
 
 // Depth level state (default 5 levels per specification)
@@ -45,6 +47,21 @@ const selectedDepth = ref(props.depth || 5);
 const searchQuery = ref("");
 const expandAllKey = ref(0);
 const allExpanded = ref(true);
+
+// Modal state for viewing evidence node content on click
+const modalOpen = ref(false);
+const inspectedNode = ref<{ tipo: string; id: string } | null>(null);
+
+function handleInspect(node: { tipo: string; id: string }) {
+  inspectedNode.value = { tipo: node.tipo, id: node.id };
+  modalOpen.value = true;
+  emit("inspectNode", node as TreeNode);
+}
+
+function handleModalNavigate(tipo: string, id: string) {
+  inspectedNode.value = { tipo, id };
+  modalOpen.value = true;
+}
 
 watch(
   () => props.depth,
@@ -104,49 +121,64 @@ const branches = computed<Branch[]>(() => {
   }
 
   const rootKey = `${props.tree.root.tipo}:${props.tree.root.id}`;
-  const root = byKey.get(rootKey);
-  if (!root) return [];
-
-  const visited = new Set<string>([rootKey]);
-
-  const build = (node: TreeNode, via: string | null, level: number): Branch => {
-    const key = `${node.tipo}:${node.id}`;
-    const kids: Branch[] = [];
-
-    // Traverse down up to selectedDepth
-    if (level < selectedDepth.value) {
-      const neighbors = adjacency.get(key) || [];
-      for (const { other, via: edgeVia } of neighbors) {
-        const ck = `${other.tipo}:${other.id}`;
-        if (visited.has(ck)) continue;
-        visited.add(ck);
-        kids.push(build(other, edgeVia, level + 1));
-      }
-    }
-    return { node, via, level, children: kids };
+  const rootNode = byKey.get(rootKey) || {
+    tipo: props.tree.root.tipo,
+    id: props.tree.root.id,
+    label: `Lead ${props.tree.root.id}`,
   };
 
-  return [build(root, null, 0)];
+  // Build tree using DFS with cycle prevention
+  function buildSubtree(
+    currNode: TreeNode,
+    currentLevel: number,
+    via: string | null,
+    visited: Set<string>
+  ): Branch {
+    const currKey = `${currNode.tipo}:${currNode.id}`;
+    const nextVisited = new Set(visited);
+    nextVisited.add(currKey);
+
+    const children: Branch[] = [];
+    if (currentLevel < selectedDepth.value) {
+      const neighbors = adjacency.get(currKey) || [];
+      for (const n of neighbors) {
+        const neighborKey = `${n.other.tipo}:${n.other.id}`;
+        if (!visited.has(neighborKey)) {
+          // If search filter is active, optionally highlight or prune
+          children.push(
+            buildSubtree(n.other, currentLevel + 1, n.via, nextVisited)
+          );
+        }
+      }
+    }
+
+    return {
+      node: currNode,
+      via,
+      level: currentLevel,
+      children,
+    };
+  }
+
+  const rootBranch = buildSubtree(rootNode, 0, null, new Set());
+  return [rootBranch];
 });
 
-// Count total nodes in graph
-const totalNodesCount = computed(() => props.tree?.nodes?.length || 0);
-const totalEdgesCount = computed(() => props.tree?.edges?.length || 0);
+const totalNodesCount = computed(() => props.tree?.nodes.length || 0);
+const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
 </script>
 
 <template>
   <Card>
     <template #header>
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="space-y-0.5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
           <div class="flex items-center gap-2">
-            <h2 class="text-base font-semibold">Árbol Jerárquico de Evidencia</h2>
-            <Badge variant="outline" class="font-mono text-xs">
-              {{ selectedDepth }} niveles {{ selectedDepth === 5 ? '(por defecto)' : '' }}
-            </Badge>
+            <span class="font-bold text-base">Árbol de Evidencias y Trazabilidad</span>
+            <Badge variant="outline" class="text-xs">Multi-nivel</Badge>
           </div>
-          <p class="text-xs text-muted-foreground">
-            Despliegue multi-nivel de fuentes, entidades y correlaciones (hasta 5 niveles por defecto).
+          <p class="text-xs text-muted-foreground mt-0.5">
+            Explora las cadenas de respaldo causal. Haz clic en cualquier nodo para inspeccionar su contenido o noticia original.
           </p>
         </div>
 
@@ -223,7 +255,7 @@ const totalEdgesCount = computed(() => props.tree?.edges?.length || 0);
           <span>Profundidad visual: <strong>1 a {{ selectedDepth }} niveles</strong></span>
         </div>
         <span class="text-[11px] italic">
-          * Nivel 5 es el estándar por defecto. Usa los botones superiores para ajustar.
+          * Haz clic en cualquier nodo para inspeccionar titular, enlace o valor oficial.
         </span>
       </div>
 
@@ -236,9 +268,18 @@ const totalEdgesCount = computed(() => props.tree?.edges?.length || 0);
             :branch="b"
             :max-level="selectedDepth"
             :default-expanded="allExpanded"
+            @inspect="handleInspect"
           />
         </ul>
       </div>
     </div>
+
+    <!-- Interactive Evidence Content Modal -->
+    <EvidenceDetailModal
+      v-model:open="modalOpen"
+      :tipo="inspectedNode?.tipo"
+      :id="inspectedNode?.id"
+      @navigate="handleModalNavigate"
+    />
   </Card>
 </template>

@@ -21,10 +21,18 @@ const props = withDefaults(
   }
 );
 
+const emit = defineEmits<{
+  (e: "inspect", node: { tipo: string; id: string; label: string }): void;
+}>();
+
 const isExpanded = ref(props.defaultExpanded);
 
 function toggleExpand() {
   isExpanded.value = !isExpanded.value;
+}
+
+function onInspectNode() {
+  emit("inspect", props.branch.node);
 }
 
 function nodeTypeBadge(tipo: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive" | "success" | "warning" | "info" | "purple" | "teal" } {
@@ -96,10 +104,26 @@ function levelBadgeVariant(level: number) {
         {{ nodeTypeBadge(branch.node.tipo).label }}
       </Badge>
 
-      <!-- Label -->
-      <span class="font-medium text-foreground text-sm tracking-tight break-all">
-        {{ branch.node.label }}
-      </span>
+      <!-- Clickable Label & Inspection Button -->
+      <button
+        type="button"
+        class="inline-flex items-center gap-1.5 text-left rounded-md px-1.5 py-0.5 hover:bg-primary/10 transition-colors cursor-pointer group/node"
+        title="Clic para inspeccionar el contenido de esta evidencia"
+        @click="onInspectNode"
+      >
+        <span class="font-medium text-foreground group-hover/node:text-primary text-sm tracking-tight break-all">
+          {{ branch.node.label }}
+        </span>
+        <svg
+          class="w-3.5 h-3.5 text-muted-foreground opacity-60 group-hover/node:opacity-100 group-hover/node:text-primary shrink-0 transition-opacity"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      </button>
 
       <!-- Identifier pill -->
       <span class="font-mono text-[11px] text-muted-foreground bg-muted/60 px-1 rounded">
@@ -132,6 +156,7 @@ function levelBadgeVariant(level: number) {
         :branch="child"
         :max-level="maxLevel"
         :default-expanded="defaultExpanded"
+        @inspect="(n) => emit('inspect', n)"
       />
     </ul>
   </li>
