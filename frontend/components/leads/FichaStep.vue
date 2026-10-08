@@ -55,6 +55,21 @@ const tree = ref<{ nodes: TreeNode[]; edges: TreeEdge[] } | null>(null);
 const score = ref<ScoreResponse | null>(null);
 const loading = ref(false);
 const error = ref("");
+const graphDepth = ref<number>(3); // 3 niveles por defecto
+
+async function setGraphDepth(newDepth: number) {
+  if (newDepth < 1 || newDepth > 8 || newDepth === graphDepth.value) return;
+  graphDepth.value = newDepth;
+  try {
+    const treeRes = await api<{ nodes: TreeNode[]; edges: TreeEdge[] }>(
+      `cases/${props.leadId}/tree`,
+      { query: { depth: String(newDepth) } }
+    );
+    tree.value = treeRes;
+  } catch (err: any) {
+    console.error("Error al actualizar profundidad del árbol:", err);
+  }
+}
 
 async function load() {
   loading.value = true;
@@ -62,7 +77,9 @@ async function load() {
   try {
     const [detail, treeRes, scoreRes] = await Promise.all([
       api<{ evidence: CaseEvidence[] }>(`cases/${props.leadId}`),
-      api<{ nodes: TreeNode[]; edges: TreeEdge[] }>(`cases/${props.leadId}/tree`),
+      api<{ nodes: TreeNode[]; edges: TreeEdge[] }>(`cases/${props.leadId}/tree`, {
+        query: { depth: String(graphDepth.value) },
+      }),
       api<ScoreResponse>(`cases/${props.leadId}/score`),
     ]);
     items.value = detail.evidence ?? [];
@@ -162,16 +179,73 @@ function onGraphNodeClick(node: GraphNode) {
 
 const fichaGraph = computed<{ nodes: GraphNode[]; links: GraphLink[] }>(() => {
   if (!tree.value) return { nodes: [], links: [] };
-  const nodes: GraphNode[] = tree.value.nodes.map((n) => ({
+  const rawNodes = tree.value.nodes;
+  const rawEdges = tree.value.edges;
+
+  // Distancia BFS desde la raíz del caso o evidencias enlazadas
+  const rootId = `case:${props.leadId}`;
+  const adj = new Map<string, string[]>();
+  rawNodes.forEach((n) => adj.set(`${n.tipo}:${n.id}`, []));
+  rawEdges.forEach((e) => {
+    const src = `${e.origen_tipo}:${e.origen_id}`;
+    const dst = `${e.destino_tipo}:${e.destino_id}`;
+    if (adj.has(src) && adj.has(dst)) {
+      adj.get(src)!.push(dst);
+      adj.get(dst)!.push(src);
+    }
+  });
+
+  const dist = new Map<string, number>();
+  const queue: string[] = [];
+
+  if (adj.has(rootId)) {
+    dist.set(rootId, 0);
+    queue.push(rootId);
+  } else {
+    items.value.forEach((it) => {
+      const k = `${it.fuente_tipo}:${it.fuente_id}`;
+      if (adj.has(k)) {
+        dist.set(k, 1);
+        queue.push(k);
+      }
+    });
+  }
+
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    const d = dist.get(curr)!;
+    const neighbors = adj.get(curr) || [];
+    for (const nxt of neighbors) {
+      if (!dist.has(nxt)) {
+        dist.set(nxt, d + 1);
+        queue.push(nxt);
+      }
+    }
+  }
+
+  // Filtrar nodos con distancia <= graphDepth
+  const allowedNodes = rawNodes.filter((n) => {
+    const k = `${n.tipo}:${n.id}`;
+    const d = dist.get(k);
+    return d !== undefined ? d <= graphDepth.value : true;
+  });
+
+  const allowedIds = new Set(allowedNodes.map((n) => `${n.tipo}:${n.id}`));
+
+  const nodes: GraphNode[] = allowedNodes.map((n) => ({
     id: `${n.tipo}:${n.id}`,
     label: n.label,
     tipo: n.tipo,
   }));
-  const links: GraphLink[] = tree.value.edges.map((e) => ({
-    source: `${e.origen_tipo}:${e.origen_id}`,
-    target: `${e.destino_tipo}:${e.destino_id}`,
-    tipo: e.tipo,
-  }));
+
+  const links: GraphLink[] = rawEdges
+    .filter((e) => allowedIds.has(`${e.origen_tipo}:${e.origen_id}`) && allowedIds.has(`${e.destino_tipo}:${e.destino_id}`))
+    .map((e) => ({
+      source: `${e.origen_tipo}:${e.origen_id}`,
+      target: `${e.destino_tipo}:${e.destino_id}`,
+      tipo: e.tipo,
+    }));
+
   return { nodes, links };
 });
 
@@ -237,9 +311,30 @@ onMounted(load);
             </Badge>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-caption text-ink-muted hidden sm:inline">
-              Haz clic en cualquier nodo para ver evidencia y citas
-            </span>
+            <!-- Selector de Niveles de la Ficha -->
+            <div class="flex items-center gap-1 rounded-md border border-hairline bg-surface-sunken/80 px-2 py-0.5 text-caption">
+              <span class="text-ink-muted text-[11px] font-medium">Nivel:</span>
+              <button
+                type="button"
+                class="h-5 w-5 rounded flex items-center justify-center font-bold text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                :disabled="graphDepth <= 1"
+                title="Reducir nivel de profundidad"
+                @click="setGraphDepth(graphDepth - 1)"
+              >
+                −
+              </button>
+              <span class="font-mono font-semibold text-ink text-xs px-1 tabular-nums">{{ graphDepth }}</span>
+              <button
+                type="button"
+                class="h-5 w-5 rounded flex items-center justify-center font-bold text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                :disabled="graphDepth >= 8"
+                title="Aumentar nivel de profundidad"
+                @click="setGraphDepth(graphDepth + 1)"
+              >
+                +
+              </button>
+            </div>
+
             <Button variant="outline" size="sm" class="h-7 text-xs" @click="showGraph = !showGraph">
               {{ showGraph ? "Ocultar grafo" : "Mostrar grafo" }}
             </Button>
@@ -262,6 +357,8 @@ onMounted(load);
             :show-controls="true"
             :show-legend="true"
             :initial-height="420"
+            v-model:max-levels="graphDepth"
+            @update:max-levels="setGraphDepth"
             @node-click="onGraphNodeClick"
           />
         </div>

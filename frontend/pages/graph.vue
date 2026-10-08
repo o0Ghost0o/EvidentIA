@@ -22,8 +22,9 @@ const allNodes = ref<GraphNode[]>([]);
 const allLinks = ref<GraphLink[]>([]);
 
 // Filter state
-const filterType = ref<string>("all");
+const filterType = ref<string>("news");
 const searchQuery = ref<string>("");
+const graphLevels = ref<number>(3); // 3 niveles por defecto
 
 // Modal inspection state
 const modalOpen = ref(false);
@@ -46,28 +47,90 @@ async function loadGlobalGraph() {
 }
 
 const typeOptions = [
-  { value: "all", label: "Todos los nodos" },
   { value: "news", label: "Noticias" },
   { value: "indicator", label: "Indicadores WB" },
   { value: "event", label: "Eventos Sísmicos" },
   { value: "entity", label: "Entidades" },
   { value: "case", label: "Leads Editoriales" },
+  { value: "all", label: "Todos los nodos" },
 ];
 
 const filteredNodes = computed(() => {
-  let list = allNodes.value;
-  if (filterType.value !== "all") {
-    list = list.filter((n) => (n.tipo || "").toLowerCase() === filterType.value);
+  if (!allNodes.value.length) return [];
+
+  // Construir mapa de adyacencia no dirigida
+  const adj = new Map<string, string[]>();
+  allNodes.value.forEach((n) => adj.set(n.id, []));
+  allLinks.value.forEach((l) => {
+    if (adj.has(l.source) && adj.has(l.target)) {
+      adj.get(l.source)!.push(l.target);
+      adj.get(l.target)!.push(l.source);
+    }
+  });
+
+  // 1. Determinar nodos semilla (Nivel 1)
+  let seeds: GraphNode[] = [];
+  if (filterType.value === "all") {
+    // Para todos los nodos, las semillas son los casos o hubs de alto grado
+    const inDeg = new Map<string, number>();
+    const outDeg = new Map<string, number>();
+    allNodes.value.forEach((n) => { inDeg.set(n.id, 0); outDeg.set(n.id, 0); });
+    allLinks.value.forEach((l) => {
+      outDeg.set(l.source, (outDeg.get(l.source) || 0) + 1);
+      inDeg.set(l.target, (inDeg.get(l.target) || 0) + 1);
+    });
+
+    seeds = allNodes.value.filter((n) => {
+      const t = (n.tipo || "").toLowerCase();
+      if (t === "case" || t === "lead") return true;
+      const deg = (inDeg.get(n.id) || 0) + (outDeg.get(n.id) || 0);
+      return deg >= 3;
+    });
+    if (!seeds.length) seeds = allNodes.value.slice(0, 20);
+  } else {
+    seeds = allNodes.value.filter(
+      (n) => (n.tipo || "").toLowerCase() === filterType.value
+    );
   }
+
+  // Si hay término de búsqueda, las coincidencias se convierten en semillas prioritarias
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase().trim();
-    list = list.filter(
+    const matches = allNodes.value.filter(
       (n) =>
         (n.label || "").toLowerCase().includes(q) ||
         (n.id || "").toLowerCase().includes(q)
     );
+    if (matches.length) {
+      seeds = matches;
+    }
   }
-  return list;
+
+  // 2. Traversal BFS para expandir hasta graphLevels saltos
+  const maxDistance = Math.max(0, graphLevels.value - 1);
+  const dist = new Map<string, number>();
+  const queue: string[] = [];
+
+  seeds.forEach((s) => {
+    dist.set(s.id, 0);
+    queue.push(s.id);
+  });
+
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    const d = dist.get(curr)!;
+    if (d < maxDistance) {
+      const neighbors = adj.get(curr) || [];
+      for (const nxt of neighbors) {
+        if (!dist.has(nxt)) {
+          dist.set(nxt, d + 1);
+          queue.push(nxt);
+        }
+      }
+    }
+  }
+
+  return allNodes.value.filter((n) => dist.has(n.id));
 });
 
 const filteredLinks = computed(() => {
@@ -185,13 +248,40 @@ onMounted(loadGlobalGraph);
           </button>
         </div>
 
-        <!-- Search Input -->
-        <div class="w-full md:w-72">
-          <Input
-            v-model="searchQuery"
-            placeholder="Buscar entidad, noticia o indicador…"
-            class="text-mono font-mono h-9"
-          />
+        <!-- Controls: Level Limiter + Search Input -->
+        <div class="flex flex-wrap items-center gap-2.5">
+          <!-- Selector de Niveles -->
+          <div class="flex items-center gap-1 rounded-md border border-hairline bg-surface-sunken px-2 py-1 text-caption">
+            <span class="text-ink-muted text-[11px] font-medium">Niveles:</span>
+            <button
+              type="button"
+              class="h-5 w-5 rounded flex items-center justify-center font-bold text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              :disabled="graphLevels <= 1"
+              title="Reducir niveles de profundidad"
+              @click="graphLevels--"
+            >
+              −
+            </button>
+            <span class="font-mono font-bold text-ink text-xs px-1 tabular-nums">{{ graphLevels }}</span>
+            <button
+              type="button"
+              class="h-5 w-5 rounded flex items-center justify-center font-bold text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              :disabled="graphLevels >= 6"
+              title="Aumentar niveles de profundidad"
+              @click="graphLevels++"
+            >
+              +
+            </button>
+          </div>
+
+          <!-- Search Input -->
+          <div class="w-full sm:w-64">
+            <Input
+              v-model="searchQuery"
+              placeholder="Buscar entidad, noticia o indicador…"
+              class="text-mono font-mono h-9"
+            />
+          </div>
         </div>
       </div>
     </Card>
@@ -216,6 +306,8 @@ onMounted(loadGlobalGraph);
         :nodes="filteredNodes"
         :links="filteredLinks"
         :initial-height="620"
+        :default-layout="'radial'"
+        v-model:max-levels="graphLevels"
         @node-click="onNodeClick"
       />
     </div>

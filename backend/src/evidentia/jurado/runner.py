@@ -120,7 +120,7 @@ def generate_markdown_report(report_data: dict[str, Any]) -> str:
     status_icon = "🟢 APROBADO AL 100%" if verdes == total else "🟡 OBSERVACIONES PENDIENTES"
 
     lines: list[str] = [
-        "# EvidentIA — Reporte Oficial de Aceptación (Modo Jurado)",
+        "# EvidentIA — Reporte Oficial de Aceptación (Corrida de Evaluación)",
         "",
         "> **Reto Editorial TVN Media Panamá · HackIAthon 2026**  ",
         "> *Generado automáticamente en tiempo real mediante el motor analítico de EvidentIA.*",

@@ -218,7 +218,7 @@ const PREGUNTAS_JURADO = [
         <div class="space-y-1.5">
           <div class="flex items-center gap-2">
             <span class="text-label uppercase tracking-wider text-primary font-semibold">
-              Modo Jurado · Reto TVN Media §9
+              Corrida de Evaluación · Reto TVN Media §9
             </span>
             <StateChip tone="primary" variant="soft" class="text-caption">
               T01–T10 Live Suite

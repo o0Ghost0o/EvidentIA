@@ -40,23 +40,36 @@ const props = withDefaults(
     showLegend?: boolean;
     initialHeight?: number;
     defaultLayout?: GraphLayoutMode;
+    maxLevels?: number;
   }>(),
   {
     showControls: true,
     showLegend: true,
     initialHeight: 520,
     defaultLayout: "hierarchy",
+    maxLevels: undefined,
   }
 );
 
 const emit = defineEmits<{
   (e: "node-click", node: GraphNode): void;
+  (e: "update:maxLevels", value: number): void;
 }>();
 
 const W = 960;
 const H = 580;
 
 const currentLayout = ref<GraphLayoutMode>(props.defaultLayout);
+
+watch(
+  () => props.defaultLayout,
+  (newLayout) => {
+    if (newLayout && newLayout !== currentLayout.value) {
+      switchLayout(newLayout);
+    }
+  }
+);
+
 const hierarchicalTargets = ref<Map<string, { x: number; y: number }>>(new Map());
 const nodeDepths = ref<Map<string, number>>(new Map());
 
@@ -623,6 +636,33 @@ function isRootNode(node: GraphNode): boolean {
             <circle cx="5" cy="16" r="2" />
           </svg>
           <span>Red Radial</span>
+        </button>
+      </div>
+
+      <!-- Niveles Selector in Graph Toolbar -->
+      <div
+        v-if="maxLevels !== undefined"
+        class="flex items-center gap-1 rounded-sm bg-surface-sunken/80 px-2 py-0.5 border border-hairline text-caption font-medium"
+      >
+        <span class="text-ink-muted text-[11px]">Niveles:</span>
+        <button
+          type="button"
+          class="h-5 w-5 rounded flex items-center justify-center font-bold text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          :disabled="maxLevels <= 1"
+          title="Reducir nivel"
+          @click="emit('update:maxLevels', maxLevels - 1)"
+        >
+          −
+        </button>
+        <span class="font-mono font-bold text-ink text-xs px-0.5 tabular-nums">{{ maxLevels }}</span>
+        <button
+          type="button"
+          class="h-5 w-5 rounded flex items-center justify-center font-bold text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          :disabled="maxLevels >= 6"
+          title="Aumentar nivel"
+          @click="emit('update:maxLevels', maxLevels + 1)"
+        >
+          +
         </button>
       </div>
 

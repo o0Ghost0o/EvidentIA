@@ -13,7 +13,7 @@ const nav = [
   { label: "Leads", to: "/leads" },
   { label: "Grafo", to: "/graph" },
   { label: "Ingesta", to: "/ingest" },
-  { label: "Modo Jurado", to: "/jurado", isJurado: true },
+  { label: "Corrida de Evaluación", to: "/jurado", isJurado: true },
 ];
 
 function isActive(to: string): boolean {
