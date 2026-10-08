@@ -351,6 +351,19 @@ def run_ingestion(
         report["warnings"].append(f"graph skipped: {exc}")
         logger.warning("Graph build skipped: %s", exc)
 
+    # Post-ingest: auto-generate and persist prioritised ranking inbox.
+    try:
+        from sqlmodel import Session
+
+        from evidentia.db import get_engine
+        from evidentia.scoring.ranking_service import generate_and_persist_inbox
+
+        with Session(get_engine()) as session:
+            report["ranking_inbox"] = generate_and_persist_inbox(session)
+    except Exception as exc:
+        report["warnings"].append(f"ranking inbox generation skipped: {exc}")
+        logger.warning("Ranking inbox generation skipped: %s", exc)
+
     report["finished_at"] = datetime.now(timezone.utc).isoformat()
     (processed / "quality_report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8"

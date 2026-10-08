@@ -354,5 +354,17 @@ async def upload_file(
     history = history[:50]  # keep last 50
     history_file.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    # Post-upload: regenerate ranking inbox if new records were inserted
+    if valid_rows > 0:
+        try:
+            from sqlmodel import Session
+            from evidentia.db import get_engine
+            from evidentia.scoring.ranking_service import generate_and_persist_inbox
+
+            with Session(get_engine()) as db_session:
+                generate_and_persist_inbox(db_session)
+        except Exception:
+            pass
+
     return record
 
