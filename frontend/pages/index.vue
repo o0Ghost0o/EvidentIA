@@ -10,7 +10,9 @@ import StateChip from "~/components/ui/StateChip.vue";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "~/components/ui/sheet";
 import ScoreBreakdown from "~/components/ScoreBreakdown.vue";
 import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
+import Pagination from "~/components/ui/Pagination.vue";
 import { api } from "~/composables/useApi";
+import { usePagination } from "~/composables/usePagination";
 
 const modalOpen = ref(false);
 const activeSource = ref<{ tipo: string; id: string } | null>(null);
@@ -261,6 +263,15 @@ const rows = computed<Row[]>(() =>
   })
 );
 
+const {
+  page,
+  pageCount,
+  total: pageTotal,
+  rangeStart,
+  rangeEnd,
+  paged: pagedRows,
+} = usePagination(rows, { pageSize: 10 });
+
 const modOptions = [
   { value: "tvn", label: "TVN" },
   { value: "banca", label: "Banca" },
@@ -409,7 +420,7 @@ async function openAsLead(item: RankItem) {
           </div>
 
           <div
-            v-for="(r, i) in rows"
+            v-for="(r, i) in pagedRows"
             :key="r.item.id"
             class="relative flex flex-wrap items-center gap-x-6 gap-y-3 bg-surface py-4 pl-[19px] pr-4 transition-colors hover:bg-surface-sunken/40"
             :class="i > 0 ? 'border-t border-hairline' : ''"
@@ -523,6 +534,13 @@ async function openAsLead(item: RankItem) {
             </div>
           </div>
         </div>
+        <Pagination
+          v-model:page="page"
+          :page-count="pageCount"
+          :total="pageTotal"
+          :range-start="rangeStart"
+          :range-end="rangeEnd"
+        />
         <span class="font-mono text-caption text-ink-muted">
           {{ shown }} de {{ total }} temas mostrados · {{ sortLabel }} · desempate por P
         </span>

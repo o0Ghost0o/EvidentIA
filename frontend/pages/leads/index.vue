@@ -6,7 +6,9 @@ import Select from "~/components/ui/Select.vue";
 import StateChip, { type StateTone } from "~/components/ui/StateChip.vue";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
+import Pagination from "~/components/ui/Pagination.vue";
 import { api } from "~/composables/useApi";
+import { usePagination } from "~/composables/usePagination";
 import {
   deriveEvidenceState,
   deriveProgress,
@@ -146,6 +148,15 @@ const rows = computed<LeadRow[]>(() => {
     return true;
   });
 });
+
+const {
+  page,
+  pageCount,
+  total: pageTotal,
+  rangeStart,
+  rangeEnd,
+  paged: pagedRows,
+} = usePagination(rows, { pageSize: 10 });
 
 const isEmpty = computed(() => !loading.value && total.value === 0);
 const noResults = computed(() => !loading.value && total.value > 0 && rows.value.length === 0);
@@ -316,7 +327,7 @@ function openLead(id: number) {
           </div>
 
           <div
-            v-for="l in rows"
+            v-for="l in pagedRows"
             :key="l.raw.id"
             role="link"
             tabindex="0"
@@ -406,6 +417,13 @@ function openLead(id: number) {
             <span class="hidden flex-[0_0_12px] text-xl leading-none text-ink-muted md:block">›</span>
           </div>
         </div>
+        <Pagination
+          v-model:page="page"
+          :page-count="pageCount"
+          :total="pageTotal"
+          :range-start="rangeStart"
+          :range-end="rangeEnd"
+        />
         <span class="font-mono text-caption text-ink-muted">
           {{ rows.length }} de {{ total }} leads · horas en hora de Panamá (UTC−5)
         </span>
