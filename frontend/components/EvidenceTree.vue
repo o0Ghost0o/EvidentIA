@@ -203,21 +203,21 @@ const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
           <div class="flex items-center gap-2">
-            <span class="font-bold text-base">Árbol de Evidencias y Trazabilidad</span>
-            <Badge variant="outline" class="text-xs">GraphRAG</Badge>
+            <h3 class="font-serif text-heading-md font-semibold text-ink">Árbol de Evidencias y Trazabilidad</h3>
+            <Badge variant="outline" class="text-caption font-medium">GraphRAG</Badge>
           </div>
-          <p class="text-xs text-muted-foreground mt-0.5">
+          <p class="text-caption text-ink-muted mt-0.5 font-sans">
             Explora las cadenas de respaldo causal. Haz clic en cualquier nodo para inspeccionar su contenido original.
           </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
           <!-- View mode toggle: Tree vs Graph -->
-          <div class="flex items-center rounded-lg bg-muted/60 p-0.5 border text-xs">
+          <div class="flex items-center rounded-md bg-surface-sunken p-0.5 border border-hairline text-caption font-sans">
             <button
               type="button"
-              class="px-2.5 py-1 rounded-md transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
-              :class="viewMode === 'tree' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'"
+              class="px-2.5 py-1 rounded-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+              :class="viewMode === 'tree' ? 'bg-surface text-ink font-semibold shadow-ev-1' : 'text-ink-muted hover:text-ink font-medium'"
               @click="viewMode = 'tree'"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,8 +227,8 @@ const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
             </button>
             <button
               type="button"
-              class="px-2.5 py-1 rounded-md transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
-              :class="viewMode === 'graph' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'"
+              class="px-2.5 py-1 rounded-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+              :class="viewMode === 'graph' ? 'bg-surface text-ink font-semibold shadow-ev-1' : 'text-ink-muted hover:text-ink font-medium'"
               @click="viewMode = 'graph'"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,12 +239,12 @@ const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
           </div>
 
           <!-- Level Controls (visible in tree view) -->
-          <div v-if="viewMode === 'tree'" class="flex flex-wrap items-center gap-1.5 border-l pl-2">
-            <span class="text-xs text-muted-foreground mr-1">Niveles:</span>
+          <div v-if="viewMode === 'tree'" class="flex flex-wrap items-center gap-1.5 border-l border-hairline pl-2">
+            <span class="text-caption text-ink-muted mr-1">Niveles:</span>
             <Button
               size="sm"
               variant="outline"
-              class="h-7 w-7 p-0 text-sm font-bold"
+              class="h-7 w-7 p-0 text-body-sm font-semibold"
               :disabled="selectedDepth <= 1"
               title="Reducir nivel de profundidad"
               @click="decreaseDepth"
@@ -259,10 +259,10 @@ const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
                 :key="d"
                 type="button"
                 :class="[
-                  'h-7 px-2 text-xs rounded border transition-colors',
+                  'h-7 px-2 text-caption font-mono tabular-nums rounded border transition-colors cursor-pointer',
                   selectedDepth === d
-                    ? 'bg-primary text-primary-foreground font-semibold border-primary shadow-xs'
-                    : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                    ? 'bg-primary text-primary-foreground font-semibold border-primary shadow-ev-1'
+                    : 'bg-surface hover:bg-surface-sunken text-ink-muted hover:text-ink border-hairline'
                 ]"
                 :title="`Ver hasta ${d} nivel(es)`"
                 @click="setDepth(d)"
@@ -274,7 +274,7 @@ const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
             <Button
               size="sm"
               variant="outline"
-              class="h-7 w-7 p-0 text-sm font-bold"
+              class="h-7 w-7 p-0 text-body-sm font-semibold"
               :disabled="selectedDepth >= 10"
               title="Aumentar nivel de profundidad"
               @click="increaseDepth"
@@ -286,7 +286,7 @@ const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
             <Button
               size="sm"
               variant="outline"
-              class="h-7 px-2.5 text-xs ml-1"
+              class="h-7 px-2.5 text-caption ml-1"
               @click="toggleExpandAll"
             >
               {{ allExpanded ? 'Colapsar' : 'Expandir' }}
@@ -297,20 +297,20 @@ const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
     </template>
 
     <!-- Content / Tree presentation -->
-    <div v-if="loading" class="py-6 text-center text-sm text-muted-foreground">
+    <div v-if="loading" class="py-6 text-center text-body-sm text-ink-muted">
       Cargando grafo de evidencias…
     </div>
-    <div v-else-if="!tree || !branches.length" class="py-4 text-sm text-muted-foreground">
+    <div v-else-if="!tree || !branches.length" class="py-4 text-body-sm text-ink-muted">
       Sin árbol de evidencias para mostrar. Vincula fuentes o fichas de evidencia para comenzar el grafo.
     </div>
     <div v-else class="space-y-3">
       <!-- Quick Info Bar -->
-      <div class="flex flex-wrap items-center justify-between text-xs text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-md border border-border/50">
+      <div class="flex flex-wrap items-center justify-between text-caption text-ink-muted bg-surface-sunken/60 px-3 py-1.5 rounded-md border border-hairline font-sans">
         <div class="flex items-center gap-3">
-          <span>Grafo: <strong>{{ totalNodesCount }}</strong> nodo(s)</span>
-          <span><strong>{{ totalEdgesCount }}</strong> relación(es)</span>
-          <span v-if="viewMode === 'tree'">Profundidad visual: <strong>1 a {{ selectedDepth }} niveles</strong></span>
-          <span v-else>Modo: <strong>Fuerza dirigida SVG interactiva</strong></span>
+          <span>Grafo: <strong class="font-mono tabular-nums text-ink font-semibold">{{ totalNodesCount }}</strong> nodo(s)</span>
+          <span><strong class="font-mono tabular-nums text-ink font-semibold">{{ totalEdgesCount }}</strong> relación(es)</span>
+          <span v-if="viewMode === 'tree'">Profundidad visual: <strong class="font-mono tabular-nums text-ink font-semibold">1 a {{ selectedDepth }} niveles</strong></span>
+          <span v-else>Modo: <strong class="text-ink font-semibold">Fuerza dirigida SVG interactiva</strong></span>
         </div>
         <span class="text-[11px] italic">
           * Haz clic en cualquier nodo para inspeccionar titular, enlace o valor oficial.
@@ -328,8 +328,8 @@ const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
       </div>
 
       <!-- Mode 2: Hierarchical Tree List -->
-      <div v-else class="rounded-md border bg-card/50 p-3 overflow-x-auto">
-        <ul :key="expandAllKey" class="text-sm space-y-1">
+      <div v-else class="rounded-md border border-hairline bg-surface p-3 overflow-x-auto">
+        <ul :key="expandAllKey" class="text-body-sm space-y-1">
           <TreeBranch
             v-for="(b, i) in branches"
             :key="`${b.node.tipo}-${b.node.id}-${i}`"

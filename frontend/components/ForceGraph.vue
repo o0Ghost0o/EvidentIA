@@ -394,15 +394,15 @@ const activeLegendTypes = computed(() => {
 </script>
 
 <template>
-  <div class="relative w-full rounded-xl border bg-card/60 overflow-hidden shadow-xs select-none">
+  <div class="relative w-full rounded-lg border border-hairline bg-surface overflow-hidden shadow-ev-1 select-none">
     <!-- Floating Toolbar -->
     <div
       v-if="showControls"
-      class="absolute top-3 right-3 z-10 flex items-center gap-1.5 p-1 rounded-lg bg-background/85 backdrop-blur-md border shadow-xs text-xs"
+      class="absolute top-3 right-3 z-10 flex items-center gap-1.5 p-1 rounded-md bg-surface/90 backdrop-blur-md border border-hairline shadow-ev-1 text-caption"
     >
       <button
         type="button"
-        class="h-7 w-7 rounded-md flex items-center justify-center hover:bg-muted font-bold text-muted-foreground hover:text-foreground transition-colors"
+        class="h-7 w-7 rounded-sm flex items-center justify-center hover:bg-surface-sunken font-bold text-ink-muted hover:text-ink transition-colors cursor-pointer"
         title="Acercar (Zoom In)"
         @click="zoomIn"
       >
@@ -410,16 +410,16 @@ const activeLegendTypes = computed(() => {
       </button>
       <button
         type="button"
-        class="h-7 w-7 rounded-md flex items-center justify-center hover:bg-muted font-bold text-muted-foreground hover:text-foreground transition-colors"
+        class="h-7 w-7 rounded-sm flex items-center justify-center hover:bg-surface-sunken font-bold text-ink-muted hover:text-ink transition-colors cursor-pointer"
         title="Alejar (Zoom Out)"
         @click="zoomOut"
       >
         −
       </button>
-      <div class="h-4 w-px bg-border"></div>
+      <div class="h-4 w-px bg-hairline"></div>
       <button
         type="button"
-        class="h-7 px-2.5 rounded-md flex items-center gap-1.5 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+        class="h-7 px-2.5 rounded-sm flex items-center gap-1.5 hover:bg-surface-sunken text-[11px] font-medium text-ink-muted hover:text-ink transition-colors cursor-pointer"
         title="Centrar vista del grafo"
         @click="resetView"
       >
@@ -431,7 +431,7 @@ const activeLegendTypes = computed(() => {
     </div>
 
     <!-- Stats pill top left -->
-    <div class="absolute top-3 left-3 z-10 flex items-center gap-2 p-1 px-2.5 rounded-md bg-background/85 backdrop-blur-md border text-[11px] font-mono text-muted-foreground shadow-xs">
+    <div class="absolute top-3 left-3 z-10 flex items-center gap-2 p-1 px-2.5 rounded-sm bg-surface/90 backdrop-blur-md border border-hairline text-[11px] font-mono tabular-nums text-ink-muted shadow-ev-1">
       <span>{{ nodes.length }} nodos</span>
       <span>·</span>
       <span>{{ links.length }} enlaces</span>
@@ -515,7 +515,7 @@ const activeLegendTypes = computed(() => {
           :x="point(node.id).x"
           :y="point(node.id).y + radiusFor(getNodeType(node)) + 13"
           text-anchor="middle"
-          class="fill-foreground text-[10px] font-medium tracking-tight pointer-events-none drop-shadow-xs"
+          class="fill-ink text-[10px] font-sans font-medium tracking-tight pointer-events-none drop-shadow-xs"
         >
           {{ (node.label || node.id).slice(0, 24) }}
         </text>
@@ -526,17 +526,17 @@ const activeLegendTypes = computed(() => {
         <rect
           :x="tooltipFlip ? tooltipX - 220 : tooltipX"
           :y="mousePos.y - 42"
-          rx="8"
+          rx="6"
           width="220"
           height="54"
-          class="fill-popover stroke-border"
+          class="fill-surface stroke-hairline"
           filter="url(#node-shadow)"
         />
         <text
           :x="tooltipFlip ? tooltipX - 10 : tooltipX + 10"
           :y="mousePos.y - 23"
           :text-anchor="tooltipAnchor"
-          class="fill-popover-foreground text-xs font-semibold"
+          class="fill-ink text-xs font-semibold"
         >
           {{ (hovered.label || hovered.id).slice(0, 28) }}
         </text>
@@ -544,7 +544,7 @@ const activeLegendTypes = computed(() => {
           :x="tooltipFlip ? tooltipX - 10 : tooltipX + 10"
           :y="mousePos.y - 7"
           :text-anchor="tooltipAnchor"
-          class="fill-muted-foreground text-[10px]"
+          class="fill-ink-muted text-[10px]"
         >
           {{ GRAPH_TYPE_LABELS[getNodeType(hovered)] || getNodeType(hovered) }} · Clic para abrir contenido
         </text>
@@ -554,23 +554,23 @@ const activeLegendTypes = computed(() => {
     <!-- Legend bar at bottom -->
     <div
       v-if="showLegend"
-      class="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-t bg-muted/20 text-xs"
+      class="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-t border-hairline bg-surface-sunken/40 text-caption font-sans"
     >
       <div class="flex flex-wrap items-center gap-3">
-        <span class="text-muted-foreground text-[11px] font-medium">Entidades GraphRAG:</span>
+        <span class="text-ink-muted text-[11px] font-medium">Entidades GraphRAG:</span>
         <div
           v-for="t in activeLegendTypes"
           :key="t"
           class="flex items-center gap-1.5 text-[11px]"
         >
           <span
-            class="w-2.5 h-2.5 rounded-full shrink-0"
+            class="w-2.5 h-2.5 rounded-pill shrink-0"
             :style="{ backgroundColor: colorFor(t) }"
           ></span>
-          <span class="text-foreground">{{ GRAPH_TYPE_LABELS[t] || t }}</span>
+          <span class="text-ink font-medium">{{ GRAPH_TYPE_LABELS[t] || t }}</span>
         </div>
       </div>
-      <div class="text-[11px] text-muted-foreground italic">
+      <div class="text-[11px] text-ink-muted italic">
         Arrastra nodos para reorganizar · Rueda para zoom · Clic para inspeccionar
       </div>
     </div>

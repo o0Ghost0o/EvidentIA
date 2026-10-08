@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import Badge from "~/components/ui/Badge.vue";
 import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
+import StateChip from "~/components/ui/StateChip.vue";
 import { api } from "~/composables/useApi";
 
 interface PruebaDetalle {
@@ -173,38 +173,37 @@ const PREGUNTAS_JURADO = [
 </script>
 
 <template>
-  <div class="space-y-10 py-6">
+  <div class="mx-auto max-w-container px-4 py-6 space-y-8">
     <!-- Header Hero -->
     <div class="border-b border-hairline pb-8">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div class="space-y-1.5">
           <div class="flex items-center gap-2">
-            <span class="text-xs font-semibold uppercase tracking-wider text-primary">
+            <span class="text-label uppercase tracking-wider text-primary font-semibold">
               Modo Jurado · Reto TVN Media §9
             </span>
-            <Badge variant="outline" class="bg-primary/10 text-primary border-primary/20 text-[11px]">
+            <StateChip tone="primary" variant="soft" class="text-caption">
               T01–T10 Live Suite
-            </Badge>
+            </StateChip>
           </div>
-          <h1 class="mt-2 font-serif text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+          <h1 class="font-serif text-display-xl font-semibold tracking-tight text-ink">
             Centro de Verificación de Aceptación
           </h1>
-          <p class="mt-2 max-w-3xl text-sm leading-relaxed text-ink-muted">
+          <p class="max-w-[72ch] text-body-sm leading-relaxed text-ink-muted">
             Ejecución auditable y en tiempo real de los 10 criterios de aceptación obligatorios del pliego
             editorial de TVN Media, ejecutados en un subproceso aislado sobre el motor analítico de EvidentIA.
           </p>
         </div>
 
-        <!-- Action Button -->
+        <!-- Action Button (single primary action) -->
         <div class="flex flex-col items-start gap-2 sm:items-end">
           <Button
-            size="lg"
-            class="shadow-sm font-semibold tracking-wide"
             :disabled="runningPruebas"
+            class="h-9 px-4 text-body-sm font-semibold"
             @click="ejecutarPruebasEnVivo"
           >
-            <span v-if="runningPruebas" class="flex items-center gap-2">
-              <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-canvas border-t-transparent"></span>
+            <span v-if="runningPruebas" class="flex items-center gap-2 font-mono tabular-nums">
+              <span class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-canvas border-t-transparent"></span>
               Corriendo pruebas… {{ timerSeconds }} s
             </span>
             <span v-else class="flex items-center gap-2">
@@ -213,34 +212,37 @@ const PREGUNTAS_JURADO = [
             </span>
           </Button>
 
-          <span v-if="informe?.generado_utc && !runningPruebas" class="text-xs text-ink-muted">
+          <span v-if="informe?.generado_utc && !runningPruebas" class="text-caption text-ink-muted font-mono tabular-nums">
             Última corrida: <b>{{ formatHoraPA(informe.generado_utc) }}</b> · Duración: <b>{{ informe.segundos }} s</b>
           </span>
         </div>
       </div>
 
       <!-- Execution Status Pill -->
-      <div v-if="informe" class="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-hairline bg-surface-sunken/40 p-4">
+      <div v-if="informe" class="mt-6 flex flex-wrap items-center gap-3 rounded-md border border-hairline bg-surface-sunken p-3.5">
         <div class="flex items-center gap-2">
-          <span class="flex h-3 w-3 rounded-full" :class="informe.verdes === informe.total ? 'bg-emerald-500' : 'bg-rose-500'"></span>
-          <span class="text-sm font-semibold text-ink">
+          <span
+            class="flex h-2.5 w-2.5 rounded-full"
+            :class="informe.verdes === informe.total ? 'bg-success' : 'bg-error'"
+          ></span>
+          <span class="text-body-sm font-semibold text-ink">
             Estado de Aceptación:
           </span>
           <span
-            class="font-mono text-sm font-bold"
-            :class="informe.verdes === informe.total ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'"
+            class="font-mono text-mono font-bold tabular-nums"
+            :class="informe.verdes === informe.total ? 'text-success' : 'text-error'"
           >
             {{ informe.verdes }} / {{ informe.total }} Pruebas en Verde ({{ Math.round((informe.verdes / informe.total) * 100) }}%)
           </span>
         </div>
 
         <span class="text-ink-muted">·</span>
-        <span class="font-mono text-xs text-ink-muted">
+        <span class="font-mono text-caption text-ink-muted">
           {{ informe.comando }}
         </span>
       </div>
 
-      <div v-if="errorMsg" class="mt-4 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+      <div v-if="errorMsg" class="mt-4 rounded-md border border-error/30 bg-error/10 p-4 text-body-sm text-error">
         {{ errorMsg }}
       </div>
     </div>
@@ -248,15 +250,15 @@ const PREGUNTAS_JURADO = [
     <!-- T01–T10 Test Cards Grid -->
     <section class="space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="font-serif text-xl font-bold text-ink">
+        <h2 class="font-serif text-heading-md font-semibold text-ink">
           Pruebas de Aceptación Obligatorias (§9)
         </h2>
-        <span class="text-xs text-ink-muted">
+        <span class="text-caption text-ink-muted">
           Haz clic en cada tarjeta para inspeccionar aserciones y tiempos
         </span>
       </div>
 
-      <div v-if="loadingPruebas && !informe" class="py-12 text-center text-sm text-ink-muted">
+      <div v-if="loadingPruebas && !informe" class="py-12 text-center text-body-sm text-ink-muted">
         Cargando estado de pruebas del jurado…
       </div>
 
@@ -264,80 +266,82 @@ const PREGUNTAS_JURADO = [
         <div
           v-for="f in informe?.filas"
           :key="f.id"
-          class="rounded-lg border transition-all"
-          :class="f.estado === 'verde' ? 'border-emerald-500/20 bg-surface' : 'border-rose-500/30 bg-rose-50/10'"
+          class="rounded-md border border-hairline bg-surface shadow-ev-1 overflow-hidden transition-colors"
+          :class="f.estado === 'rojo' ? 'border-error/40 bg-error/5' : ''"
         >
           <!-- Card Header (Clickable) -->
           <button
             type="button"
-            class="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-surface-sunken/30"
+            class="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-surface-sunken/40 cursor-pointer"
             @click="toggleAccordion(f.id)"
           >
             <div class="flex items-center gap-3">
-              <span
-                class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
-                :class="f.estado === 'verde' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'"
+              <StateChip
+                :tone="f.estado === 'verde' ? 'success' : 'error'"
+                variant="soft"
+                :dot="true"
               >
-                {{ f.estado === 'verde' ? '✓' : '✕' }}
-              </span>
+                {{ f.estado === 'verde' ? 'Aprobada ✓' : 'Fallida ✕' }}
+              </StateChip>
+
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="font-mono text-xs font-bold uppercase tracking-wider text-primary">
+                  <span class="font-mono text-mono font-bold uppercase tracking-wider text-primary">
                     {{ f.id }}
                   </span>
-                  <span class="font-semibold text-ink text-sm sm:text-base">
+                  <span class="font-semibold text-ink text-body-sm sm:text-body-md">
                     {{ f.titulo }}
                   </span>
                 </div>
-                <p class="text-xs text-ink-muted mt-0.5 line-clamp-1">
+                <p class="text-caption text-ink-muted mt-0.5 line-clamp-1">
                   {{ f.esperado }}
                 </p>
               </div>
             </div>
 
             <div class="flex items-center gap-4">
-              <span v-if="f.pruebas?.[0]?.segundos" class="font-mono text-xs text-ink-muted hidden sm:inline">
+              <span v-if="f.pruebas?.[0]?.segundos" class="font-mono text-caption text-ink-muted tabular-nums hidden sm:inline">
                 {{ f.pruebas[0].segundos }} s
               </span>
-              <span class="text-xs text-ink-muted">
+              <span class="text-caption text-ink-muted">
                 {{ openAccordions[f.id] ? '▲' : '▼' }}
               </span>
             </div>
           </button>
 
-          <!-- Card Content (Accordion) -->
-          <div v-if="openAccordions[f.id]" class="border-t border-hairline/60 bg-surface-sunken/20 p-4 space-y-3 text-sm">
+          <!-- Card Content (Accordion Panel) -->
+          <div v-if="openAccordions[f.id]" class="border-t border-hairline bg-surface-sunken p-4 space-y-3 text-body-sm">
             <div>
-              <span class="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+              <span class="text-label uppercase tracking-wider text-ink-muted">
                 Criterio Oficial del Pliego TVN:
               </span>
-              <p class="mt-1 text-ink text-xs sm:text-sm leading-relaxed bg-surface p-2.5 rounded border border-hairline/50">
+              <p class="mt-1 bg-surface rounded-md border border-hairline p-3 text-body-sm text-ink leading-relaxed">
                 {{ f.esperado }}
               </p>
             </div>
 
             <div>
-              <span class="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+              <span class="text-label uppercase tracking-wider text-ink-muted">
                 Evidencia de Ejecución Pytest:
               </span>
               <div class="mt-1 space-y-2">
                 <div
                   v-for="p in f.pruebas"
                   :key="p.prueba"
-                  class="rounded border border-hairline/60 bg-surface p-2.5 text-xs font-mono"
+                  class="rounded-md border border-hairline bg-surface p-3 text-mono font-mono text-ink"
                 >
                   <div class="flex items-center justify-between">
-                    <span class="font-bold text-ink">
+                    <span class="font-semibold text-ink">
                       {{ p.prueba }}
                     </span>
-                    <span class="text-ink-muted">
+                    <span class="text-ink-muted tabular-nums">
                       {{ p.segundos }} s · {{ p.ok ? 'PASSED ✓' : 'FAILED ✕' }}
                     </span>
                   </div>
-                  <p class="font-sans text-xs text-ink-muted mt-1">
+                  <p class="font-sans text-caption text-ink-muted mt-1">
                     {{ p.comprueba }}
                   </p>
-                  <div v-if="p.mensaje" class="mt-2 rounded bg-rose-100/30 p-2 text-rose-700 dark:text-rose-400">
+                  <div v-if="p.mensaje" class="mt-2 rounded-sm border border-error/20 bg-error/10 p-2.5 text-error text-caption">
                     {{ p.mensaje }}
                   </div>
                 </div>
@@ -352,47 +356,47 @@ const PREGUNTAS_JURADO = [
     <section class="space-y-4 pt-4 border-t border-hairline">
       <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="font-serif text-xl font-bold text-ink">
+          <h2 class="font-serif text-heading-md font-semibold text-ink">
             Evaluación Comparativa: Agente EvidentIA frente a Baseline BM25
           </h2>
-          <p class="text-xs text-ink-muted">
+          <p class="text-caption text-ink-muted">
             Benchmark de 40 consultas de desarrollo (§7 y §8): 20 sustentadas, 7 sin respuesta, 7 contradicciones, 6 adversariales.
           </p>
         </div>
-        <span v-if="metricas?.modelo" class="font-mono text-xs text-primary bg-primary/10 px-2.5 py-1 rounded border border-primary/20">
+        <span v-if="metricas?.modelo" class="font-mono text-mono text-primary bg-primary-soft px-2.5 py-1 rounded-sm border border-primary/20">
           {{ metricas.modelo }}
         </span>
       </div>
 
-      <div class="overflow-x-auto rounded-lg border border-hairline bg-surface">
-        <table class="w-full text-left text-sm">
-          <thead class="border-b border-hairline bg-surface-sunken/50 text-xs uppercase tracking-wider text-ink-muted">
+      <div class="overflow-x-auto rounded-md border border-hairline bg-surface shadow-ev-1">
+        <table class="w-full text-left text-body-sm">
+          <thead class="border-b border-hairline bg-surface-sunken text-label uppercase tracking-wider text-ink-muted">
             <tr>
-              <th class="py-3 px-4">Métrica de Evaluación</th>
-              <th class="py-3 px-4">Meta Reto</th>
-              <th class="py-3 px-4">Baseline BM25</th>
-              <th class="py-3 px-4">EvidentIA (Llama-3.3-70B)</th>
-              <th class="py-3 px-4 text-right">Cumplimiento</th>
+              <th class="py-3 px-4 font-semibold">Métrica de Evaluación</th>
+              <th class="py-3 px-4 font-semibold">Meta Reto</th>
+              <th class="py-3 px-4 font-semibold">Baseline BM25</th>
+              <th class="py-3 px-4 font-semibold">EvidentIA (Llama-3.3-70B)</th>
+              <th class="py-3 px-4 font-semibold text-right">Cumplimiento</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-hairline">
-            <tr v-for="m in metricas?.tabla" :key="m.metrica" class="hover:bg-surface-sunken/20 transition-colors">
+            <tr v-for="m in metricas?.tabla" :key="m.metrica" class="hover:bg-surface-sunken/30 transition-colors">
               <td class="py-3 px-4 font-medium text-ink">
                 {{ m.metrica }}
               </td>
-              <td class="py-3 px-4 font-mono text-xs text-ink-muted">
+              <td class="py-3 px-4 font-mono text-mono text-ink-muted tabular-nums">
                 {{ m.meta }}
               </td>
-              <td class="py-3 px-4 font-mono text-xs text-ink-muted">
+              <td class="py-3 px-4 font-mono text-mono text-ink-muted tabular-nums">
                 {{ m.baseline_bm25 }}
               </td>
-              <td class="py-3 px-4 font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              <td class="py-3 px-4 font-mono text-mono font-semibold text-success tabular-nums">
                 {{ m.agente_evidentia }}
               </td>
               <td class="py-3 px-4 text-right">
-                <Badge variant="outline" class="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <StateChip tone="success" variant="soft">
                   Supera Meta ✓
-                </Badge>
+                </StateChip>
               </td>
             </tr>
           </tbody>
@@ -403,38 +407,38 @@ const PREGUNTAS_JURADO = [
     <!-- Preguntas Frecuentes del Jurado -->
     <section class="space-y-4 pt-4 border-t border-hairline">
       <div>
-        <h2 class="font-serif text-xl font-bold text-ink">
+        <h2 class="font-serif text-heading-md font-semibold text-ink">
           Respuestas Preparadas para el Jurado de TVN
         </h2>
-        <p class="text-xs text-ink-muted">
+        <p class="text-caption text-ink-muted">
           Atajos interactivos para demostrar en vivo el comportamiento del agente ante las preguntas técnicas más exigentes.
         </p>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
-        <Card
+        <div
           v-for="p in PREGUNTAS_JURADO"
           :key="p.pregunta"
-          class="p-4 flex flex-col justify-between hover:border-primary/40 transition-colors"
+          class="rounded-md border border-hairline bg-surface p-5 shadow-ev-1 flex flex-col justify-between hover:border-primary/50 transition-colors"
         >
           <div>
-            <h3 class="font-semibold text-ink text-sm leading-snug">
+            <h3 class="font-serif text-heading-md font-semibold text-ink leading-snug">
               {{ p.pregunta }}
             </h3>
-            <p class="mt-2 text-xs text-ink-muted leading-relaxed">
+            <p class="mt-2 text-body-sm text-ink-muted leading-relaxed">
               {{ p.respuesta }}
             </p>
           </div>
 
-          <div v-if="p.enlace" class="mt-4 pt-3 border-t border-hairline/60">
+          <div v-if="p.enlace" class="mt-4 pt-3 border-t border-hairline">
             <NuxtLink
               :to="p.enlace"
-              class="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+              class="text-caption font-semibold text-primary hover:text-primary-deep flex items-center gap-1 transition-colors"
             >
               {{ p.enlaceTexto }}
             </NuxtLink>
           </div>
-        </Card>
+        </div>
       </div>
     </section>
   </div>

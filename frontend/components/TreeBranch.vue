@@ -35,16 +35,16 @@ function onInspectNode() {
   emit("inspect", props.branch.node);
 }
 
-function nodeTypeBadge(tipo: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive" | "success" | "warning" | "info" | "purple" | "teal" } {
+function nodeTypeBadge(tipo: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive" | "success" | "warning" | "info" } {
   switch (tipo) {
     case "case":
       return { label: "Lead Principal", variant: "default" };
     case "news":
       return { label: "Ficha Noticia", variant: "info" };
     case "entity":
-      return { label: "Entidad", variant: "purple" };
+      return { label: "Entidad", variant: "secondary" };
     case "indicator":
-      return { label: "Indicador WB", variant: "teal" };
+      return { label: "Indicador WB", variant: "info" };
     case "event":
       return { label: "Evento Sísmico", variant: "warning" };
     default:
@@ -65,30 +65,30 @@ function relationLabel(via: string | null): string {
   return map[via] || via;
 }
 
-function levelBadgeVariant(level: number) {
+function levelBadgeVariant(level: number): "outline" | "secondary" | "info" | "warning" | "default" {
   if (level === 1) return "outline";
   if (level === 2) return "secondary";
   if (level === 3) return "info";
-  if (level === 4) return "purple";
-  if (level >= 5) return "teal";
+  if (level === 4) return "warning";
+  if (level >= 5) return "default";
   return "outline";
 }
 </script>
 
 <template>
-  <li class="relative ml-2 border-l-2 border-border/70 pl-3 py-1.5 transition-colors">
+  <li class="relative ml-2 border-l-2 border-hairline pl-3 py-1.5 transition-colors">
     <div class="flex flex-wrap items-center gap-2 group">
       <!-- Expand/collapse button if has visible children -->
       <button
         v-if="branch.children.length && branch.level < maxLevel"
         type="button"
-        class="flex h-5 w-5 items-center justify-center rounded border bg-background text-[11px] font-bold text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs"
+        class="flex h-5 w-5 items-center justify-center rounded border border-hairline bg-surface text-[11px] font-bold text-ink-muted hover:bg-surface-sunken hover:text-ink shadow-ev-1 cursor-pointer transition-colors"
         :title="isExpanded ? 'Colapsar rama' : 'Expandir rama'"
         @click="toggleExpand"
       >
         {{ isExpanded ? "−" : "+" }}
       </button>
-      <span v-else-if="branch.level > 0" class="inline-block w-2 h-0.5 bg-border/80"></span>
+      <span v-else-if="branch.level > 0" class="inline-block w-2 h-0.5 bg-hairline"></span>
 
       <!-- Level badge -->
       <Badge
@@ -100,22 +100,22 @@ function levelBadgeVariant(level: number) {
       </Badge>
 
       <!-- Node type badge -->
-      <Badge :variant="nodeTypeBadge(branch.node.tipo).variant" class="text-xs">
+      <Badge :variant="nodeTypeBadge(branch.node.tipo).variant" class="text-caption">
         {{ nodeTypeBadge(branch.node.tipo).label }}
       </Badge>
 
       <!-- Clickable Label & Inspection Button -->
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 text-left rounded-md px-1.5 py-0.5 hover:bg-primary/10 transition-colors cursor-pointer group/node"
+        class="inline-flex items-center gap-1.5 text-left rounded-md px-1.5 py-0.5 hover:bg-surface-sunken transition-colors cursor-pointer group/node"
         title="Clic para inspeccionar el contenido de esta evidencia"
         @click="onInspectNode"
       >
-        <span class="font-medium text-foreground group-hover/node:text-primary text-sm tracking-tight break-all">
+        <span class="font-medium text-ink group-hover/node:text-primary text-body-sm tracking-tight break-all">
           {{ branch.node.label }}
         </span>
         <svg
-          class="w-3.5 h-3.5 text-muted-foreground opacity-60 group-hover/node:opacity-100 group-hover/node:text-primary shrink-0 transition-opacity"
+          class="w-3.5 h-3.5 text-ink-muted opacity-60 group-hover/node:opacity-100 group-hover/node:text-primary shrink-0 transition-opacity"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -126,12 +126,12 @@ function levelBadgeVariant(level: number) {
       </button>
 
       <!-- Identifier pill -->
-      <span class="font-mono text-[11px] text-muted-foreground bg-muted/60 px-1 rounded">
+      <span class="font-mono text-mono tabular-nums text-[11px] text-ink-muted bg-surface-sunken border border-hairline px-1 rounded-sm">
         {{ branch.node.id }}
       </span>
 
       <!-- Relation edge note -->
-      <span v-if="branch.via" class="text-xs text-muted-foreground flex items-center gap-1">
+      <span v-if="branch.via" class="text-caption text-ink-muted flex items-center gap-1">
         <span>←</span>
         <span class="italic text-[11px]">{{ relationLabel(branch.via) }}</span>
       </span>
@@ -139,7 +139,7 @@ function levelBadgeVariant(level: number) {
       <!-- Child count badge if collapsed -->
       <span
         v-if="branch.children.length && (!isExpanded || branch.level >= maxLevel)"
-        class="text-[11px] text-muted-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded-full"
+        class="text-caption text-ink-muted bg-surface-sunken border border-hairline px-1.5 py-0.5 rounded-pill font-mono tabular-nums"
       >
         ({{ branch.children.length }} sub-conexiones{{ branch.level >= maxLevel ? " [límite nivel]" : "" }})
       </span>

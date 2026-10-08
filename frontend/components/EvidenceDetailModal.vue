@@ -111,16 +111,16 @@ async function copyCitation() {
   }
 }
 
-function typeBadgeProps(tipo: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive" | "success" | "warning" | "info" | "purple" | "teal" } {
+function typeBadgeProps(tipo: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive" | "success" | "warning" | "info" } {
   switch (tipo) {
     case "news":
       return { label: "Noticia de Prensa", variant: "info" };
     case "indicator":
-      return { label: "Indicador Oficial WB", variant: "teal" };
+      return { label: "Indicador Oficial WB", variant: "info" };
     case "event":
       return { label: "Evento Sísmico USGS", variant: "warning" };
     case "entity":
-      return { label: "Entidad del Grafo", variant: "purple" };
+      return { label: "Entidad del Grafo", variant: "secondary" };
     case "case":
       return { label: "Lead Editorial", variant: "default" };
     default:
@@ -149,32 +149,32 @@ function formatDate(dateStr?: string | null): string {
       v-if="open"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
     >
-      <!-- Backdrop -->
+      <!-- Backdrop (DESIGN.md: 40% ink backdrop with subtle blur) -->
       <div
-        class="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
+        class="fixed inset-0 bg-ink/50 backdrop-blur-xs transition-opacity"
         @click="closeModal"
       ></div>
 
-      <!-- Modal Card -->
+      <!-- Modal Card (DESIGN.md: surface, hairline, elevation 3 for modals, rounded-lg) -->
       <div
-        class="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl border bg-card text-card-foreground shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        class="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg border border-hairline bg-surface text-ink shadow-ev-3 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
       >
         <!-- Modal Header -->
-        <div class="flex items-start justify-between border-b px-6 py-4 bg-muted/20">
+        <div class="flex items-start justify-between border-b border-hairline px-6 py-4 bg-surface-sunken/40">
           <div class="space-y-1.5 pr-6">
             <div class="flex flex-wrap items-center gap-2">
               <Badge
                 v-if="item || tipo"
                 :variant="typeBadgeProps(item?.tipo || tipo || '').variant"
-                class="text-xs"
+                class="text-caption font-medium"
               >
                 {{ typeBadgeProps(item?.tipo || tipo || "").label }}
               </Badge>
-              <span class="font-mono text-xs text-muted-foreground bg-muted/60 px-2 py-0.5 rounded">
+              <span class="font-mono text-mono text-caption text-ink-muted bg-surface-sunken border border-hairline px-2 py-0.5 rounded-sm tabular-nums">
                 {{ item?.id || id }}
               </span>
             </div>
-            <h3 class="text-lg font-semibold tracking-tight text-foreground leading-snug">
+            <h3 class="font-serif text-heading-md font-semibold text-ink leading-snug">
               {{ item?.titulo || (loading ? "Cargando contenido de la evidencia..." : "Detalle de Evidencia") }}
             </h3>
           </div>
@@ -182,7 +182,7 @@ function formatDate(dateStr?: string | null): string {
           <!-- Close button -->
           <button
             type="button"
-            class="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            class="rounded-md p-1.5 text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors shrink-0"
             title="Cerrar modal (Esc)"
             @click="closeModal"
           >
@@ -196,7 +196,7 @@ function formatDate(dateStr?: string | null): string {
         <div class="flex-1 overflow-y-auto p-6 space-y-5">
           <!-- Loading state -->
           <div v-if="loading" class="space-y-4 py-8">
-            <div class="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+            <div class="flex items-center justify-center gap-3 text-body-sm text-ink-muted">
               <svg class="animate-spin h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
@@ -206,7 +206,7 @@ function formatDate(dateStr?: string | null): string {
           </div>
 
           <!-- Error state -->
-          <div v-else-if="error" class="p-4 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm space-y-2">
+          <div v-else-if="error" class="p-4 rounded-md border border-error/30 bg-error/10 text-error text-body-sm space-y-2">
             <div class="font-semibold flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -219,12 +219,12 @@ function formatDate(dateStr?: string | null): string {
           <!-- Content display -->
           <template v-else-if="item">
             <!-- Source & Date Strip -->
-            <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-lg bg-muted/40 border text-xs">
+            <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-md bg-surface-sunken/60 border border-hairline text-caption font-sans">
               <div class="flex items-center gap-2">
-                <span class="text-muted-foreground font-medium">Fuente:</span>
-                <span class="font-semibold text-foreground">{{ item.fuente_nombre || "Oficial" }}</span>
+                <span class="text-ink-muted font-medium">Fuente:</span>
+                <span class="font-semibold text-ink">{{ item.fuente_nombre || "Oficial" }}</span>
               </div>
-              <div class="flex items-center gap-2 text-muted-foreground">
+              <div class="flex items-center gap-2 text-ink-muted font-mono tabular-nums">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -234,91 +234,91 @@ function formatDate(dateStr?: string | null): string {
 
             <!-- Description / Extract -->
             <div class="space-y-1.5">
-              <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h4 class="text-caption font-semibold uppercase tracking-wider text-ink-muted">
                 Contenido / Registro
               </h4>
-              <div class="p-4 rounded-lg border bg-background/50 text-sm leading-relaxed text-foreground whitespace-pre-line">
+              <div class="p-4 rounded-md border border-hairline bg-surface-sunken/30 text-body-sm leading-relaxed text-ink whitespace-pre-line font-sans">
                 {{ item.descripcion || "Sin texto adicional registrado para este nodo." }}
               </div>
             </div>
 
             <!-- News specific details -->
-            <div v-if="item.tipo === 'news'" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Medio emisor</div>
-                <div class="font-semibold mt-0.5">{{ item.detalles.medio }}</div>
+            <div v-if="item.tipo === 'news'" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-caption">
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Medio emisor</div>
+                <div class="font-semibold text-ink text-body-sm mt-0.5">{{ item.detalles.medio }}</div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Alcance textual</div>
-                <div class="font-semibold capitalize mt-0.5">{{ item.detalles.alcance_texto }}</div>
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Alcance textual</div>
+                <div class="font-semibold capitalize text-ink text-body-sm mt-0.5">{{ item.detalles.alcance_texto }}</div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Agencia primaria</div>
-                <div class="font-semibold mt-0.5">{{ item.detalles.agencia_primaria || "Producción propia" }}</div>
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Agencia primaria</div>
+                <div class="font-semibold text-ink text-body-sm mt-0.5">{{ item.detalles.agencia_primaria || "Producción propia" }}</div>
               </div>
-              <div v-if="item.detalles.tema" class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Categoría / Tema</div>
-                <div class="font-semibold mt-0.5">{{ item.detalles.tema }}</div>
+              <div v-if="item.detalles.tema" class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Categoría / Tema</div>
+                <div class="font-semibold text-ink text-body-sm mt-0.5">{{ item.detalles.tema }}</div>
               </div>
-              <div v-if="item.detalles.grupo_evento_id" class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Grupo de evento</div>
-                <div class="font-mono mt-0.5 text-[11px] truncate">{{ item.detalles.grupo_evento_id }}</div>
+              <div v-if="item.detalles.grupo_evento_id" class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Grupo de evento</div>
+                <div class="font-mono text-mono tabular-nums text-caption text-ink mt-0.5 truncate">{{ item.detalles.grupo_evento_id }}</div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Idioma</div>
-                <div class="font-semibold uppercase mt-0.5">{{ item.detalles.idioma }}</div>
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Idioma</div>
+                <div class="font-semibold uppercase text-ink text-body-sm mt-0.5">{{ item.detalles.idioma }}</div>
               </div>
             </div>
 
             <!-- Indicator specific details -->
-            <div v-else-if="item.tipo === 'indicator'" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">País</div>
-                <div class="font-semibold mt-0.5">{{ item.detalles.pais_nombre }} ({{ item.detalles.pais_iso3 }})</div>
+            <div v-else-if="item.tipo === 'indicator'" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-caption">
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">País</div>
+                <div class="font-semibold text-ink text-body-sm mt-0.5">{{ item.detalles.pais_nombre }} ({{ item.detalles.pais_iso3 }})</div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Valor Medido</div>
-                <div class="font-semibold text-teal-600 dark:text-teal-400 text-sm mt-0.5">
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Valor Medido</div>
+                <div class="font-mono tabular-nums font-semibold text-info text-body-sm mt-0.5">
                   {{ item.detalles.valor !== null ? `${item.detalles.valor} ${item.detalles.unidad || ''}` : 'Sin dato' }}
                 </div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Año de observación</div>
-                <div class="font-semibold mt-0.5">{{ item.detalles.anio }}</div>
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Año de observación</div>
+                <div class="font-mono tabular-nums font-semibold text-ink text-body-sm mt-0.5">{{ item.detalles.anio }}</div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Indicador ID</div>
-                <div class="font-mono text-[11px] mt-0.5 truncate">{{ item.detalles.indicador_id }}</div>
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Indicador ID</div>
+                <div class="font-mono text-mono tabular-nums text-caption text-ink mt-0.5 truncate">{{ item.detalles.indicador_id }}</div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Licencia de datos</div>
-                <div class="font-semibold mt-0.5">{{ item.detalles.licencia }}</div>
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Licencia de datos</div>
+                <div class="font-semibold text-ink text-body-sm mt-0.5">{{ item.detalles.licencia }}</div>
               </div>
             </div>
 
             <!-- Event specific details -->
-            <div v-else-if="item.tipo === 'event'" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Magnitud</div>
-                <div class="font-semibold text-warning text-sm mt-0.5">M{{ item.detalles.magnitude }}</div>
+            <div v-else-if="item.tipo === 'event'" class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-caption">
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Magnitud</div>
+                <div class="font-mono tabular-nums font-semibold text-warning text-body-sm mt-0.5">M{{ item.detalles.magnitude }}</div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Profundidad</div>
-                <div class="font-semibold mt-0.5">{{ item.detalles.depth }} km</div>
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Profundidad</div>
+                <div class="font-mono tabular-nums font-semibold text-ink text-body-sm mt-0.5">{{ item.detalles.depth }} km</div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20">
-                <div class="text-muted-foreground">Estado</div>
-                <div class="font-semibold capitalize mt-0.5">{{ item.detalles.status }}</div>
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40">
+                <div class="text-ink-muted">Estado</div>
+                <div class="font-semibold capitalize text-ink text-body-sm mt-0.5">{{ item.detalles.status }}</div>
               </div>
-              <div class="p-2.5 rounded-md border bg-muted/20 col-span-2">
-                <div class="text-muted-foreground">Lugar / Epicentro</div>
-                <div class="font-semibold mt-0.5 truncate">{{ item.detalles.place }}</div>
+              <div class="p-2.5 rounded-md border border-hairline bg-surface-sunken/40 col-span-2">
+                <div class="text-ink-muted">Lugar / Epicentro</div>
+                <div class="font-semibold text-ink text-body-sm mt-0.5 truncate">{{ item.detalles.place }}</div>
               </div>
             </div>
 
             <!-- Graph relations -->
             <div v-if="item.relaciones && item.relaciones.length" class="space-y-2">
-              <h4 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h4 class="text-caption font-semibold uppercase tracking-wider text-ink-muted">
                 Conexiones en Grafo ({{ item.relaciones.length }})
               </h4>
               <div class="flex flex-wrap gap-2">
@@ -326,11 +326,11 @@ function formatDate(dateStr?: string | null): string {
                   v-for="(rel, idx) in item.relaciones"
                   :key="idx"
                   type="button"
-                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs border bg-background hover:bg-muted/80 transition-colors"
+                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-caption border border-hairline bg-surface hover:bg-surface-sunken text-ink transition-colors shadow-ev-1 cursor-pointer"
                   @click="emit('navigate', rel.destino_tipo === item.tipo ? rel.origen_tipo : rel.destino_tipo, rel.destino_tipo === item.tipo ? rel.origen_id : rel.destino_id)"
                 >
-                  <span class="text-muted-foreground font-mono text-[10px]">{{ rel.tipo }}:</span>
-                  <span class="font-medium">
+                  <span class="text-ink-muted font-mono text-[10px]">{{ rel.tipo }}:</span>
+                  <span class="font-mono tabular-nums font-medium text-ink">
                     {{ rel.destino_tipo === item.tipo ? `${rel.origen_tipo}:${rel.origen_id}` : `${rel.destino_tipo}:${rel.destino_id}` }}
                   </span>
                 </button>
@@ -338,14 +338,14 @@ function formatDate(dateStr?: string | null): string {
             </div>
 
             <!-- Citation citation helper -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-muted/30 border text-xs">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md bg-surface-sunken/60 border border-hairline text-caption">
               <div class="flex items-center gap-2">
-                <span class="text-muted-foreground">Cita para borrador:</span>
-                <code class="font-mono bg-muted/80 px-2 py-0.5 rounded text-foreground font-semibold">
+                <span class="text-ink-muted font-medium">Cita para borrador:</span>
+                <code class="font-mono text-mono tabular-nums bg-surface border border-hairline px-2 py-0.5 rounded-sm text-ink font-semibold">
                   [{{ item.tipo }}:{{ item.id }}]
                 </code>
               </div>
-              <Button variant="outline" size="sm" class="h-7 text-xs self-start sm:self-auto gap-1.5" @click="copyCitation">
+              <Button variant="outline" size="sm" class="h-7 text-caption self-start sm:self-auto gap-1.5" @click="copyCitation">
                 <svg v-if="!copied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                 </svg>
@@ -359,14 +359,14 @@ function formatDate(dateStr?: string | null): string {
         </div>
 
         <!-- Modal Footer -->
-        <div class="border-t px-6 py-3.5 bg-muted/20 flex items-center justify-between gap-3">
+        <div class="border-t border-hairline px-6 py-3.5 bg-surface-sunken/40 flex items-center justify-between gap-3">
           <div>
             <a
               v-if="item?.url"
               :href="item.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+              class="inline-flex items-center gap-1.5 text-body-sm font-semibold text-primary hover:underline"
             >
               <span>Abrir fuente original</span>
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
