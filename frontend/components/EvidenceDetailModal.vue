@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import Badge from "~/components/ui/Badge.vue";
 import Button from "~/components/ui/Button.vue";
 import { api } from "~/composables/useApi";
+import { CATALOG, NODES, PROVENANCE } from "~/lib/leadEvidence";
 
 export interface EvidenceItemDetail {
   tipo: string;
@@ -12,6 +13,8 @@ export interface EvidenceItemDetail {
   url?: string | null;
   fuente_nombre?: string | null;
   fecha?: string | null;
+  cita_codigo?: string | null;
+  cita_texto?: string | null;
   detalles: Record<string, any>;
   relaciones: {
     origen_tipo: string;
@@ -39,7 +42,8 @@ const emit = defineEmits<{
 const loading = ref(false);
 const error = ref<string | null>(null);
 const item = ref<EvidenceItemDetail | null>(null);
-const copied = ref(false);
+const copiedId = ref(false);
+const copiedFull = ref(false);
 
 async function fetchItem(tipo: string, idVal: string) {
   loading.value = true;
@@ -62,7 +66,8 @@ watch(
   () => [props.open, props.tipo, props.id],
   ([isOpen, newTipo, newId]) => {
     if (isOpen) {
-      copied.value = false;
+      copiedId.value = false;
+      copiedFull.value = false;
       if (props.initialItem) {
         item.value = props.initialItem;
         loading.value = false;
@@ -97,14 +102,67 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleKeydown);
 });
 
-async function copyCitation() {
-  if (!item.value) return;
-  const citation = `[${item.value.tipo}:${item.value.id}]`;
+const computedCitaCodigo = computed(() => {
+  if (!item.value) return "";
+  if (item.value.cita_codigo) return item.value.cita_codigo;
+  const idVal = item.value.id;
+  const cat = CATALOG.find((c) => c.id === idVal);
+  if (cat) return `[${cat.id}:${cat.c}]`;
+  const node = NODES[idVal];
+  if (node) return `[${idVal}:${node.f || "mención"}]`;
+  if (item.value.tipo === "news") return `[${idVal}:titulo]`;
+  if (item.value.tipo === "indicator") return `[${idVal}:valor]`;
+  if (item.value.tipo === "event") return `[${idVal}:registro]`;
+  return `[${item.value.tipo}:${idVal}]`;
+});
+
+const computedCitaTexto = computed(() => {
+  if (!item.value) return "";
+  if (item.value.cita_texto) return item.value.cita_texto;
+  const idVal = item.value.id;
+  const cat = CATALOG.find((c) => c.id === idVal);
+  if (cat && cat.x) return cat.x;
+  const node = NODES[idVal];
+  if (node && node.x) return node.x;
+  const prov = PROVENANCE[idVal];
+  if (prov && prov.x) return prov.x;
+  if (item.value.tipo === "news") return `«${item.value.titulo}»`;
+  if (item.value.tipo === "indicator") {
+    const val = item.value.detalles?.valor !== null && item.value.detalles?.valor !== undefined
+      ? `${item.value.detalles.valor} ${item.value.detalles.unidad || ""}`.trim()
+      : "Sin dato publicado";
+    return `«${item.value.detalles?.indicador_nombre || item.value.titulo}: ${val} (${item.value.detalles?.anio || ""})»`;
+  }
+  if (item.value.tipo === "event") {
+    const mag = item.value.detalles?.magnitude ? `M${item.value.detalles.magnitude}` : "";
+    const place = item.value.detalles?.place || "Ubicación registrada";
+    const depth = item.value.detalles?.depth ? `${item.value.detalles.depth} km profundidad` : "";
+    return `«Sismo ${mag} en ${place}${depth ? " (" + depth + ")" : ""}»`;
+  }
+  return item.value.descripcion || `«${item.value.titulo}»`;
+});
+
+async function copyCitationId() {
+  if (!computedCitaCodigo.value) return;
   try {
-    await navigator.clipboard.writeText(citation);
-    copied.value = true;
+    await navigator.clipboard.writeText(computedCitaCodigo.value);
+    copiedId.value = true;
     setTimeout(() => {
-      copied.value = false;
+      copiedId.value = false;
+    }, 2000);
+  } catch {
+    // Fallback if clipboard api not available
+  }
+}
+
+async function copyFullCitation() {
+  if (!computedCitaTexto.value || !computedCitaCodigo.value) return;
+  const full = `${computedCitaTexto.value} ${computedCitaCodigo.value}`;
+  try {
+    await navigator.clipboard.writeText(full);
+    copiedFull.value = true;
+    setTimeout(() => {
+      copiedFull.value = false;
     }, 2000);
   } catch {
     // Fallback if clipboard api not available
@@ -337,23 +395,57 @@ function formatDate(dateStr?: string | null): string {
               </div>
             </div>
 
-            <!-- Citation citation helper -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md bg-surface-sunken/60 border border-hairline text-caption">
-              <div class="flex items-center gap-2">
-                <span class="text-ink-muted font-medium">Cita para borrador:</span>
-                <code class="font-mono text-mono tabular-nums bg-surface border border-hairline px-2 py-0.5 rounded-sm text-ink font-semibold">
-                  [{{ item.tipo }}:{{ item.id }}]
-                </code>
+            <!-- Citation helper with actual Quote & ID -->
+            <div class="p-3.5 rounded-md bg-surface-sunken/60 border border-hairline space-y-2.5">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-caption text-ink-muted font-medium">Cita para borrador:</span>
+                  <code class="font-mono text-mono tabular-nums bg-surface border border-hairline px-2 py-0.5 rounded-sm text-ink font-semibold text-caption">
+                    {{ computedCitaCodigo }}
+                  </code>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="h-7 text-caption gap-1.5 cursor-pointer"
+                    title="Copiar solo el identificador [id:campo]"
+                    @click="copyCitationId"
+                  >
+                    <svg v-if="!copiedId" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>{{ copiedId ? "¡ID Copiado!" : "Copiar ID" }}</span>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="h-7 text-caption gap-1.5 cursor-pointer font-medium"
+                    title="Copiar cita textual completa con su identificador"
+                    @click="copyFullCitation"
+                  >
+                    <svg v-if="!copiedFull" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>{{ copiedFull ? "¡Cita Copiada!" : "Copiar Cita Textual" }}</span>
+                  </Button>
+                </div>
               </div>
-              <Button variant="outline" size="sm" class="h-7 text-caption self-start sm:self-auto gap-1.5" @click="copyCitation">
-                <svg v-if="!copied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                </svg>
-                <svg v-else class="w-3.5 h-3.5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
-                <span>{{ copied ? "¡Copiado!" : "Copiar Cita" }}</span>
-              </Button>
+
+              <!-- Visual Quote Callout -->
+              <blockquote class="rounded-md border-l-[3px] border-primary bg-surface p-3 text-body-sm text-ink font-serif italic leading-relaxed shadow-ev-1">
+                {{ computedCitaTexto }}
+                <span class="mt-1.5 block font-mono text-mono text-caption not-italic text-ink-muted tabular-nums">
+                  — {{ computedCitaCodigo }}
+                </span>
+              </blockquote>
             </div>
           </template>
         </div>

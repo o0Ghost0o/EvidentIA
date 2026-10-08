@@ -120,6 +120,8 @@ def test_resolve_news_item() -> None:
     assert item["fuente_nombre"] == "TVN Noticias"
     assert "https://tvn-2.com" in item["url"]
     assert item["detalles"]["agencia_primaria"] == "EFE"
+    assert item["cita_codigo"] == f"[{data['news_id']}:titulo]"
+    assert "Canal de Panamá" in item["cita_texto"]
     assert len(item["relaciones"]) >= 1
 
     # Via query parameter
@@ -141,6 +143,8 @@ def test_resolve_indicator_item() -> None:
     assert "PIB" in item["titulo"]
     assert item["detalles"]["valor"] == 7.3
     assert item["fuente_nombre"] == "Banco Mundial (World Bank Open Data)"
+    assert item["cita_codigo"] == f"[{data['indicator_key']}:valor]"
+    assert "PIB" in item["cita_texto"]
 
     # Via indicator_id only
     resp2 = client.get(f"/evidence/item/indicator/{data['indicator_id']}")
@@ -159,6 +163,8 @@ def test_resolve_event_item() -> None:
     assert item["detalles"]["magnitude"] == 5.4
     assert "Coiba" in item["titulo"]
     assert "USGS" in item["fuente_nombre"]
+    assert item["cita_codigo"] == f"[{data['event_id']}:registro]"
+    assert "5.4" in item["cita_texto"]
 
 
 def test_resolve_entity_and_case() -> None:
@@ -171,12 +177,17 @@ def test_resolve_entity_and_case() -> None:
     item = resp_entity.json()
     assert item["tipo"] == "entity"
     assert item["detalles"]["nombre"] == data["entity_name"]
+    assert "mención" in item["cita_codigo"]
+    assert data["entity_name"] in item["cita_texto"]
     assert len(item["relaciones"]) >= 1
 
     # Case
     resp_case = client.get(f"/evidence/item/case/{data['case_id']}")
     assert resp_case.status_code == 200
-    assert resp_case.json()["tipo"] == "case"
+    case_data = resp_case.json()
+    assert case_data["tipo"] == "case"
+    assert case_data["cita_codigo"] == f"[caso_{data['case_id']}:lead]"
+    assert case_data["cita_texto"] is not None
 
 
 def test_not_found_and_invalid_type() -> None:

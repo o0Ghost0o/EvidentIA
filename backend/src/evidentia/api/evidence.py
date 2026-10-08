@@ -23,6 +23,8 @@ class EvidenceItemDetail(BaseModel):
     url: Optional[str] = None
     fuente_nombre: Optional[str] = None
     fecha: Optional[str] = None
+    cita_codigo: Optional[str] = None
+    cita_texto: Optional[str] = None
     detalles: dict[str, Any] = Field(default_factory=dict)
     relaciones: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -84,6 +86,8 @@ def _resolve_evidence_item(session: Session, tipo: str, id_val: str) -> Evidence
             url=article.url,
             fuente_nombre=article.medio or "Medio Informativo",
             fecha=fecha_str,
+            cita_codigo=f"[{article.id_noticia}:titulo]",
+            cita_texto=f"«{article.titulo}»",
             detalles={
                 "id_noticia": article.id_noticia,
                 "medio": article.medio,
@@ -138,6 +142,8 @@ def _resolve_evidence_item(session: Session, tipo: str, id_val: str) -> Evidence
             url=indicator.fuente_url or "https://data.worldbank.org/",
             fuente_nombre="Banco Mundial (World Bank Open Data)",
             fecha=str(indicator.anio),
+            cita_codigo=f"[{indicator.pais_iso3}:{indicator.indicador_id}:{indicator.anio}:valor]",
+            cita_texto=f"«{indicador_nombre} en {pais_nombre} ({indicator.anio}): {valor_str}»",
             detalles={
                 "pais_iso3": indicator.pais_iso3,
                 "pais_nombre": pais_nombre,
@@ -173,6 +179,8 @@ def _resolve_evidence_item(session: Session, tipo: str, id_val: str) -> Evidence
             url=event.url or f"https://earthquake.usgs.gov/earthquakes/eventpage/{event.event_id}",
             fuente_nombre="USGS Earthquake Hazards Program",
             fecha=fecha_str,
+            cita_codigo=f"[{event.event_id}:registro]",
+            cita_texto=f"«Sismo magnitud {event.magnitude} en {place_str} ({fecha_str or 'fecha oficial'}) a {event.depth or 0} km de profundidad»",
             detalles={
                 "event_id": event.event_id,
                 "magnitude": event.magnitude,
@@ -229,6 +237,8 @@ def _resolve_evidence_item(session: Session, tipo: str, id_val: str) -> Evidence
             titulo=f"{entity.nombre} ({entity.tipo})",
             descripcion=f"Entidad de tipo {entity.tipo} registrada en el grafo de conocimiento ({len(rels)} conexiones).",
             fuente_nombre="Grafo de Entidades EvidentIA",
+            cita_codigo=f"[entidad:{entity.normalizado}:mención]",
+            cita_texto=f"«{entity.nombre} ({entity.tipo})»",
             detalles={
                 "id": entity.id,
                 "nombre": entity.nombre,
@@ -253,6 +263,8 @@ def _resolve_evidence_item(session: Session, tipo: str, id_val: str) -> Evidence
             descripcion=f"Lead de modalidad {case_obj.modalidad}. Estado actual: {case_obj.estado}.",
             fuente_nombre="EvidentIA Editorial Desk",
             fecha=case_obj.created_at.isoformat() if case_obj.created_at else None,
+            cita_codigo=f"[caso_{case_obj.id}:lead]",
+            cita_texto=f"«{case_obj.titulo}»",
             detalles={
                 "id": case_obj.id,
                 "modalidad": case_obj.modalidad,
