@@ -2,6 +2,9 @@
 import { cva } from "class-variance-authority";
 import { cn } from "~/lib/utils";
 
+// Shared status-tone vocabulary — reused by list/summary derivations (leadList.ts).
+export type StateTone = "success" | "warning" | "error" | "info" | "primary" | "neutral";
+
 // state-chip — the shared status vocabulary from DESIGN.md (state-system).
 // Same tone always means the same thing: evidence sufficiency, priority band,
 // review state. Pill radius, caption 600, optional 8px leading dot for dense rows.
