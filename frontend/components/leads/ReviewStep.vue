@@ -5,7 +5,6 @@ import Textarea from "~/components/ui/Textarea.vue";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { api } from "~/composables/useApi";
 import { useAuth } from "~/composables/useAuth";
-import { draftSents } from "~/lib/leadDraft";
 
 // Step 6 "Revisión" of the new-lead workspace. The editorial decision over the
 // generated draft (or the abstention) is the last gate: a review state is chosen,
@@ -55,13 +54,9 @@ const saved = ref(false);
 const saving = ref(false);
 const saveError = ref("");
 
-// Citations in the draft under review, recomputed from the linked set the same way
-// Borrador composes it (no manual flags, which never leave that step).
-const draftCites = computed(
-  () => draftSents(props.linkedIds, { short: false, cautious: false }, props.title.trim()).length
-);
+// What is under review: the abstention, or the generated draft.
 const reviewSubject = computed(() =>
-  props.abstained ? "abstención abs-0128" : `borrador brf-0128 · ${draftCites.value} citas`
+  props.abstained ? "abstención registrada" : "borrador generado"
 );
 
 // A small, honest audit trail: the review opening, then the filed decision.

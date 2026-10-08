@@ -7,8 +7,8 @@ import FichaStep from "~/components/leads/FichaStep.vue";
 import ReviewStep from "~/components/leads/ReviewStep.vue";
 import StateChip from "~/components/ui/StateChip.vue";
 import { api } from "~/composables/useApi";
-import { CATALOG, deriveEvidence, type EvidenceLevel } from "~/lib/leadEvidence";
-import { BAND_LABEL, computePriority } from "~/lib/leadPriority";
+import { EVIDENCE_STATES, type EvidenceLevel } from "~/lib/leadEvidence";
+import { BAND_LABEL, type ScoreResponse, evidenceLevelFrom } from "~/lib/leadWizard";
 import { modalidadLabel, reviewMeta } from "~/lib/leadList";
 
 // Lead detail — the read-only ficha. It renders the finished artifact the New-lead
@@ -46,19 +46,21 @@ interface CaseDetail {
 }
 
 const detail = ref<CaseDetail | null>(null);
+const score = ref<ScoreResponse | null>(null);
 
 onMounted(async () => {
   detail.value = await api<CaseDetail>(`cases/${id}`);
+  try {
+    score.value = await api<ScoreResponse>(`cases/${id}/score`);
+  } catch {
+    score.value = null;
+  }
 });
 
 // --- Derived props for the reused steps ------------------------------------
-// Only catalog sources reconstruct into the evidence lanes/chains; a lead created
-// outside the wizard yields an empty set and the steps show their "sin fuentes"
-// states.
-const catalogIds = new Set(CATALOG.map((s) => s.id));
-const linkedIds = computed(() =>
-  (detail.value?.evidence ?? []).map((e) => e.fuente_id).filter((fid) => catalogIds.has(fid))
-);
+// All linked evidence is real; the steps fetch their own backend data from the
+// case id, so this only feeds the hero summary and the stale-on-change watchers.
+const linkedIds = computed(() => (detail.value?.evidence ?? []).map((e) => e.fuente_id));
 // Real linked evidence, mapped onto the EvidenceStep view model.
 const evidenceItems = computed(() =>
   (detail.value?.evidence ?? []).map((e) => ({
@@ -69,8 +71,10 @@ const evidenceItems = computed(() =>
     titulo: e.nota || e.fuente_id,
   }))
 );
-const evidence = computed(() => deriveEvidence(linkedIds.value));
-const evidenceLevel = computed<EvidenceLevel>(() => evidence.value.state.key);
+const evidenceLevel = computed<EvidenceLevel>(() =>
+  evidenceLevelFrom(score.value?.evidence_state, linkedIds.value.length)
+);
+const evidenceState = computed(() => EVIDENCE_STATES[evidenceLevel.value]);
 
 // "Alcance: …" and the modalidad live in the case flags the wizard writes.
 const alcance = computed(() => {
@@ -88,8 +92,9 @@ const review = computed(() => reviewMeta(detail.value?.estado ?? "nuevo"));
 // With no primary source the workspace treats the lead as an abstention.
 const abstained = computed(() => evidenceLevel.value === "insuficiente");
 
-const priority = computed(() => computePriority());
-const priorityBand = computed(() => BAND_LABEL[priority.value.band]);
+const priorityTotal = computed(() => score.value?.P ?? 0);
+const priorityBandKey = computed(() => score.value?.band ?? "bajo");
+const priorityBand = computed(() => BAND_LABEL[priorityBandKey.value]);
 
 // Static step copy, mirroring the New-lead workspace rail.
 const STEPS = [
@@ -127,20 +132,20 @@ function scrollToStep(i: number) {
             {{ modalidad }}
           </span>
           <StateChip :tone="review.tone">{{ review.label }}</StateChip>
-          <StateChip :tone="evidence.state.tone" dot>
-            {{ linkedIds.length ? `Evidencia ${evidence.state.label}` : "Sin fuentes" }}
+          <StateChip :tone="evidenceState.tone" dot>
+            {{ linkedIds.length ? `Evidencia ${evidenceState.label}` : "Sin fuentes" }}
           </StateChip>
           <span
             class="rounded-full px-2.5 py-0.5 text-caption font-semibold"
             :class="
-              priority.band === 'alto'
+              priorityBandKey === 'alto'
                 ? 'bg-destructive/10 text-destructive'
-                : priority.band === 'medio'
+                : priorityBandKey === 'medio'
                   ? 'bg-warning/10 text-warning'
                   : 'bg-surface-sunken text-ink-muted'
             "
           >
-            Prioridad {{ priorityBand }} · P {{ priority.total }}
+            Prioridad {{ priorityBand }} · P {{ priorityTotal }}
           </span>
         </div>
       </div>
@@ -156,9 +161,9 @@ function scrollToStep(i: number) {
             <span class="text-ink-muted">Modalidad</span><span>{{ modalidad || "—" }}</span>
             <span class="text-ink-muted">Alcance</span><span>{{ alcance || "—" }}</span>
             <span class="text-ink-muted">Fuentes</span>
-            <span class="font-mono">{{ linkedIds.length ? `${linkedIds.length} · ${evidence.state.label}` : "—" }}</span>
+            <span class="font-mono">{{ linkedIds.length ? `${linkedIds.length} · ${evidenceState.label}` : "—" }}</span>
             <span class="text-ink-muted">Prioridad</span>
-            <span class="font-mono">{{ priority.total }} · {{ priorityBand }}</span>
+            <span class="font-mono">{{ priorityTotal }} · {{ priorityBand }}</span>
           </div>
         </div>
 
