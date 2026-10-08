@@ -35,7 +35,8 @@ Reglas inquebrantables:
 3. Etiqueta cada viñeta factual con [HECHO], [DECLARACIÓN], [INFERENCIA] o [HIPÓTESIS].
 4. Cita hechos y declaraciones como [id_fuente:campo] usando solo los ids listados. No inventes ids.
 5. No inventes entrevistas, citas textuales, cifras, imágenes disponibles, causalidades ni fuentes.
-6. Responde en español, en el formato exacto pedido, sin prosa fuera de las secciones."""
+6. Responde estrictamente en español, en el formato exacto pedido, sin prosa fuera de las secciones.
+7. Prohibido incluir razonamiento interno, reflexiones o preámbulos en inglés ni en español; redacta directamente las secciones pedidas."""
 
 
 @dataclass
@@ -96,7 +97,12 @@ class TogetherChatClient:
             self.last_latency_ms = (time.perf_counter() - t0) * 1000.0
             self.last_usage = data.get("usage", {})
             choice = data["choices"][0]["message"]
-            return choice.get("content") or choice.get("reasoning_content") or ""
+            content = choice.get("content") or ""
+            # Strip any internal reasoning tags if present
+            content = re.sub(r"<(?:think|thought)>.*?</(?:think|thought)>", "", content, flags=re.DOTALL).strip()
+            if not content:
+                raise RuntimeError("El proveedor LLM devolvió una respuesta vacía o sin contenido final.")
+            return content
 
 
 def render_sources(docs: list[EvidenceDoc]) -> str:
@@ -144,6 +150,184 @@ def cap_words(text: str, limit: int) -> str:
     if len(words) <= limit:
         return text
     return " ".join(words[:limit]) + "… [recortado a {} palabras]".format(limit)
+
+
+KNOWN_TAGS_MAP: dict[str, str] = {
+    "[HECHO]": "hecho",
+    "[OBSERVACIÓN]": "hecho",
+    "[DECLARACIÓN]": "declaración",
+    "[INFERENCIA]": "inferencia",
+    "[HIPÓTESIS]": "hipótesis",
+    "[HIPÓTESIS DE IMPACTO]": "hipótesis",
+}
+
+TAG_PATTERN = re.compile(
+    r"\[(HECHO|DECLARACI[ÓO]N|INFERENCIA|HIP[ÓO]TESIS|OBSERVACI[ÓO]N|HIP[ÓO]TESIS DE IMPACTO)\]",
+    re.IGNORECASE,
+)
+
+ABBREVIATIONS = {
+    "art.", "pág.", "pag.", "ej.", "sr.", "sra.", "dr.", "dra.", "núm.", "num.", "inc.",
+    "gob.", "ee.uu.", "vs.", "mop.", "prof.", "ing.", "lic."
+}
+
+
+def split_into_sentences(text: str) -> list[str]:
+    """Split section text into candidate sentence chunks respecting tags and citations."""
+    if not text or not text.strip():
+        return []
+
+    chunks: list[str] = []
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    for line in lines:
+        # Strip list markers like '- ', '* ', '1. '
+        cleaned_line = re.sub(r"^(?:[-*]|\d+\.)\s+", "", line).strip()
+        if not cleaned_line:
+            continue
+
+        # Check if line contains multiple tagged assertions e.g. "[HECHO] Foo [n1:x]. [INFERENCIA] Bar."
+        tag_positions = [m.start() for m in TAG_PATTERN.finditer(cleaned_line)]
+        if len(tag_positions) > 1:
+            prev = 0
+            for pos in tag_positions[1:]:
+                part = cleaned_line[prev:pos].strip()
+                if part:
+                    chunks.append(part)
+                prev = pos
+            rest = cleaned_line[prev:].strip()
+            if rest:
+                chunks.append(rest)
+            continue
+
+        # If line does not have multiple tags, split on sentence boundary punctuation: . ? !
+        parts = re.split(r'(?<=[.!?])\s+(?=[A-Z¿¡"«\[])', cleaned_line)
+        current = ""
+        for p in parts:
+            if not current:
+                current = p
+            else:
+                last_word = current.split()[-1].lower() if current.split() else ""
+                if last_word in ABBREVIATIONS:
+                    current = f"{current} {p}"
+                else:
+                    chunks.append(current.strip())
+                    current = p
+        if current.strip():
+            chunks.append(current.strip())
+
+    return chunks
+
+
+def classify_sentence(
+    sentence_text: str, allowed_ids: set[str], section: str = "", idx: int = 0
+) -> dict:
+    """Classify a single sentence into hecho/declaración/inferencia/hipótesis and extract support."""
+    raw = sentence_text.strip()
+    tag_match = TAG_PATTERN.search(raw)
+    cls = None
+    if tag_match:
+        tag_normalized = f"[{tag_match.group(1).upper()}]"
+        tag_normalized = (
+            tag_normalized
+            .replace("DECLARACION", "DECLARACIÓN")
+            .replace("HIPOTESIS", "HIPÓTESIS")
+            .replace("OBSERVACION", "OBSERVACIÓN")
+        )
+        cls = KNOWN_TAGS_MAP.get(tag_normalized)
+
+    if not cls:
+        is_quote = bool(
+            re.search(r'["«\'].*?["»\']', raw)
+            or re.search(
+                r'\b(dijo|afirmó|afirmo|declaró|declaro|manifestó|manifesto|aseguró|aseguro|expresó|expreso|según|segun|comunicó|comunico|señaló|senalo|atribuye|declaraciones|cita|informó|informo)\b',
+                raw,
+                re.IGNORECASE,
+            )
+        )
+        is_hypothesis = bool(
+            re.search(
+                r'\b(hipótesis|hipotesis|posiblemente|quizás|quizas|de mantenerse|en caso de|proyecta|previsión|prevision)\b',
+                raw,
+                re.IGNORECASE,
+            )
+        )
+        is_inference = bool(
+            re.search(
+                r'\b(podría|podria|podrían|podrian|sugiere|sugeriría|sugeriria|estimaría|estimaria|explicaría|explicaria|inferencia|cálculo|calculo|se deduce|indicaría|indicaria)\b',
+                raw,
+                re.IGNORECASE,
+            )
+        )
+        if is_quote:
+            cls = "declaración"
+        elif is_hypothesis:
+            cls = "hipótesis"
+        elif is_inference:
+            cls = "inferencia"
+        else:
+            cls = "hecho"
+
+    valid_citations: list[str] = []
+    for m in CITATION_RE.finditer(raw):
+        matched_str = m.group(0)
+        if TAG_PATTERN.match(matched_str) or matched_str.upper() in KNOWN_TAGS_MAP:
+            continue
+        if matched_str == "[CITA INVÁLIDA REMOVIDA]":
+            continue
+        s1 = m.group(1)
+        s2 = m.group(2) if m.lastindex and m.lastindex >= 2 else None
+        full = f"{s1}:{s2}" if s2 else s1
+        if s1 in allowed_ids or full in allowed_ids:
+            valid_citations.append(matched_str)
+
+    clean = TAG_PATTERN.sub("", raw)
+    clean = CITATION_RE.sub("", clean)
+    clean = clean.replace("[CITA INVÁLIDA REMOVIDA]", "")
+    clean = re.sub(r"\s+([,.:;!?])", r"\1", clean)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    if clean and clean[-1] not in ".!?\":»'":
+        clean += "."
+
+    has_support = len(valid_citations) > 0
+    sin_respaldo = not has_support
+
+    return {
+        "key": f"{section}-{idx}" if section else f"sent-{idx}",
+        "section": section,
+        "text": clean,
+        "raw": raw,
+        "class": cls,
+        "cls": cls,
+        "citations": valid_citations,
+        "cite": valid_citations[0] if valid_citations else "",
+        "sin_respaldo": sin_respaldo,
+        "support_status": "respaldado" if has_support else "sin respaldo",
+        "has_support": has_support,
+    }
+
+
+def extract_sentence_breakdown(
+    sections: dict[str, str], allowed_ids: set[str]
+) -> list[dict]:
+    """Extract per-sentence classification and claim support across draft sections."""
+    breakdown: list[dict] = []
+    idx = 0
+    for section_name, text in sections.items():
+        if not text or not text.strip():
+            continue
+        chunks = split_into_sentences(text)
+        for chunk in chunks:
+            item = classify_sentence(
+                chunk,
+                allowed_ids=allowed_ids,
+                section=section_name,
+                idx=idx,
+            )
+            if item["text"]:
+                breakdown.append(item)
+                idx += 1
+    return breakdown
 
 
 class Synthesiser:

@@ -149,11 +149,74 @@ def test_brief_abstains_without_key_and_renders_markdown(monkeypatch) -> None:
     resp = client.post(f"/cases/{case_id}/brief")
     assert resp.status_code == 200, resp.text
     assert resp.json()["abstained"] is True  # no TOGETHER_API_KEY in tests
+    assert resp.json()["sentence_breakdown"] == []
+    assert resp.json()["sentences"] == []
 
     resp = client.post(f"/cases/{case_id}/brief", params={"formato": "markdown"})
     assert resp.status_code == 200
     assert "text/markdown" in resp.headers["content-type"]
     assert "ABSTENCIÓN" in resp.text
+
+
+def test_brief_emits_sentence_breakdown_and_claim_support(monkeypatch) -> None:
+    from evidentia.briefs import tvn
+    from evidentia.generation.synthesizer import Synthesiser
+
+    _seed_news()
+    client = _auth_client()
+    case_id = client.post("/cases", json={"titulo": "Caso Canal", "modalidad": "tvn"}).json()["id"]
+    client.post(f"/cases/{case_id}/evidence", json={
+        "fuente_tipo": "news", "fuente_id": "g1",
+    })
+
+    reply = """## Título propuesto
+Canal
+## Brief
+[HECHO] Canal amplía tránsito [g1:titulo]. [INFERENCIA] Podría dinamizar la economía regional.
+## Enfoque de interés público
+Impacto
+## Preguntas de investigación
+1. a
+2. b
+3. c
+## Fuentes y verificaciones pendientes
+- Prensa
+## Guion 45-60 segundos
+[DECLARACIÓN] "El flujo se mantiene constante", afirmó el administrador [g1:titulo].
+## Copy digital
+Canal ampliado.
+"""
+    class _MockClient:
+        def complete(self, system: str, user: str, max_tokens: int = 1500) -> str:
+            return reply
+
+    mock_synth = Synthesiser(client=_MockClient())
+    monkeypatch.setattr(tvn, "Synthesiser", lambda: mock_synth)
+
+    resp = client.post(f"/cases/{case_id}/brief")
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["abstained"] is False
+    assert "sentence_breakdown" in data
+    assert "sentences" in data
+    assert len(data["sentence_breakdown"]) >= 3
+
+    # Supported hecho with citation
+    hecho_sents = [s for s in data["sentence_breakdown"] if s["class"] == "hecho"]
+    assert len(hecho_sents) >= 1
+    assert hecho_sents[0]["sin_respaldo"] is False
+    assert "[g1:titulo]" in hecho_sents[0]["citations"]
+
+    # Unsupported inferencia
+    inf_sents = [s for s in data["sentence_breakdown"] if s["class"] == "inferencia"]
+    assert len(inf_sents) >= 1
+    assert inf_sents[0]["sin_respaldo"] is True
+    assert inf_sents[0]["support_status"] == "sin respaldo"
+
+    # Declaración
+    dec_sents = [s for s in data["sentence_breakdown"] if s["class"] == "declaración"]
+    assert len(dec_sents) >= 1
+    assert dec_sents[0]["sin_respaldo"] is False
 
 
 def test_create_case_with_evidence_ids_links_sources_and_relations() -> None:

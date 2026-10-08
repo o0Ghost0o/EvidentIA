@@ -8,11 +8,15 @@ Output contract (challenge §3):
 
 from __future__ import annotations
 
+import re
+
+from evidentia.generation.schemas import TvnBriefSchema
 from evidentia.generation.synthesizer import (
     EvidenceDoc,
     Synthesis,
     Synthesiser,
     cap_words,
+    extract_sentence_breakdown,
 )
 
 INSTRUCTION = """Redacta el paquete editorial en EXACTAMENTE este formato:
@@ -46,12 +50,63 @@ def _split_sections(text: str) -> dict[str, str]:
     sections: dict[str, str] = {}
     current = ""
     for line in text.splitlines():
-        if line.startswith("## "):
-            current = line[3:].strip().lower()
+        trimmed = line.strip()
+        if trimmed.startswith("## "):
+            current = trimmed[3:].strip().lower()
             sections[current] = ""
         elif current:
+            # Ignore template placeholder echoes like "<una línea>" or "<máximo 250 palabras: ...>"
+            if re.match(r"^<[^>]+>$", trimmed):
+                continue
             sections[current] += line + "\n"
     return {k: v.strip() for k, v in sections.items()}
+
+
+def _format_lines_or_str(val: list[str] | str, numbered: bool = False) -> str:
+    if isinstance(val, str):
+        return val.strip()
+    if not val:
+        return ""
+    if numbered:
+        return "\n".join(f"{i + 1}. {q}" for i, q in enumerate(val))
+    return "\n".join(f"- {item}" for item in val)
+
+
+def parse_tvn_schema(text: str) -> TvnBriefSchema:
+    """Parse either JSON or Markdown into a validated Pydantic TvnBriefSchema."""
+    trimmed = text.strip()
+    json_candidate = None
+    if "```json" in trimmed:
+        m = re.search(r"```json\s*(.*?)\s*```", trimmed, re.DOTALL)
+        if m:
+            json_candidate = m.group(1).strip()
+    elif "```" in trimmed:
+        m = re.search(r"```\s*(.*?)\s*```", trimmed, re.DOTALL)
+        if m:
+            json_candidate = m.group(1).strip()
+
+    if not json_candidate:
+        start_idx = trimmed.find("{")
+        end_idx = trimmed.rfind("}")
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            json_candidate = trimmed[start_idx : end_idx + 1]
+
+    if json_candidate:
+        try:
+            return TvnBriefSchema.model_validate_json(json_candidate)
+        except Exception:
+            pass
+
+    sec = _split_sections(text)
+    return TvnBriefSchema(
+        titulo_propuesto=sec.get("título propuesto", ""),
+        brief=sec.get("brief", ""),
+        enfoque=sec.get("enfoque de interés público", ""),
+        preguntas=sec.get("preguntas de investigación", ""),
+        fuentes_y_verificaciones=sec.get("fuentes y verificaciones pendientes", ""),
+        guion=sec.get("guion 45-60 segundos", "") or sec.get("guion", ""),
+        copy_digital=sec.get("copy digital", "") or sec.get("copy_digital", ""),
+    )
 
 
 def build_tvn_package(
@@ -64,23 +119,36 @@ def build_tvn_package(
             "abstained": True,
             "reason": synth.reason,
             "text": synth.text,
+            "sentence_breakdown": [],
+            "sentences": [],
         }
-    sections = _split_sections(synth.text)
-    brief = cap_words(sections.get("brief", ""), 250)
-    copy = cap_words(sections.get("copy digital", ""), 80)
+    parsed: TvnBriefSchema = parse_tvn_schema(synth.text)
+    brief = cap_words(parsed.brief, 250)
+    copy = cap_words(parsed.copy_digital, 80)
+    guion = parsed.guion
+    allowed_ids = {d.source_id for d in docs}
+    breakdown = extract_sentence_breakdown(
+        sections={"brief": brief, "guion": guion, "copy_digital": copy},
+        allowed_ids=allowed_ids,
+    )
+    preguntas_str = _format_lines_or_str(parsed.preguntas, numbered=True)
+    fuentes_str = _format_lines_or_str(parsed.fuentes_y_verificaciones, numbered=False)
+
     return {
         "modalidad": "tvn",
         "abstained": False,
-        "titulo_propuesto": sections.get("título propuesto", ""),
+        "titulo_propuesto": parsed.titulo_propuesto,
         "brief": brief,
-        "enfoque": sections.get("enfoque de interés público", ""),
-        "preguntas": sections.get("preguntas de investigación", ""),
-        "fuentes_y_verificaciones": sections.get("fuentes y verificaciones pendientes", ""),
-        "guion": sections.get("guion 45-60 segundos", ""),
+        "enfoque": parsed.enfoque,
+        "preguntas": preguntas_str,
+        "fuentes_y_verificaciones": fuentes_str,
+        "guion": guion,
         "copy_digital": copy,
         "titular_only": synth.titular_only,
         "citations_valid": synth.citations_valid,
         "citations_dropped": synth.citations_dropped,
+        "sentence_breakdown": breakdown,
+        "sentences": breakdown,
         "prompt_tokens": synth.prompt_tokens,
         "completion_tokens": synth.completion_tokens,
         "total_tokens": synth.total_tokens,

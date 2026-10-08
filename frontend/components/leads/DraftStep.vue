@@ -27,6 +27,22 @@ const emit = defineEmits<{
   (e: "change", payload: { draft: boolean; abstained: boolean }): void;
 }>();
 
+export type DraftClass = "hecho" | "declaración" | "inferencia" | "hipótesis";
+
+export interface SentenceBreakdownItem {
+  key: string;
+  section: string;
+  text: string;
+  raw: string;
+  class: DraftClass;
+  cls: DraftClass;
+  citations: string[];
+  cite?: string;
+  sin_respaldo: boolean;
+  support_status: "respaldado" | "sin respaldo";
+  has_support: boolean;
+}
+
 // Brief package as returned by the backend (tvn / banca share these keys).
 interface BriefPackage {
   modalidad: string;
@@ -44,6 +60,8 @@ interface BriefPackage {
   citations_valid?: number;
   citations_dropped?: string[];
   missing_sources?: string[];
+  sentence_breakdown?: SentenceBreakdownItem[];
+  sentences?: SentenceBreakdownItem[];
 }
 
 const pkg = ref<BriefPackage | null>(null);
