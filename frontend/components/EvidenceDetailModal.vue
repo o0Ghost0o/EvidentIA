@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch } from "vue";
 import Badge from "~/components/ui/Badge.vue";
 import Button from "~/components/ui/Button.vue";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "~/components/ui/dialog";
 import { api } from "~/composables/useApi";
 import { CATALOG, NODES, PROVENANCE } from "~/lib/leadEvidence";
 
@@ -88,19 +89,11 @@ function closeModal() {
   emit("close");
 }
 
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape" && props.open) {
-    closeModal();
-  }
+// The Dialog owns Esc, overlay-click and focus handling; mirror its open state
+// changes back to the parent.
+function onOpenChange(value: boolean) {
+  if (!value) closeModal();
 }
-
-onMounted(() => {
-  window.addEventListener("keydown", handleKeydown);
-});
-
-onUnmounted(() => {
-  window.removeEventListener("keydown", handleKeydown);
-});
 
 const computedCitaCodigo = computed(() => {
   if (!item.value) return "";
@@ -202,23 +195,12 @@ function formatDate(dateStr?: string | null): string {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="open"
-      class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+  <Dialog :open="open" @update:open="onOpenChange">
+    <DialogContent
+      class="w-full max-w-2xl max-h-[90vh] p-0 gap-0 flex flex-col overflow-hidden border-hairline bg-surface text-ink shadow-ev-3"
     >
-      <!-- Backdrop (DESIGN.md: 40% ink backdrop with subtle blur) -->
-      <div
-        class="fixed inset-0 bg-ink/50 backdrop-blur-xs transition-opacity"
-        @click="closeModal"
-      ></div>
-
-      <!-- Modal Card (DESIGN.md: surface, hairline, elevation 3 for modals, rounded-lg) -->
-      <div
-        class="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg border border-hairline bg-surface text-ink shadow-ev-3 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-      >
         <!-- Modal Header -->
-        <div class="flex items-start justify-between border-b border-hairline px-6 py-4 bg-surface-sunken/40">
+        <div class="flex items-start justify-between border-b border-hairline px-6 py-4 pr-12 bg-surface-sunken/40">
           <div class="space-y-1.5 pr-6">
             <div class="flex flex-wrap items-center gap-2">
               <Badge
@@ -232,22 +214,13 @@ function formatDate(dateStr?: string | null): string {
                 {{ item?.id || id }}
               </span>
             </div>
-            <h3 class="font-serif text-heading-md font-semibold text-ink leading-snug">
+            <DialogTitle class="font-serif text-heading-md font-semibold text-ink leading-snug">
               {{ item?.titulo || (loading ? "Cargando contenido de la evidencia..." : "Detalle de Evidencia") }}
-            </h3>
+            </DialogTitle>
+            <DialogDescription class="sr-only">
+              Detalle de la evidencia, sus datos de origen y sus relaciones en el grafo.
+            </DialogDescription>
           </div>
-
-          <!-- Close button -->
-          <button
-            type="button"
-            class="rounded-md p-1.5 text-ink-muted hover:bg-surface-sunken hover:text-ink transition-colors shrink-0"
-            title="Cerrar modal (Esc)"
-            @click="closeModal"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
         <!-- Modal Body -->
@@ -471,7 +444,6 @@ function formatDate(dateStr?: string | null): string {
             Cerrar
           </Button>
         </div>
-      </div>
-    </div>
-  </Teleport>
+    </DialogContent>
+  </Dialog>
 </template>
