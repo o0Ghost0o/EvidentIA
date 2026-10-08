@@ -283,6 +283,84 @@ function inspect(fuenteId: string, fuenteTipo: string) {
   modalOpen.value = true;
 }
 
+// --- Evidence-chain drawer (real /evidence/tree) --------------------------
+interface TreeNode { tipo: string; id: string; label: string }
+interface TreeEdge {
+  origen_tipo: string; origen_id: string;
+  destino_tipo: string; destino_id: string;
+  tipo: string; peso?: number;
+}
+const chainCard = ref<LinkedItem | null>(null);
+const chainTree = ref<{ nodes: TreeNode[]; edges: TreeEdge[] } | null>(null);
+const chainLoading = ref(false);
+const chainError = ref("");
+
+// Relation code → human label (relations: mentions | same_event | source_of |
+// contradicts | corroborates | has_evidence | measures | geolocated_in).
+const REL_LABEL: Record<string, string> = {
+  contradicts: "Contradice",
+  corroborates: "Corrobora",
+  mentions: "Menciona",
+  same_event: "Mismo evento",
+  source_of: "Fuente de",
+  has_evidence: "Evidencia",
+  measures: "Mide",
+  geolocated_in: "Ubicado en",
+};
+const KIND_LABEL: Record<string, string> = {
+  news: "Noticia",
+  indicator: "Indicador",
+  event: "Evento",
+  entity: "Entidad",
+  case: "Caso",
+};
+
+async function openChain(card: LinkedItem) {
+  chainCard.value = card;
+  chainTree.value = null;
+  chainError.value = "";
+  chainLoading.value = true;
+  try {
+    chainTree.value = await api<{ nodes: TreeNode[]; edges: TreeEdge[] }>("evidence/tree", {
+      query: { tipo: card.fuenteTipo, id: card.fuenteId, depth: "3" },
+    });
+  } catch (err: any) {
+    chainError.value = err?.data?.detail || "No se pudo cargar la cadena de evidencia.";
+  } finally {
+    chainLoading.value = false;
+  }
+}
+
+// Neighbours of the clicked source, grouped by kind, each with its relation to
+// the source (when a direct edge exists) and a flag for whether it is the source.
+const chainGroups = computed(() => {
+  const card = chainCard.value;
+  const tree = chainTree.value;
+  if (!card || !tree) return [];
+  const relFor = (n: TreeNode): string => {
+    const e = tree.edges.find(
+      (x) =>
+        (x.origen_tipo === card.fuenteTipo && x.origen_id === card.fuenteId &&
+          x.destino_tipo === n.tipo && x.destino_id === n.id) ||
+        (x.destino_tipo === card.fuenteTipo && x.destino_id === card.fuenteId &&
+          x.origen_tipo === n.tipo && x.origen_id === n.id)
+    );
+    return e ? (REL_LABEL[e.tipo] ?? e.tipo) : "";
+  };
+  const others = tree.nodes.filter((n) => !(n.tipo === card.fuenteTipo && n.id === card.fuenteId));
+  const byKind = new Map<string, { node: TreeNode; rel: string }[]>();
+  for (const n of others) {
+    const bucket = byKind.get(n.tipo) ?? [];
+    bucket.push({ node: n, rel: relFor(n) });
+    byKind.set(n.tipo, bucket);
+  }
+  return [...byKind.entries()].map(([tipo, items]) => ({
+    tipo,
+    label: KIND_LABEL[tipo] ?? tipo,
+    items,
+  }));
+});
+
 onMounted(() => {
   if (props.leadId != null) void refreshScore();
 });
@@ -365,7 +443,7 @@ onMounted(() => {
           <button
             type="button"
             class="flex flex-col gap-1.5 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-            @click="inspect(card.fuenteId, card.fuenteTipo)"
+            @click="openChain(card)"
           >
             <div class="flex flex-wrap items-center gap-1.5">
               <span class="rounded-full bg-info/10 px-2 py-0.5 text-[11px] font-semibold text-info">
@@ -492,6 +570,64 @@ onMounted(() => {
         <div class="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
           <span class="text-caption text-ink-muted">{{ linked.length }} fuentes vinculadas</span>
           <Button variant="outline" @click="catOpen = false">Listo</Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+
+    <!-- Evidence-chain drawer (real /evidence/tree). A node opens its full detail. -->
+    <Sheet :open="!!chainCard" @update:open="(v) => { if (!v) chainCard = null; }">
+      <SheetContent side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-[480px]">
+        <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
+          <SheetTitle class="font-serif text-heading-md text-ink">
+            {{ chainCard ? `Cadena de evidencia · ${chainCard.fuenteId}` : "" }}
+          </SheetTitle>
+          <SheetDescription class="text-caption text-ink-muted">
+            Vecindario en el grafo. Toca un nodo para ver su ficha completa.
+          </SheetDescription>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto flex flex-col gap-3 px-5 py-4">
+          <!-- N0 · the source itself -->
+          <button
+            v-if="chainCard"
+            type="button"
+            class="flex flex-col gap-1.5 rounded-md border border-primary/40 bg-primary-soft/40 p-3 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+            @click="inspect(chainCard.fuenteId, chainCard.fuenteTipo)"
+          >
+            <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">Fuente · {{ chainCard.fuenteId }}</span>
+            <span class="text-body-sm leading-snug text-ink">{{ chainCard.titulo }}</span>
+          </button>
+
+          <p v-if="chainLoading" class="text-body-sm text-ink-muted">Cargando cadena…</p>
+          <p v-else-if="chainError" class="text-body-sm text-destructive">{{ chainError }}</p>
+          <p v-else-if="!chainGroups.length" class="text-body-sm text-ink-muted">
+            Esta fuente aún no tiene relaciones en el grafo de evidencia.
+          </p>
+
+          <div
+            v-for="group in chainGroups"
+            :key="group.tipo"
+            class="flex flex-col gap-1.5 border-l border-border pl-3"
+          >
+            <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">{{ group.label }}</span>
+            <button
+              v-for="entry in group.items"
+              :key="entry.node.id"
+              type="button"
+              class="flex flex-col gap-1 rounded-md border border-border bg-surface px-3 py-2 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              @click="inspect(entry.node.id, entry.node.tipo)"
+            >
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="font-mono text-caption text-ink-muted">{{ entry.node.id }}</span>
+                <span
+                  v-if="entry.rel"
+                  class="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-muted"
+                >
+                  {{ entry.rel }}
+                </span>
+              </div>
+              <span class="text-caption leading-snug">{{ entry.node.label }}</span>
+            </button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
