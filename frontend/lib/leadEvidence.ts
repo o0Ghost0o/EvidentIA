@@ -78,28 +78,55 @@ export const CLAIM = "La factura residencial en Colón subió hasta 40% en septi
 export const LEVEL_NAMES = ["Fuentes", "Procedencia", "Entidades", "Indicadores y eventos", "Correlaciones"];
 
 // Non-catalog, non-provenance nodes referenced by the chain (design D entries:
-// entidad / indicador / correlación / evento). { k: kind, t: title }.
-export const NODES: Record<string, { k: string; t: string }> = {
-  "ent-comerciantes": { k: "entidad", t: "Asociación de Comerciantes de Colón" },
-  "ent-disca": { k: "entidad", t: "Distribuidora Caribe (DisCa)" },
-  "ent-ere": { k: "entidad", t: "Ente Regulador de Energía (ERE)" },
-  "ent-ine": { k: "entidad", t: "Instituto Nacional de Estadística (INE)" },
-  "ent-hogares": { k: "entidad", t: "Hogares residenciales de Colón" },
-  "ent-vecinos": { k: "entidad", t: "Comité vecinal de Barrio Norte" },
-  "ent-ccc": { k: "entidad", t: "Cámara de Comercio de Colón" },
-  "ind-tar-res": { k: "indicador", t: "Cargo por energía, bloque 0–300 kWh: +18%" },
-  "ind-ipc-08": { k: "indicador", t: "IPC electricidad, agosto: +0,4%" },
-  "ind-cons-07": { k: "indicador", t: "Consumo residencial promedio en Colón, julio: 309 kWh" },
-  "evt-ajuste": { k: "evento", t: "DisCa anuncia ajuste de facturas estimadas en octubre" },
-  "cor-brecha": { k: "correlación", t: "Tarifa +18% e IPC +11,2% no alcanzan para explicar un alza de 40%" },
-  "cor-prot": { k: "correlación", t: "La protesta ocurre 8 días después de la primera factura con la nueva tarifa" },
-  "cor-tarcons": { k: "correlación", t: "Tarifa +18% con consumo estable explica cerca de la mitad del alza reportada" },
-  "cor-lect": { k: "correlación", t: "Las lecturas estimadas de agosto podrían explicar el resto del alza" },
-  "cor-salto": { k: "correlación", t: "El salto del IPC (+0,4% → +11,2%) coincide con la vigencia de res-1187" },
-  "cor-cons": { k: "correlación", t: "Consumo estable (309 → 312 kWh) descarta un alza por mayor uso" },
-  "cor-presion": { k: "correlación", t: "La presión social antecede la revisión tarifaria anunciada por el ERE" },
-  "cor-congelar": { k: "correlación", t: "El pedido gremial asume que res-1187 causa el alza" },
+// entidad / indicador / correlación / evento). k=kind, t=title, m=medio, d=fecha,
+// a=alcance, f=clause/kind for the citation, x=excerpt.
+export interface ChainNodeData {
+  k: string;
+  t: string;
+  m?: string;
+  d?: string;
+  a?: string;
+  f?: string;
+  x?: string;
+}
+export const NODES: Record<string, ChainNodeData> = {
+  "ent-comerciantes": { k: "entidad", t: "Asociación de Comerciantes de Colón", f: "mención", x: "Origen de los testimonios sobre facturas hasta 40% más altas." },
+  "ent-disca": { k: "entidad", t: "Distribuidora Caribe (DisCa)", f: "mención", x: "Empresa responsable de la lectura y facturación residencial en Colón." },
+  "ent-ere": { k: "entidad", t: "Ente Regulador de Energía (ERE)", f: "mención", x: "Emisor de la resolución tarifaria 1187." },
+  "ent-ine": { k: "entidad", t: "Instituto Nacional de Estadística (INE)", a: "Nacional", f: "mención", x: "Productor oficial del índice de precios al consumidor." },
+  "ent-hogares": { k: "entidad", t: "Hogares residenciales de Colón", f: "mención", x: "Universo de cuentas residenciales alcanzado por la nueva tarifa." },
+  "ent-vecinos": { k: "entidad", t: "Comité vecinal de Barrio Norte", f: "mención", x: "Convocante de la protesta del 30 de septiembre." },
+  "ent-ccc": { k: "entidad", t: "Cámara de Comercio de Colón", f: "mención", x: "Gremio que pide congelar las tarifas por seis meses." },
+  "ind-tar-res": { k: "indicador", t: "Cargo por energía, bloque 0–300 kWh: +18%", m: "Anexo tarifario de res-1187", d: "1 sep 2026", f: "anexo.B", x: "Cargo por energía del bloque residencial básico: de 0,142 a 0,168 por kWh." },
+  "ind-ipc-08": { k: "indicador", t: "IPC electricidad, agosto: +0,4%", m: "Instituto Nacional de Estadística", d: "5 sep 2026", a: "Nacional", f: "valor", x: "Variación mensual del componente electricidad en agosto: +0,4%." },
+  "ind-cons-07": { k: "indicador", t: "Consumo residencial promedio en Colón, julio: 309 kWh", m: "Observatorio Energético Nacional", d: "15 ago 2026", f: "valor", x: "Consumo promedio por cuenta residencial en julio: 309 kWh." },
+  "evt-ajuste": { k: "evento", t: "DisCa anuncia ajuste de facturas estimadas en octubre", m: "Distribuidora Caribe (DisCa)", d: "21 sep 2026", f: "anuncio", x: "Las diferencias por lecturas estimadas se compensarán en la facturación de octubre." },
+  "cor-brecha": { k: "correlación", t: "Tarifa +18% e IPC +11,2% no alcanzan para explicar un alza de 40%", f: "cálculo", x: "Con consumo estable, el alza tarifaria explicaría cerca de 18%; el resto requiere otra causa." },
+  "cor-prot": { k: "correlación", t: "La protesta ocurre 8 días después de la primera factura con la nueva tarifa", f: "cronología", x: "Primera facturación con res-1187: 22 sep. Protesta: 30 sep." },
+  "cor-tarcons": { k: "correlación", t: "Tarifa +18% con consumo estable explica cerca de la mitad del alza reportada", f: "cálculo", x: "312 kWh con el cargo nuevo frente al anterior: +18% en la factura típica." },
+  "cor-lect": { k: "correlación", t: "Las lecturas estimadas de agosto podrían explicar el resto del alza", f: "hipótesis", x: "Si agosto se facturó por estimación, septiembre acumula consumo real no cobrado." },
+  "cor-salto": { k: "correlación", t: "El salto del IPC (+0,4% → +11,2%) coincide con la vigencia de res-1187", a: "Nacional", f: "cronología", x: "La variación se concentra en el mes de entrada en vigor de la resolución." },
+  "cor-cons": { k: "correlación", t: "Consumo estable (309 → 312 kWh) descarta un alza por mayor uso", f: "cálculo", x: "Variación del consumo promedio de julio a agosto: +1%." },
+  "cor-presion": { k: "correlación", t: "La presión social antecede la revisión tarifaria anunciada por el ERE", f: "cronología", x: "Pedido gremial (19 sep) y protesta (30 sep) preceden la revisión prevista." },
+  "cor-congelar": { k: "correlación", t: "El pedido gremial asume que res-1187 causa el alza", f: "inferencia", x: "El comunicado atribuye el aumento a la resolución sin cifras propias." },
 };
+
+// Relation of each provenance to its source (design D[p].r).
+const PROV_REL: Record<string, string> = {
+  "aip-2209-114": "Contexto", "ere-gaceta": "Corrobora", "ine-ipc": "Corrobora", "oen-cons": "Corrobora",
+  "atl-entrevista": "Contexto", "disca-com": "Corrobora", "corr-colon": "Contexto", "ccc-com": "Contexto",
+};
+
+// Human role per node kind (design ROLE).
+const ROLE: Record<string, string> = {
+  caso: "Afirmación central a verificar",
+  procedencia: "Origen primario de la información",
+  entidad: "Actor mencionado en la fuente",
+  indicador: "Dato cuantitativo relacionado",
+  evento: "Hecho relacionado",
+  "correlación": "Relación inferida entre datos · requiere verificación editorial",
+};
+const DEFAULT_SCOPE = "Provincia de Colón";
 
 type SubEntry = [string, Relation | "Corrobora" | "Menciona", SubEntry[]?];
 // Adjacency below each provenance (design SUB), keyed by provenance id.
@@ -109,28 +136,31 @@ export const SUB: Record<string, SubEntry[]> = {
   "ine-ipc": [["ent-ine", "Menciona", [["ind-ipc-08", "Contexto", [["cor-salto", "Corrobora"]]]]]],
   "oen-cons": [["ent-hogares", "Menciona", [["ind-cons-07", "Contexto", [["cor-cons", "Respalda"]]]]]],
   "atl-entrevista": [["ent-disca", "Contradice", [["doc-dist-0921", "Corrobora", [["cor-lect", "Contradice"]]]]]],
-  "disca-com": [["ent-disca", "Menciona", [["evt-ajuste", "Contexto", [["cor-lect", "Contradice"]]]], ["ent-ere", "Menciona", [["res-1187", "Contexto"]]]]],
+  "disca-com": [["ent-disca", "Menciona", [["evt-ajuste", "Contexto", [["cor-lect", "Contradice"]]]]], ["ent-ere", "Menciona", [["res-1187", "Contexto"]]]],
   "corr-colon": [["ent-vecinos", "Menciona", [["not-0399", "Contexto", [["cor-presion", "Contexto"]]]]]],
   "ccc-com": [["ent-ccc", "Menciona", [["res-1187", "Contexto", [["cor-congelar", "Respalda"]]]]]],
 }; // NOTE: `disca-com` is normalized to a single array of two branches.
 
 const CATALOG_BY_ID = Object.fromEntries(CATALOG.map((s) => [s.id, s]));
-function nodeInfo(id: string): { kind: string; title: string } {
-  const c = CATALOG_BY_ID[id];
-  if (c) return { kind: c.type.toLowerCase(), title: c.title };
-  const n = NODES[id];
-  if (n) return { kind: n.k, title: n.t };
-  const p = PROVENANCE[id];
-  if (p) return { kind: "procedencia", title: p.t };
-  return { kind: "procedencia", title: id };
-}
 
+// One node of a source's evidence chain, carrying everything the detail modal shows.
 export interface ChainNode {
   id: string;
   title: string;
   kind: string;
+  /** Relation to the parent node (empty for the claim). */
   rel: string;
-  depth: number; // N1 source = 1, provenance = 2, …
+  depth: number; // claim = 0, source N1 = 1, provenance N2 = 2, …
+  levelName: string;
+  parentTitle: string;
+  medio: string;
+  fecha: string;
+  alcance: string;
+  excerpt: string;
+  cite: string;
+  role: string;
+  /** Catalog id when this node is itself a linkable source, else null. */
+  catId: string | null;
 }
 export interface ChainLevel {
   level: number;
@@ -138,38 +168,78 @@ export interface ChainLevel {
   nodes: ChainNode[];
 }
 export interface SourceChain {
+  /** The central claim node (N0), shown as the tree root. */
+  claim: ChainNode;
   levels: ChainLevel[];
   counts: { ent: number; datos: number; corr: number };
   contradictions: number;
 }
 
-// Build one source's evidence chain: source (N1) → provenance (N2) → SUB subtree
-// (entidad N3 → indicador/documento/evento N4 → correlación N5).
+// Resolve the full detail of any node id (catalog source, provenance, or sub-node).
+function nodeDetail(id: string): { kind: string; title: string; medio: string; fecha: string; alcance: string; excerpt: string; cite: string } {
+  const c = CATALOG_BY_ID[id];
+  if (c) {
+    return { kind: c.type.toLowerCase(), title: c.title, medio: c.m, fecha: c.d, alcance: c.a || DEFAULT_SCOPE, excerpt: c.x, cite: `[${id}:${c.c}]` };
+  }
+  const p = PROVENANCE[id];
+  if (p) {
+    return { kind: "procedencia", title: p.t, medio: p.m, fecha: p.d, alcance: DEFAULT_SCOPE, excerpt: p.x, cite: `[${id}:${p.f}]` };
+  }
+  const n = NODES[id];
+  if (n) {
+    return { kind: n.k, title: n.t, medio: n.m || "—", fecha: n.d || "—", alcance: n.a || DEFAULT_SCOPE, excerpt: n.x || "—", cite: `[${id}:${n.f || "ref"}]` };
+  }
+  return { kind: "procedencia", title: id, medio: "—", fecha: "—", alcance: DEFAULT_SCOPE, excerpt: "—", cite: `[${id}:ref]` };
+}
+
+function makeNode(id: string, rel: string, depth: number, parentTitle: string): ChainNode {
+  const d = nodeDetail(id);
+  const catId = CATALOG_BY_ID[id] ? id : null;
+  const role = catId && depth === 1 ? `Fuente vinculada · ${rel.toLowerCase()} la afirmación central` : ROLE[d.kind] || "—";
+  return {
+    id, title: d.title, kind: d.kind, rel, depth,
+    levelName: LEVEL_NAMES[depth - 1] || "",
+    parentTitle, medio: d.medio, fecha: d.fecha, alcance: d.alcance, excerpt: d.excerpt, cite: d.cite, role, catId,
+  };
+}
+
+// Build one source's evidence chain: claim (N0) → source (N1) → provenance (N2) →
+// SUB subtree (entidad N3 → indicador/documento/evento N4 → correlación N5).
 export function buildSourceChain(sourceId: string): SourceChain {
   const src = CATALOG_BY_ID[sourceId];
-  const nodes: ChainNode[] = [];
-  if (!src) return { levels: [], counts: { ent: 0, datos: 0, corr: 0 }, contradictions: 0 };
+  const claim: ChainNode = {
+    id: "L-0128", title: CLAIM, kind: "caso", rel: "", depth: 0, levelName: "Afirmación central",
+    parentTitle: "", medio: "Lead L-0128", fecha: "oct 2026", alcance: DEFAULT_SCOPE,
+    excerpt: CLAIM, cite: "[L-0128:afirmación]", role: ROLE.caso, catId: null,
+  };
+  if (!src) return { claim, levels: [], counts: { ent: 0, datos: 0, corr: 0 }, contradictions: 0 };
 
+  const nodes: ChainNode[] = [];
+  // N1 · the source itself.
+  const srcNode = makeNode(src.id, src.rel, 1, CLAIM);
+  nodes.push(srcNode);
+
+  // N2 · provenance, then N3..N5 from SUB.
   const prov = PROVENANCE[src.p];
   if (prov) {
-    nodes.push({ id: src.p, title: prov.t, kind: "procedencia", rel: "Procedencia", depth: 2 });
-    const walk = (entries: SubEntry[], depth: number) => {
+    nodes.push(makeNode(src.p, PROV_REL[src.p] || "Contexto", 2, src.title));
+    const walk = (entries: SubEntry[], depth: number, parentTitle: string) => {
       for (const [id, rel, kids] of entries) {
-        const info = nodeInfo(id);
-        nodes.push({ id, title: info.title, kind: info.kind, rel, depth });
-        if (kids && kids.length) walk(kids, depth + 1);
+        nodes.push(makeNode(id, rel, depth, parentTitle));
+        if (kids && kids.length) walk(kids, depth + 1, nodeDetail(id).title);
       }
     };
-    walk(SUB[src.p] ?? [], 3);
+    walk(SUB[src.p] ?? [], 3, prov.t);
   }
 
   const levels: ChainLevel[] = [];
-  for (let d = 2; d <= 5; d++) {
+  for (let d = 1; d <= 5; d++) {
     const seen = new Set<string>();
     const atDepth = nodes.filter((n) => n.depth === d && !seen.has(n.id) && seen.add(n.id));
     if (atDepth.length) levels.push({ level: d, name: LEVEL_NAMES[d - 1], nodes: atDepth });
   }
   return {
+    claim,
     levels,
     counts: {
       ent: nodes.filter((n) => n.depth === 3).length,

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import animate from "tailwindcss-animate";
 
 // EvidentIA design system — tokens defined in assets/css/tailwind.css, spec in DESIGN.md.
 export default <Partial<Config>>{
@@ -82,4 +83,5 @@ export default <Partial<Config>>{
       },
     },
   },
+  plugins: [animate],
 };

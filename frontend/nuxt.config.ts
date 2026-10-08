@@ -4,6 +4,9 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   modules: ["@nuxtjs/tailwindcss"],
   css: ["~/assets/css/tailwind.css"],
+  // Auto-register only .vue components so shadcn-vue barrel files (ui/*/index.ts)
+  // don't collide with their same-named Dialog.vue / Sheet.vue entrypoints.
+  components: [{ path: "~/components", extensions: ["vue"] }],
   app: {
     head: {
       link: [

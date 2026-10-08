@@ -2,13 +2,14 @@
 import { computed, reactive, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
 import Input from "~/components/ui/Input.vue";
-import Sheet from "~/components/ui/Sheet.vue";
 import { api } from "~/composables/useApi";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "~/components/ui/dialog";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "~/components/ui/sheet";
 import {
   CATALOG,
-  CLAIM,
   EXAMPLE_LINK,
   type CatalogSource,
+  type ChainNode,
   type EvidenceLevel,
   type LaneCard,
   type Relation,
@@ -151,14 +152,6 @@ function kindTone(kind: string) {
     default: return "text-ink-muted bg-surface-sunken"; // procedencia
   }
 }
-function relPillClass(rel: Relation) {
-  switch (rel) {
-    case "Respalda": return "text-success border-success/40 bg-success/10";
-    case "Contradice": return "text-destructive border-destructive/40 bg-destructive/10";
-    default: return "text-ink-muted border-border bg-surface";
-  }
-}
-
 const meter = computed(() => {
   const n = Math.min(derived.value.primN, 2);
   return { n, a: n >= 1, b: n >= 2 };
@@ -176,13 +169,23 @@ function nodeRelClass(rel: string) {
   if (rel === "Contradice") return "text-destructive border-destructive/40 bg-destructive/10";
   return "text-ink-muted border-border bg-surface";
 }
-const chainReplicas = computed(() => {
-  const src = chainSource.value;
-  if (!src?.ag) return [];
-  return CATALOG.filter((s) => s.ag && s.p === src.p && isLinked(s.id));
-});
 function openChain(card: LaneCard) {
   chainSource.value = card.head;
+  selectedNode.value = null;
+}
+
+// Node detail modal — opened by clicking a node inside the chain tree.
+const selectedNode = ref<ChainNode | null>(null);
+function openNode(node: ChainNode) {
+  selectedNode.value = node;
+}
+function nodeLinked(node: ChainNode) {
+  return node.catId != null && isLinked(node.catId);
+}
+function toggleNode(node: ChainNode) {
+  if (!node.catId) return;
+  const src = CATALOG.find((s) => s.id === node.catId);
+  if (src) toggle(src);
 }
 </script>
 
@@ -305,12 +308,15 @@ function openChain(card: LaneCard) {
     </div>
 
     <!-- Catalog drawer -->
-    <Sheet
-      v-model:open="catOpen"
-      title="Vincular fuentes"
-      description="Catálogo de ingesta · cada fuente vinculada se agrega al árbol como nodo N1"
-    >
-      <div class="flex flex-col">
+    <Sheet v-model:open="catOpen">
+      <SheetContent side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
+        <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
+          <SheetTitle class="font-serif text-heading-md text-ink">Vincular fuentes</SheetTitle>
+          <SheetDescription class="text-caption text-ink-muted">
+            Catálogo de ingesta · cada fuente vinculada se agrega al árbol como nodo N1
+          </SheetDescription>
+        </div>
+      <div class="min-h-0 flex-1 overflow-y-auto">
         <div class="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
           <Input v-model="query" placeholder="Buscar por título o ID" class="h-8 flex-1 font-mono text-caption" />
           <div class="flex gap-1.5">
@@ -358,103 +364,140 @@ function openChain(card: LaneCard) {
         </div>
 
         <p v-if="!catalogFiltered.length" class="px-5 py-4 text-body-sm text-ink-muted">Sin resultados.</p>
-      </div>
+        </div>
 
-      <template #footer>
-        <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
           <span class="text-caption text-ink-muted">{{ linkedIds.length }} fuentes vinculadas</span>
           <Button variant="outline" @click="catOpen = false">Listo</Button>
         </div>
-      </template>
+      </SheetContent>
     </Sheet>
 
-    <!-- Evidence-chain drawer -->
-    <Sheet
-      :open="!!chainSource"
-      :title="chainSource?.id"
-      description="Cadena de evidencia de la fuente"
-      width-class="w-full max-w-[480px]"
-      @update:open="(v) => { if (!v) chainSource = null; }"
-    >
-      <div v-if="chainSource" class="flex flex-col gap-4 px-5 py-4">
-        <div class="flex flex-col gap-2">
-          <div class="flex flex-wrap items-center gap-1.5">
-            <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindClass(chainSource.type)">
-              {{ chainSource.type.toLowerCase() }}
-            </span>
-            <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold" :class="relPillClass(chainSource.rel)">
-              {{ chainSource.rel }}
-            </span>
-          </div>
-          <h3 class="font-serif text-heading-md text-ink">{{ chainSource.title }}</h3>
-          <p class="text-body-sm text-ink-muted">{{ chainSource.s }}</p>
+    <!-- Evidence-chain drawer — the source's hierarchical tree only.
+         Clicking a node opens its detail modal. -->
+    <Sheet :open="!!chainSource" @update:open="(v) => { if (!v) chainSource = null; }">
+      <SheetContent side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-[480px]">
+        <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
+          <SheetTitle class="font-serif text-heading-md text-ink">
+            {{ chainSource ? `Cadena de evidencia · ${chainSource.id}` : "" }}
+          </SheetTitle>
+          <SheetDescription class="text-caption text-ink-muted">
+            Toca un nodo para ver su ficha completa.
+          </SheetDescription>
         </div>
+      <div v-if="chain" class="min-h-0 flex-1 overflow-y-auto flex flex-col gap-3 px-5 py-4">
+        <!-- N0 · central claim (tree root) -->
+        <button
+          type="button"
+          class="flex flex-col gap-1.5 rounded-md border border-primary/40 bg-primary-soft/40 p-3 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+          @click="openNode(chain.claim)"
+        >
+          <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">N0 · Afirmación central</span>
+          <span class="text-body-sm italic leading-snug text-ink">{{ chain.claim.title }}</span>
+        </button>
 
-        <blockquote class="rounded-md border-l-[3px] border-primary bg-primary-soft/40 px-3 py-2 text-body-sm italic text-ink">
-          {{ chainSource.x }}
-          <span class="mt-1 block font-mono text-caption not-italic text-ink-muted">{{ chainSource.c }}</span>
-        </blockquote>
-
-        <!-- Evidence chain — the source's hierarchical tree (N1 → N5) -->
-        <div v-if="chain" class="flex flex-col gap-2">
-          <span class="text-label uppercase text-ink-muted">Cadena de evidencia</span>
-
-          <!-- N1 · the claim + this source -->
-          <div class="rounded-md border border-border bg-surface-sunken p-3">
-            <span class="font-mono text-caption text-ink-muted">afirmación central</span>
-            <p class="mt-0.5 text-body-sm italic leading-snug text-ink">{{ CLAIM }}</p>
-            <div class="mt-2 flex items-center gap-1.5 border-l-[3px] border-primary pl-2">
-              <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindClass(chainSource!.type)">
-                {{ chainSource!.type.toLowerCase() }}
+        <!-- N1..N5, grouped by level and indented -->
+        <div
+          v-for="lvl in chain.levels"
+          :key="lvl.level"
+          class="flex flex-col gap-1.5 border-l border-border pl-3"
+          :style="{ marginLeft: (lvl.level - 1) * 10 + 'px' }"
+        >
+          <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">N{{ lvl.level }} · {{ lvl.name }}</span>
+          <button
+            v-for="node in lvl.nodes"
+            :key="node.id"
+            type="button"
+            class="flex flex-col gap-1 rounded-md border bg-surface px-3 py-2 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+            :class="node.rel === 'Contradice' ? 'border-destructive/50' : 'border-border'"
+            @click="openNode(node)"
+          >
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindTone(node.kind)">
+                {{ node.kind }}
               </span>
-              <span class="font-mono text-caption text-ink-muted">N1 · {{ chainSource!.id }}</span>
+              <span class="font-mono text-caption text-ink-muted">{{ node.id }}</span>
+              <span
+                v-if="node.rel"
+                class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase"
+                :class="nodeRelClass(node.rel)"
+              >
+                {{ node.rel }}
+              </span>
             </div>
-          </div>
-
-          <!-- N2..N5 grouped by level, indented -->
-          <div
-            v-for="lvl in chain.levels"
-            :key="lvl.level"
-            class="flex flex-col gap-1.5"
-            :style="{ marginLeft: (lvl.level - 2) * 12 + 'px' }"
-          >
-            <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">N{{ lvl.level }} · {{ lvl.name }}</span>
-            <div
-              v-for="node in lvl.nodes"
-              :key="node.id"
-              class="flex flex-col gap-1 rounded-md border bg-surface px-3 py-2"
-              :class="node.rel === 'Contradice' ? 'border-destructive/50' : 'border-border'"
-            >
-              <div class="flex flex-wrap items-center gap-1.5">
-                <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindTone(node.kind)">
-                  {{ node.kind }}
-                </span>
-                <span class="font-mono text-caption text-ink-muted">{{ node.id }}</span>
-                <span
-                  v-if="node.rel && node.rel !== 'Procedencia'"
-                  class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase"
-                  :class="nodeRelClass(node.rel)"
-                >
-                  {{ node.rel }}
-                </span>
-              </div>
-              <span class="text-caption leading-snug">{{ node.title }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="chainReplicas.length > 1" class="flex flex-col gap-1.5">
-          <span class="text-label uppercase text-ink-muted">Réplicas del mismo origen · cuentan como 1</span>
-          <div
-            v-for="rep in chainReplicas"
-            :key="rep.id"
-            class="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2"
-          >
-            <span class="font-mono text-caption text-ink-muted">{{ rep.id }}</span>
-            <span class="min-w-0 flex-1 truncate text-caption">{{ rep.m }}</span>
-          </div>
+            <span class="text-caption leading-snug">{{ node.title }}</span>
+          </button>
         </div>
       </div>
+      </SheetContent>
     </Sheet>
+
+    <!-- Node detail modal — the complete evidence information. -->
+    <Dialog :open="!!selectedNode" @update:open="(v) => { if (!v) selectedNode = null; }">
+      <DialogContent class="flex max-h-[calc(100vh-48px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+        <div v-if="selectedNode" class="flex min-h-0 flex-1 flex-col">
+        <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
+          <DialogTitle class="font-serif text-heading-md text-ink">{{ selectedNode.title }}</DialogTitle>
+          <DialogDescription class="font-mono text-caption text-ink-muted">
+            N{{ selectedNode.depth }} · {{ selectedNode.levelName }}
+          </DialogDescription>
+        </div>
+        <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindTone(selectedNode.kind)">
+            {{ selectedNode.kind }}
+          </span>
+          <span class="font-mono text-caption text-ink-muted">{{ selectedNode.id }}</span>
+          <span
+            v-if="selectedNode.rel"
+            class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase"
+            :class="nodeRelClass(selectedNode.rel)"
+          >
+            {{ selectedNode.rel }} · {{ selectedNode.parentTitle }}
+          </span>
+        </div>
+
+        <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-body-sm">
+          <dt class="text-ink-muted">Fuente / medio</dt><dd>{{ selectedNode.medio }}</dd>
+          <dt class="text-ink-muted">Fecha</dt><dd class="font-mono">{{ selectedNode.fecha }}</dd>
+          <dt class="text-ink-muted">Alcance</dt><dd>{{ selectedNode.alcance }}</dd>
+          <dt class="text-ink-muted">Rol en el caso</dt><dd>{{ selectedNode.role }}</dd>
+        </dl>
+
+        <blockquote class="rounded-md border-l-[3px] border-primary bg-primary-soft/40 px-3 py-2 text-body-sm italic text-ink">
+          {{ selectedNode.excerpt }}
+          <span class="mt-1 block font-mono text-caption not-italic text-ink-muted">{{ selectedNode.cite }}</span>
+        </blockquote>
+
+        <a
+          :href="`https://ingesta.evidentia.app/f/${selectedNode.id}`"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="font-mono text-caption text-primary hover:underline"
+        >
+          Abrir en ingesta ↗
+        </a>
+        </div>
+
+        <div
+          v-if="selectedNode.catId"
+          class="flex items-center justify-between gap-3 border-t border-border px-5 py-4"
+        >
+          <span
+            class="rounded-full border px-2 py-0.5 text-caption font-semibold"
+            :class="nodeLinked(selectedNode) ? 'border-success/40 bg-success/10 text-success' : 'border-border bg-surface text-ink-muted'"
+          >
+            {{ nodeLinked(selectedNode) ? "Vinculada al caso" : "No vinculada" }}
+          </span>
+          <Button
+            :variant="nodeLinked(selectedNode) ? 'outline' : 'default'"
+            @click="toggleNode(selectedNode)"
+          >
+            {{ nodeLinked(selectedNode) ? "Desvincular" : "Vincular al caso" }}
+          </Button>
+        </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
