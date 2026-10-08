@@ -2,7 +2,7 @@
 > **Sistema Copiloto de Entorno y Verificación Trazable**  
 > **hackIAthon Panamá 4ta edición — TVN Media / Viamatica**  
 > **Versión:** 1.0.0 (Producción) · **Fecha:** Octubre 2026  
-> **Acceso al Repositorio:** [GitHub](https://github.com/o0Ghost0o/EvidentIA) · [Gitea Mirror](https://git.vertexdc.com/VERTEXdc/EvidentIA) · **Demo Live:** [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
+> **Acceso al Repositorio:** [GitHub](https://github.com/o0Ghost0o/EvidentIA) · [Gitea Mirror](https://git.vertexdc.com/VERTEXdc/EvidentIA) · **Demo Live (Main):** [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com) · **Dev/Staging:** [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
 
 ---
 

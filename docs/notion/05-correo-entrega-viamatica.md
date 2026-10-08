@@ -20,9 +20,10 @@ A continuación, compartimos los elementos solicitados en las directrices oficia
 
 ### 1. Enlace Público del Reto Desarrollado y Explicación Breve
 
-* **Enlace Público en Producción (Cloud Live):**  
-  👉 **[https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)**  
-  *(Despliegue activo y completamente operativo en infraestructura Cloud con HTTPS, persistencia inmutable y soporte offline)*
+* **Enlace Público en Producción (Cloud Live Main):**  
+  👉 **[https://evidentia.vertexdc.com](https://evidentia.vertexdc.com)**  
+  *(Despliegue activo y completamente operativo en infraestructura Cloud con HTTPS, persistencia inmutable y soporte offline)*  
+  *(Entorno de Desarrollo y Staging complementario: [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com))*
 
 * **Breve Explicación del Reto Desarrollado:**  
   **EvidentIA** es un copiloto de entorno y verificación trazable diseñado para la sala de redacción de **TVN Media** (con extensión a análisis de entorno macroeconómico). En lugar de un chatbot genérico que alucina o parafrasea fuentes a ciegas, EvidentIA transforma el flujo noticioso mediante tres pilares:
@@ -70,7 +71,7 @@ Para facilitar una revisión inmediata e interactiva de todos los niveles de usu
 
 * **Repositorio GitHub:** [https://github.com/o0Ghost0o/EvidentIA](https://github.com/o0Ghost0o/EvidentIA)  
 * **Mirror Gitea:** [https://git.vertexdc.com/VERTEXdc/EvidentIA](https://git.vertexdc.com/VERTEXdc/EvidentIA)  
-* **Swagger API Docs:** [https://dev-evidentia.vertexdc.com/docs](https://dev-evidentia.vertexdc.com/docs)
+* **Swagger API Docs (Producción):** [https://evidentia.vertexdc.com/docs](https://evidentia.vertexdc.com/docs)
 
 Agradecemos profundamente a la organización de Viamatica y a TVN Media por el reto planteado. Estamos listos y entusiasmados para la sustentación del Pitch Day.
 

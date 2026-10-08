@@ -2,7 +2,7 @@
 > **hackIAthon Panamá 4ta edición — TVN Media / Viamatica**  
 > **Tiempo Total en Escenario:** 10:00 minutos exactos  
 > **Distribución:** 00:00 a 05:00 (Pitch y Demo en Vivo) · 05:00 a 10:00 (Preguntas del Jurado)  
-> **Plataforma en Vivo:** [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
+> **Plataforma en Vivo (Main):** [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com) · **Dev:** [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
 
 ---
 
@@ -43,7 +43,7 @@
 ---
 
 ### ⏱️ MINUTO 01:00 – 02:00 | Nuestra Tesis y la Fórmula Multicriterio
-* **[PANTALLA: Cambiar de Notion al navegador: `https://dev-evidentia.vertexdc.com/`]**
+* **[PANTALLA: Cambiar de Notion al navegador: `https://evidentia.vertexdc.com/`]**
 * **[ACCIÓN DEL OPERADOR: Mostrar la Bandeja de Leads con sus tarjetas y componentes de score]**
 
 > *"Nuestra tesis se basa en tres principios innegociables:*  

@@ -2,7 +2,7 @@
 > **Sistema Copiloto de Entorno y Verificación Trazable**  
 > **hackIAthon Panamá 4ta edición — TVN Media / Viamatica**  
 > **Modalidad Principal:** TVN Media (Editorial) · **Extensión:** Entorno Económico y Bancario  
-> **Demo en Vivo:** [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
+> **Demo en Vivo (Main):** [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com) · **Dev:** [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
 
 ---
 

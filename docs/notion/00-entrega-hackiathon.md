@@ -32,12 +32,15 @@ Bienvenido al espacio oficial de entrega del proyecto **EvidentIA**. Cumpliendo 
 
 ## 🌐 Enlace Público del Reto y Acceso en Vivo
 
-* **Plataforma Web en Producción (Cloud):**  
-  👉 **[https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)**  
-  *(Despliegue activo en alta disponibilidad sobre infraestructura Cloudify con HTTPS, volumen persistente y fallback offline)*
+* **Plataforma Web en Producción (Cloud Main):**  
+  👉 **[https://evidentia.vertexdc.com](https://evidentia.vertexdc.com)**  
+  *(Despliegue activo en alta disponibilidad sobre infraestructura Coolify con HTTPS, volumen persistente y fallback offline)*
+
+* **Entorno de Desarrollo y Staging:**  
+  👉 **[https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)**
 
 * **Documentación Interactiva de la API (Swagger UI):**  
-  👉 **[https://dev-evidentia.vertexdc.com/docs](https://dev-evidentia.vertexdc.com/docs)** (o local en `http://localhost:8001/docs`)
+  👉 **[https://evidentia.vertexdc.com/docs](https://evidentia.vertexdc.com/docs)** (o local en `http://localhost:8001/docs`)
 
 * **Repositorio de Código Fuente:**  
   👉 **GitHub:** [https://github.com/o0Ghost0o/EvidentIA](https://github.com/o0Ghost0o/EvidentIA)  

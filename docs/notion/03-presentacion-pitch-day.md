@@ -2,7 +2,7 @@
 > **hackIAthon Panamá 4ta edición — TVN Media / Viamatica**  
 > *Sustentación Oficial ante el Jurado Calificador*  
 > **Formato:** Notion Presentation · **Tiempo Asignado:** 10 minutos (5 min Pitch + 5 min Preguntas)  
-> **Demo en Vivo:** [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
+> **Demo en Vivo (Main):** [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com) · **Dev:** [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
 
 ---
 
@@ -31,7 +31,7 @@
 │                                                                             │
 │   • Reto: TVN Media (Editorial Periodística)                                │
 │   • Extensión: Inteligencia de Entorno y Banca                              │
-│   • Plataforma en Producción: https://dev-evidentia.vertexdc.com            │
+│   • Plataforma en Producción: https://evidentia.vertexdc.com                │
 │   • Equipo: EvidentIA Team                                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -185,4 +185,4 @@ el mismo cable de EFE         "El PIB subió 7%"           alucinan datos
 
 > **¡Gracias, señores miembros del jurado!**  
 > Pasamos a la sesión de preguntas y respuestas técnicas.  
-> 🔗 Plataforma en vivo: [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
+> 🔗 Plataforma en vivo (Main): [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com) · [Dev: dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
