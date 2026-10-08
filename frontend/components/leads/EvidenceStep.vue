@@ -5,6 +5,7 @@ import Input from "~/components/ui/Input.vue";
 import { api } from "~/composables/useApi";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "~/components/ui/sheet";
 import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
+import ChainNode, { type ChainTreeNode } from "~/components/leads/ChainNode.vue";
 import type { EvidenceLevel } from "~/lib/leadEvidence";
 import {
   BAND_LABEL,
@@ -307,14 +308,6 @@ const REL_LABEL: Record<string, string> = {
   measures: "Mide",
   geolocated_in: "Ubicado en",
 };
-const KIND_LABEL: Record<string, string> = {
-  news: "Noticia",
-  indicator: "Indicador",
-  event: "Evento",
-  entity: "Entidad",
-  case: "Caso",
-};
-
 async function openChain(card: LinkedItem) {
   chainCard.value = card;
   chainTree.value = null;
@@ -331,29 +324,12 @@ async function openChain(card: LinkedItem) {
   }
 }
 
-// Kind → colored chip (mirrors the design's evidence-chain palette).
-const KIND_TONE: Record<string, string> = {
-  news: "text-info bg-info/10",
-  indicator: "text-teal-700 dark:text-teal-300 bg-teal-500/15",
-  event: "text-warning bg-warning/10",
-  entity: "text-purple-700 dark:text-purple-300 bg-purple-500/15",
-  case: "text-primary bg-primary-soft",
-};
-function kindTone(tipo: string) {
-  return KIND_TONE[tipo] ?? "text-ink-muted bg-surface-sunken";
-}
-// Relation → accent for the node's relation badge and left border.
-function relClass(rel: string) {
-  if (rel === "contradicts") return "text-destructive border-destructive/40 bg-destructive/10";
-  if (rel === "corroborates") return "text-success border-success/40 bg-success/10";
-  return "text-ink-muted border-border bg-surface";
-}
-
-// Build the hierarchical chain the design shows: the source is N0, and each ring
-// of neighbours in the graph is the next level (N1, N2, …), indented, with each
-// node carrying its relation to its parent. Levels come from a breadth-first walk
-// of the real /evidence/tree neighbourhood.
-const chainLevels = computed(() => {
+// Build the hierarchical chain the design shows: the clicked source is the root,
+// and each node expands to its children — the next ring of related nodes. The
+// parent/child structure comes from a breadth-first walk of the real
+// /evidence/tree neighbourhood, so every node is reached once, through its nearest
+// parent, with the edge relation that connects them.
+const chainRoots = computed<ChainTreeNode[]>(() => {
   const card = chainCard.value;
   const tree = chainTree.value;
   if (!card || !tree) return [];
@@ -369,36 +345,38 @@ const chainLevels = computed(() => {
     (adj.get(b) ?? adj.set(b, []).get(b)!).push({ to: a, rel: e.tipo });
   }
 
-  const depth = new Map<string, number>([[rootKey, 0]]);
-  const parentRel = new Map<string, string>();
+  // BFS from the source: record each node's parent and the relation that reached it.
+  const seen = new Set<string>([rootKey]);
+  const childrenOf = new Map<string, { k: string; rel: string }[]>();
   const queue = [rootKey];
   while (queue.length) {
     const cur = queue.shift()!;
-    const d = depth.get(cur)!;
     for (const { to, rel } of adj.get(cur) ?? []) {
-      if (!depth.has(to)) {
-        depth.set(to, d + 1);
-        parentRel.set(to, rel);
-        queue.push(to);
-      }
+      if (seen.has(to)) continue;
+      seen.add(to);
+      (childrenOf.get(cur) ?? childrenOf.set(cur, []).get(cur)!).push({ k: to, rel });
+      queue.push(to);
     }
   }
 
-  const byDepth = new Map<number, { node: TreeNode; rel: string; relLabel: string }[]>();
-  for (const [k, d] of depth) {
-    if (d === 0) continue;
+  const build = (k: string, rel: string): ChainTreeNode | null => {
     const node = nodeByKey.get(k);
-    if (!node) continue;
-    const rel = parentRel.get(k) ?? "";
-    (byDepth.get(d) ?? byDepth.set(d, []).get(d)!).push({
-      node,
+    if (!node) return null;
+    return {
+      tipo: node.tipo,
+      id: node.id,
+      label: node.label,
       rel,
       relLabel: REL_LABEL[rel] ?? rel,
-    });
-  }
-  return [...byDepth.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([level, nodes]) => ({ level, nodes }));
+      children: (childrenOf.get(k) ?? [])
+        .map((c) => build(c.k, c.rel))
+        .filter((n): n is ChainTreeNode => n !== null),
+    };
+  };
+
+  return (childrenOf.get(rootKey) ?? [])
+    .map((c) => build(c.k, c.rel))
+    .filter((n): n is ChainTreeNode => n !== null);
 });
 
 onMounted(() => {
@@ -639,42 +617,18 @@ onMounted(() => {
 
           <p v-if="chainLoading" class="text-body-sm text-ink-muted">Cargando cadena…</p>
           <p v-else-if="chainError" class="text-body-sm text-destructive">{{ chainError }}</p>
-          <p v-else-if="!chainLevels.length" class="text-body-sm text-ink-muted">
+          <p v-else-if="!chainRoots.length" class="text-body-sm text-ink-muted">
             Esta fuente aún no tiene relaciones en el grafo de evidencia.
           </p>
 
-          <!-- N1..N · each ring of neighbours, indented by level -->
-          <div
-            v-for="lvl in chainLevels"
-            :key="lvl.level"
-            class="flex flex-col gap-1.5 border-l border-border pl-3"
-            :style="{ marginLeft: (lvl.level - 1) * 10 + 'px' }"
-          >
-            <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">Nivel {{ lvl.level }}</span>
-            <button
-              v-for="entry in lvl.nodes"
-              :key="`${entry.node.tipo}:${entry.node.id}`"
-              type="button"
-              class="flex flex-col gap-1 rounded-md border bg-surface px-3 py-2 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-              :class="entry.rel === 'contradicts' ? 'border-destructive/50' : 'border-border'"
-              @click="inspect(entry.node.id, entry.node.tipo)"
-            >
-              <div class="flex flex-wrap items-center gap-1.5">
-                <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindTone(entry.node.tipo)">
-                  {{ KIND_LABEL[entry.node.tipo] ?? entry.node.tipo }}
-                </span>
-                <span class="font-mono text-caption text-ink-muted">{{ entry.node.id }}</span>
-                <span
-                  v-if="entry.relLabel"
-                  class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase"
-                  :class="relClass(entry.rel)"
-                >
-                  {{ entry.relLabel }}
-                </span>
-              </div>
-              <span class="text-caption leading-snug">{{ entry.node.label }}</span>
-            </button>
-          </div>
+          <!-- Nested tree: each node toggles open to reveal its sublevel. -->
+          <ChainNode
+            v-for="root in chainRoots"
+            :key="`${root.tipo}:${root.id}`"
+            :node="root"
+            :depth="1"
+            @inspect="(t, i) => inspect(i, t)"
+          />
         </div>
       </SheetContent>
     </Sheet>
