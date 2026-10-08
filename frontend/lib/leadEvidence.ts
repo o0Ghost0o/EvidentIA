@@ -186,14 +186,16 @@ export interface EvidenceState {
   key: EvidenceLevel;
   label: string;
   short: string;
+  /** Longer rationale shown where there is room (e.g. step 3 Contexto). */
+  explain: string;
   /** DESIGN tone → drives card/strip color. */
   tone: "neutral" | "error" | "warning" | "success";
 }
 export const EVIDENCE_STATES: Record<EvidenceLevel, EvidenceState> = {
-  none: { key: "none", label: "sin fuentes", short: "Aún no hay fuentes vinculadas.", tone: "neutral" },
-  insuficiente: { key: "insuficiente", label: "insuficiente", short: "Ninguna fuente primaria respalda la afirmación.", tone: "error" },
-  parcial: { key: "parcial", label: "parcial", short: "Una fuente primaria respalda; falta corroborar.", tone: "warning" },
-  suficiente: { key: "suficiente", label: "suficiente", short: "Dos fuentes primarias independientes respaldan la afirmación.", tone: "success" },
+  none: { key: "none", label: "sin fuentes", short: "Aún no hay fuentes vinculadas.", explain: "Aún no hay fuentes vinculadas.", tone: "neutral" },
+  insuficiente: { key: "insuficiente", label: "insuficiente", short: "Ninguna fuente primaria respalda la afirmación.", explain: "Ninguna fuente primaria respalda la cifra central. No es posible generar un borrador con esta evidencia.", tone: "error" },
+  parcial: { key: "parcial", label: "parcial", short: "Una fuente primaria respalda; falta corroborar.", explain: "Una fuente primaria respalda la afirmación. El borrador es posible, pero marcará lo que falta corroborar.", tone: "warning" },
+  suficiente: { key: "suficiente", label: "suficiente", short: "Dos fuentes primarias independientes respaldan la afirmación.", explain: "La afirmación central está respaldada por al menos dos fuentes primarias independientes.", tone: "success" },
 };
 
 export const RELATION_LABEL: Record<Relation, string> = {
