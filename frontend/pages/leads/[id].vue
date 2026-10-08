@@ -223,7 +223,7 @@ function scrollToStep(i: number) {
             :modalidad="detail.modalidad"
             :initial-items="evidenceItems"
           />
-          <ContextStep v-else-if="i === 1" readonly :evidence-level="evidenceLevel" />
+          <ContextStep v-else-if="i === 1" readonly :lead-id="detail.id" :evidence-level="evidenceLevel" />
           <FichaStep v-else-if="i === 2" readonly :linked-ids="linkedIds" :alcance="alcance" />
           <DraftStep v-else-if="i === 3" readonly :linked-ids="linkedIds" :title="detail.titulo" />
           <ReviewStep
