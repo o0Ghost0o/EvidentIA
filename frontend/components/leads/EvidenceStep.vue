@@ -331,34 +331,74 @@ async function openChain(card: LinkedItem) {
   }
 }
 
-// Neighbours of the clicked source, grouped by kind, each with its relation to
-// the source (when a direct edge exists) and a flag for whether it is the source.
-const chainGroups = computed(() => {
+// Kind → colored chip (mirrors the design's evidence-chain palette).
+const KIND_TONE: Record<string, string> = {
+  news: "text-info bg-info/10",
+  indicator: "text-teal-700 dark:text-teal-300 bg-teal-500/15",
+  event: "text-warning bg-warning/10",
+  entity: "text-purple-700 dark:text-purple-300 bg-purple-500/15",
+  case: "text-primary bg-primary-soft",
+};
+function kindTone(tipo: string) {
+  return KIND_TONE[tipo] ?? "text-ink-muted bg-surface-sunken";
+}
+// Relation → accent for the node's relation badge and left border.
+function relClass(rel: string) {
+  if (rel === "contradicts") return "text-destructive border-destructive/40 bg-destructive/10";
+  if (rel === "corroborates") return "text-success border-success/40 bg-success/10";
+  return "text-ink-muted border-border bg-surface";
+}
+
+// Build the hierarchical chain the design shows: the source is N0, and each ring
+// of neighbours in the graph is the next level (N1, N2, …), indented, with each
+// node carrying its relation to its parent. Levels come from a breadth-first walk
+// of the real /evidence/tree neighbourhood.
+const chainLevels = computed(() => {
   const card = chainCard.value;
   const tree = chainTree.value;
   if (!card || !tree) return [];
-  const relFor = (n: TreeNode): string => {
-    const e = tree.edges.find(
-      (x) =>
-        (x.origen_tipo === card.fuenteTipo && x.origen_id === card.fuenteId &&
-          x.destino_tipo === n.tipo && x.destino_id === n.id) ||
-        (x.destino_tipo === card.fuenteTipo && x.destino_id === card.fuenteId &&
-          x.origen_tipo === n.tipo && x.origen_id === n.id)
-    );
-    return e ? (REL_LABEL[e.tipo] ?? e.tipo) : "";
-  };
-  const others = tree.nodes.filter((n) => !(n.tipo === card.fuenteTipo && n.id === card.fuenteId));
-  const byKind = new Map<string, { node: TreeNode; rel: string }[]>();
-  for (const n of others) {
-    const bucket = byKind.get(n.tipo) ?? [];
-    bucket.push({ node: n, rel: relFor(n) });
-    byKind.set(n.tipo, bucket);
+  const key = (t: string, i: string) => `${t}:${i}`;
+  const rootKey = key(card.fuenteTipo, card.fuenteId);
+  const nodeByKey = new Map(tree.nodes.map((n) => [key(n.tipo, n.id), n]));
+
+  const adj = new Map<string, { to: string; rel: string }[]>();
+  for (const e of tree.edges) {
+    const a = key(e.origen_tipo, e.origen_id);
+    const b = key(e.destino_tipo, e.destino_id);
+    (adj.get(a) ?? adj.set(a, []).get(a)!).push({ to: b, rel: e.tipo });
+    (adj.get(b) ?? adj.set(b, []).get(b)!).push({ to: a, rel: e.tipo });
   }
-  return [...byKind.entries()].map(([tipo, items]) => ({
-    tipo,
-    label: KIND_LABEL[tipo] ?? tipo,
-    items,
-  }));
+
+  const depth = new Map<string, number>([[rootKey, 0]]);
+  const parentRel = new Map<string, string>();
+  const queue = [rootKey];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    const d = depth.get(cur)!;
+    for (const { to, rel } of adj.get(cur) ?? []) {
+      if (!depth.has(to)) {
+        depth.set(to, d + 1);
+        parentRel.set(to, rel);
+        queue.push(to);
+      }
+    }
+  }
+
+  const byDepth = new Map<number, { node: TreeNode; rel: string; relLabel: string }[]>();
+  for (const [k, d] of depth) {
+    if (d === 0) continue;
+    const node = nodeByKey.get(k);
+    if (!node) continue;
+    const rel = parentRel.get(k) ?? "";
+    (byDepth.get(d) ?? byDepth.set(d, []).get(d)!).push({
+      node,
+      rel,
+      relLabel: REL_LABEL[rel] ?? rel,
+    });
+  }
+  return [...byDepth.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([level, nodes]) => ({ level, nodes }));
 });
 
 onMounted(() => {
@@ -599,30 +639,37 @@ onMounted(() => {
 
           <p v-if="chainLoading" class="text-body-sm text-ink-muted">Cargando cadena…</p>
           <p v-else-if="chainError" class="text-body-sm text-destructive">{{ chainError }}</p>
-          <p v-else-if="!chainGroups.length" class="text-body-sm text-ink-muted">
+          <p v-else-if="!chainLevels.length" class="text-body-sm text-ink-muted">
             Esta fuente aún no tiene relaciones en el grafo de evidencia.
           </p>
 
+          <!-- N1..N · each ring of neighbours, indented by level -->
           <div
-            v-for="group in chainGroups"
-            :key="group.tipo"
+            v-for="lvl in chainLevels"
+            :key="lvl.level"
             class="flex flex-col gap-1.5 border-l border-border pl-3"
+            :style="{ marginLeft: (lvl.level - 1) * 10 + 'px' }"
           >
-            <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">{{ group.label }}</span>
+            <span class="font-mono text-[11px] uppercase tracking-wide text-ink-muted">Nivel {{ lvl.level }}</span>
             <button
-              v-for="entry in group.items"
-              :key="entry.node.id"
+              v-for="entry in lvl.nodes"
+              :key="`${entry.node.tipo}:${entry.node.id}`"
               type="button"
-              class="flex flex-col gap-1 rounded-md border border-border bg-surface px-3 py-2 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              class="flex flex-col gap-1 rounded-md border bg-surface px-3 py-2 text-left transition-shadow hover:shadow-ev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              :class="entry.rel === 'contradicts' ? 'border-destructive/50' : 'border-border'"
               @click="inspect(entry.node.id, entry.node.tipo)"
             >
               <div class="flex flex-wrap items-center gap-1.5">
+                <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindTone(entry.node.tipo)">
+                  {{ KIND_LABEL[entry.node.tipo] ?? entry.node.tipo }}
+                </span>
                 <span class="font-mono text-caption text-ink-muted">{{ entry.node.id }}</span>
                 <span
-                  v-if="entry.rel"
-                  class="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-muted"
+                  v-if="entry.relLabel"
+                  class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase"
+                  :class="relClass(entry.rel)"
                 >
-                  {{ entry.rel }}
+                  {{ entry.relLabel }}
                 </span>
               </div>
               <span class="text-caption leading-snug">{{ entry.node.label }}</span>
