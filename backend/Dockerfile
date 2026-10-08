@@ -17,13 +17,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen
 
 # spaCy Spanish model for entity extraction (downloaded at build time so
 # `docker compose up` needs no network access afterwards).
 RUN uv run python -m spacy download es_core_news_sm
 
 COPY src ./src
+COPY tests ./tests
 COPY data/seed ./data/seed
 
 ENV PYTHONUNBUFFERED=1

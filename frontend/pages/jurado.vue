@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
 import StateChip from "~/components/ui/StateChip.vue";
@@ -32,6 +32,7 @@ interface InformeJurado {
   filas: FilaPrueba[];
   comando?: string;
   salida_resumen?: string;
+  markdown?: string;
 }
 
 interface FilaMetrica {
@@ -59,6 +60,8 @@ let timerInterval: any = null;
 const informe = ref<InformeJurado | null>(null);
 const metricas = ref<MetricasJurado | null>(null);
 const errorMsg = ref<string | null>(null);
+const activeTab = ref<"tarjetas" | "markdown">("tarjetas");
+const copiadoMd = ref(false);
 
 // Acordeón de pruebas abiertas
 const openAccordions = ref<Record<string, boolean>>({});
@@ -128,6 +131,32 @@ function formatHoraPA(isoString?: string): string {
   }
 }
 
+async function copiarMarkdown() {
+  if (!informe.value?.markdown) return;
+  try {
+    await navigator.clipboard.writeText(informe.value.markdown);
+    copiadoMd.value = true;
+    setTimeout(() => {
+      copiadoMd.value = false;
+    }, 2000);
+  } catch (e) {
+    console.error("Error al copiar Markdown:", e);
+  }
+}
+
+function descargarReporteMarkdown() {
+  if (!informe.value?.markdown) return;
+  const blob = new Blob([informe.value.markdown], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `reporte_jurado_evidentia_${new Date().toISOString().slice(0, 10)}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 onMounted(() => {
   fetchUltimoInforme();
   fetchMetricas();
@@ -185,6 +214,7 @@ const PREGUNTAS_JURADO = [
             <StateChip tone="primary" variant="soft" class="text-caption">
               T01–T10 Live Suite
             </StateChip>
+            <span class="text-caption text-ink-muted">· Reporte Markdown (.md)</span>
           </div>
           <h1 class="font-serif text-display-xl font-semibold tracking-tight text-ink">
             Centro de Verificación de Aceptación
@@ -195,22 +225,52 @@ const PREGUNTAS_JURADO = [
           </p>
         </div>
 
-        <!-- Action Button (single primary action) -->
+        <!-- Action Buttons -->
         <div class="flex flex-col items-start gap-2 sm:items-end">
-          <Button
-            :disabled="runningPruebas"
-            class="h-9 px-4 text-body-sm font-semibold"
-            @click="ejecutarPruebasEnVivo"
-          >
-            <span v-if="runningPruebas" class="flex items-center gap-2 font-mono tabular-nums">
-              <span class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-canvas border-t-transparent"></span>
-              Corriendo pruebas… {{ timerSeconds }} s
-            </span>
-            <span v-else class="flex items-center gap-2">
-              <span>▶</span>
-              <span>Ejecutar Suite T01–T10 en Vivo</span>
-            </span>
-          </Button>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button
+              v-if="informe?.markdown"
+              variant="secondary"
+              class="h-9 px-3 text-body-sm font-medium"
+              @click="copiarMarkdown"
+            >
+              <span v-if="copiadoMd" class="text-success flex items-center gap-1.5">
+                <span>✓</span>
+                <span>¡Copiado!</span>
+              </span>
+              <span v-else class="flex items-center gap-1.5">
+                <span>📋</span>
+                <span>Copiar MD</span>
+              </span>
+            </Button>
+
+            <Button
+              v-if="informe?.markdown"
+              variant="secondary"
+              class="h-9 px-3 text-body-sm font-medium"
+              @click="descargarReporteMarkdown"
+            >
+              <span class="flex items-center gap-1.5">
+                <span>⬇</span>
+                <span>Descargar (.md)</span>
+              </span>
+            </Button>
+
+            <Button
+              :disabled="runningPruebas"
+              class="h-9 px-4 text-body-sm font-semibold"
+              @click="ejecutarPruebasEnVivo"
+            >
+              <span v-if="runningPruebas" class="flex items-center gap-2 font-mono tabular-nums">
+                <span class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-canvas border-t-transparent"></span>
+                Corriendo… {{ timerSeconds }} s
+              </span>
+              <span v-else class="flex items-center gap-2">
+                <span>▶</span>
+                <span>Ejecutar Suite en Vivo</span>
+              </span>
+            </Button>
+          </div>
 
           <span v-if="informe?.generado_utc && !runningPruebas" class="text-caption text-ink-muted font-mono tabular-nums">
             Última corrida: <b>{{ formatHoraPA(informe.generado_utc) }}</b> · Duración: <b>{{ informe.segundos }} s</b>
@@ -219,27 +279,50 @@ const PREGUNTAS_JURADO = [
       </div>
 
       <!-- Execution Status Pill -->
-      <div v-if="informe" class="mt-6 flex flex-wrap items-center gap-3 rounded-md border border-hairline bg-surface-sunken p-3.5">
-        <div class="flex items-center gap-2">
-          <span
-            class="flex h-2.5 w-2.5 rounded-full"
-            :class="informe.verdes === informe.total ? 'bg-success' : 'bg-error'"
-          ></span>
-          <span class="text-body-sm font-semibold text-ink">
-            Estado de Aceptación:
-          </span>
-          <span
-            class="font-mono text-mono font-bold tabular-nums"
-            :class="informe.verdes === informe.total ? 'text-success' : 'text-error'"
-          >
-            {{ informe.verdes }} / {{ informe.total }} Pruebas en Verde ({{ Math.round((informe.verdes / informe.total) * 100) }}%)
+      <div v-if="informe" class="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-hairline bg-surface-sunken p-3.5">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-2">
+            <span
+              class="flex h-2.5 w-2.5 rounded-full"
+              :class="informe.verdes === informe.total ? 'bg-success' : 'bg-error'"
+            ></span>
+            <span class="text-body-sm font-semibold text-ink">
+              Estado de Aceptación:
+            </span>
+            <span
+              class="font-mono text-mono font-bold tabular-nums"
+              :class="informe.verdes === informe.total ? 'text-success' : 'text-error'"
+            >
+              {{ informe.verdes }} / {{ informe.total }} Pruebas en Verde ({{ Math.round((informe.verdes / informe.total) * 100) }}%)
+            </span>
+          </div>
+
+          <span class="text-ink-muted">·</span>
+          <span class="font-mono text-caption text-ink-muted">
+            {{ informe.comando }}
           </span>
         </div>
 
-        <span class="text-ink-muted">·</span>
-        <span class="font-mono text-caption text-ink-muted">
-          {{ informe.comando }}
-        </span>
+        <!-- View Switcher Tabs -->
+        <div class="flex items-center rounded-sm bg-surface p-0.5 border border-hairline text-caption font-semibold">
+          <button
+            type="button"
+            class="px-3 py-1 rounded-sm transition-colors cursor-pointer"
+            :class="activeTab === 'tarjetas' ? 'bg-primary text-canvas shadow-xs' : 'text-ink-muted hover:text-ink'"
+            @click="activeTab = 'tarjetas'"
+          >
+            Vista Interactiva (§9)
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1 rounded-sm transition-colors cursor-pointer flex items-center gap-1.5"
+            :class="activeTab === 'markdown' ? 'bg-primary text-canvas shadow-xs' : 'text-ink-muted hover:text-ink'"
+            @click="activeTab = 'markdown'"
+          >
+            <span>Reporte Markdown</span>
+            <span class="text-[10px] px-1 py-0.2 rounded bg-surface-sunken/40">.md</span>
+          </button>
+        </div>
       </div>
 
       <div v-if="errorMsg" class="mt-4 rounded-md border border-error/30 bg-error/10 p-4 text-body-sm text-error">
@@ -247,8 +330,8 @@ const PREGUNTAS_JURADO = [
       </div>
     </div>
 
-    <!-- T01–T10 Test Cards Grid -->
-    <section class="space-y-4">
+    <!-- TAB 1: INTERACTIVE CARDS -->
+    <section v-if="activeTab === 'tarjetas'" class="space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="font-serif text-heading-md font-semibold text-ink">
           Pruebas de Aceptación Obligatorias (§9)
@@ -300,7 +383,7 @@ const PREGUNTAS_JURADO = [
             </div>
 
             <div class="flex items-center gap-4">
-              <span v-if="f.pruebas?.[0]?.segundos" class="font-mono text-caption text-ink-muted tabular-nums hidden sm:inline">
+              <span v-if="f.pruebas?.[0]?.segundos !== undefined" class="font-mono text-caption text-ink-muted tabular-nums hidden sm:inline">
                 {{ f.pruebas[0].segundos }} s
               </span>
               <span class="text-caption text-ink-muted">
@@ -322,7 +405,7 @@ const PREGUNTAS_JURADO = [
 
             <div>
               <span class="text-label uppercase tracking-wider text-ink-muted">
-                Evidencia de Ejecución Pytest:
+                Evidencia de Ejecución Pytest / Test Engine:
               </span>
               <div class="mt-1 space-y-2">
                 <div
@@ -349,6 +432,48 @@ const PREGUNTAS_JURADO = [
             </div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: MARKDOWN REPORT VIEW -->
+    <section v-else-if="activeTab === 'markdown'" class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="font-serif text-heading-md font-semibold text-ink">
+            Reporte Oficial en Formato Markdown (.md)
+          </h2>
+          <p class="text-caption text-ink-muted">
+            Documento estructurado en formato Markdown estándar GitHub/CommonMark, sin dependencias de XML.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            class="h-8 px-3 text-caption font-semibold"
+            @click="copiarMarkdown"
+          >
+            {{ copiadoMd ? '✓ Copiado' : 'Copiar Texto' }}
+          </Button>
+          <Button
+            class="h-8 px-3 text-caption font-semibold"
+            @click="descargarReporteMarkdown"
+          >
+            Descargar archivo .md
+          </Button>
+        </div>
+      </div>
+
+      <div class="rounded-md border border-hairline bg-surface shadow-ev-1 overflow-hidden">
+        <div class="border-b border-hairline bg-surface-sunken px-4 py-2.5 flex items-center justify-between text-caption font-mono text-ink-muted">
+          <div class="flex items-center gap-2">
+            <span class="inline-block h-2 w-2 rounded-full bg-success"></span>
+            <span>reporte_jurado_evidentia.md</span>
+          </div>
+          <span>{{ (informe?.markdown?.length || 0).toLocaleString() }} caracteres</span>
+        </div>
+
+        <pre class="p-6 font-mono text-mono text-ink bg-surface overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-[700px]">{{ informe?.markdown || "Generando reporte Markdown..." }}</pre>
       </div>
     </section>
 

@@ -49,6 +49,8 @@ def test_jurado_pruebas_get_and_post() -> None:
     assert data["total"] == 10
     assert len(data["filas"]) == 10
     assert all(f["estado"] in ("verde", "rojo") for f in data["filas"])
+    assert "markdown" in data
+    assert "# EvidentIA" in data["markdown"]
 
     # POST pruebas (live runner)
     resp_post = client.post("/jurado/pruebas")
@@ -57,3 +59,19 @@ def test_jurado_pruebas_get_and_post() -> None:
     assert post_data["total"] == 10
     assert post_data["verdes"] == 10
     assert all(f["estado"] == "verde" for f in post_data["filas"])
+    assert "markdown" in post_data
+    assert "sha256:" in post_data["markdown"]
+
+    # GET /jurado/reporte (markdown format by default)
+    resp_reporte_md = client.get("/jurado/reporte")
+    assert resp_reporte_md.status_code == 200
+    assert "text/markdown" in resp_reporte_md.headers.get("content-type", "")
+    assert "# EvidentIA" in resp_reporte_md.text
+
+    # GET /jurado/reporte.md (direct download)
+    resp_download_md = client.get("/jurado/reporte.md")
+    assert resp_download_md.status_code == 200
+    assert "text/markdown" in resp_download_md.headers.get("content-type", "")
+    assert "attachment" in resp_download_md.headers.get("content-disposition", "")
+    assert "reporte_jurado_evidentia.md" in resp_download_md.headers.get("content-disposition", "")
+    assert "Resumen Ejecutivo" in resp_download_md.text
