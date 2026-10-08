@@ -473,6 +473,83 @@ def case_tree(case_id: int, session: SessionDep, depth: int = Query(default=5, g
     return {"root": {"tipo": "case", "id": str(case.id)}, "nodes": list(nodes.values()), "edges": list(edges_map.values())}
 
 
+def _score_inputs(session: Session, case: models.Case) -> dict:
+    """Derive the score_topic inputs from a case's linked evidence.
+
+    primary_sources counts distinct primary provenances: primary news sources
+    (deduplicated by wire agency via label_group) plus each linked document and
+    event. has_indicator is true when any linked item is an indicator. The topic
+    is titular_only only when it rests entirely on titular-only news — any
+    document, indicator or event means there is more than a headline. group_size
+    is the linked-item count and published_at is the most recent news date.
+    """
+    from evidentia.scoring.deduplication import label_group
+
+    items = session.exec(
+        select(models.EvidenceItem).where(models.EvidenceItem.case_id == case.id)
+    ).all()
+    if not items:
+        items = _auto_link_cluster_evidence(session, case)
+
+    news_members: list[dict] = []
+    published_dates: list[datetime] = []
+    news_titular_only = True
+    has_indicator = False
+    n_documents = 0
+    n_events = 0
+
+    for item in items:
+        if item.fuente_tipo == "news":
+            article = session.exec(
+                select(models.NewsArticle).where(models.NewsArticle.id_noticia == item.fuente_id)
+            ).first()
+            if article is None:
+                continue
+            news_members.append({
+                "id_noticia": article.id_noticia,
+                "agencia_primaria": article.agencia_primaria,
+                "titulo": article.titulo,
+            })
+            if (article.alcance_texto or "titular") != "titular":
+                news_titular_only = False
+            if article.fecha_publicacion is not None:
+                published_dates.append(article.fecha_publicacion)
+        elif item.fuente_tipo == "indicator":
+            has_indicator = True
+        elif item.fuente_tipo == "document":
+            n_documents += 1
+        elif item.fuente_tipo == "event":
+            n_events += 1
+
+    news_primary = label_group(news_members)["primary_sources"] if news_members else 0
+    primary_sources = news_primary + n_documents + n_events
+    # A headline-only topic is one backed solely by titular-only news. Any
+    # document, indicator or event carries more than a headline.
+    titular_only = (
+        news_titular_only and n_documents == 0 and n_events == 0 and not has_indicator
+    )
+    published_at = max(published_dates) if published_dates else None
+
+    return {
+        "title": case.titulo,
+        "group_size": len(items),
+        "primary_sources": primary_sources,
+        "published_at": published_at,
+        "modalidad": case.modalidad,
+        "has_indicator": has_indicator,
+        "titular_only": titular_only,
+    }
+
+
+@router.get("/{case_id}/score")
+def case_score(case_id: int, session: SessionDep) -> dict:
+    """Score the case's own linked evidence with the deterministic rules (v1.2)."""
+    from evidentia.scoring import score as scoring
+
+    case = _get_case(session, case_id)
+    return scoring.score_topic(**_score_inputs(session, case))
+
+
 def _evidence_docs(session: Session, case: models.Case) -> tuple[list, list[str]]:
     """Resolve evidence items to synthesiser docs; returns (docs, missing)."""
     from evidentia.generation.synthesizer import EvidenceDoc
