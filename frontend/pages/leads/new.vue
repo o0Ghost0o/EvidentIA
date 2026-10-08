@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import ContextStep from "~/components/leads/ContextStep.vue";
 import EvidenceStep from "~/components/leads/EvidenceStep.vue";
 import Button from "~/components/ui/Button.vue";
 import Input from "~/components/ui/Input.vue";
@@ -7,6 +8,7 @@ import Label from "~/components/ui/Label.vue";
 import Select from "~/components/ui/Select.vue";
 import Textarea from "~/components/ui/Textarea.vue";
 import { api } from "~/composables/useApi";
+import type { EvidenceLevel } from "~/lib/leadEvidence";
 
 // New lead — the Lead Workspace wizard. Step 1 "Definir" captures the minimum that
 // makes a lead exist (título + modalidad); once created, the flow advances in place
@@ -30,7 +32,7 @@ const EXAMPLE = {
 const STEPS = [
   { title: "Definir", guide: "Empieza por el título y la modalidad: son lo mínimo para que el lead exista. Usa «Usar ejemplo» si quieres recorrer el flujo rápido.", desc: "Qué se investiga, con qué alcance y con qué pregunta.", lockReason: "" },
   { title: "Evidencia", guide: "Prueba «Vincular ejemplo»: tres réplicas del mismo cable cuentan como 1 fuente. Toca una tarjeta para ver su cadena de evidencia.", desc: "Vincula fuentes del catálogo: cada una se ordena según respalde, contradiga o dé contexto a la afirmación.", lockReason: "Crea el lead primero" },
-  { title: "Contexto & Priorización", guide: "", desc: "", lockReason: "Vincula ≥1 fuente" },
+  { title: "Contexto & Priorización", guide: "La prioridad se calcula con reglas versionadas, no a criterio del modelo. Cada componente es explicable.", desc: "Cuánto importa ahora y cuánto respalda la evidencia disponible.", lockReason: "Vincula ≥1 fuente" },
   { title: "Ficha", guide: "", desc: "", lockReason: "Calcula la prioridad" },
   { title: "Borrador", guide: "", desc: "", lockReason: "Confirma la ficha" },
   { title: "Revisión", guide: "", desc: "", lockReason: "Requiere borrador o abstención" },
@@ -44,7 +46,14 @@ const submitError = ref("");
 // Wizard state. step is 1-based; leadId is set once the case is created.
 const step = ref(1);
 const leadId = ref<number | null>(null);
-const evidence = reactive({ count: 0, label: "sin fuentes", tone: "neutral" });
+const evidence = reactive({ count: 0, label: "sin fuentes", tone: "neutral", key: "none" as EvidenceLevel });
+const priority = reactive({ scored: false, total: 0, band: "", bandLabel: "" });
+
+const BAND_CHIP: Record<string, string> = {
+  alto: "bg-destructive/10 text-destructive",
+  medio: "bg-warning/10 text-warning",
+  bajo: "bg-surface-sunken text-ink-muted",
+};
 
 const titleTrimmed = computed(() => form.title.trim());
 const titleOk = computed(() => titleTrimmed.value.length >= 10);
@@ -61,17 +70,17 @@ const titleHelp = computed(() => {
 });
 
 // Progress & rail.
-const stepsDone = computed(() => (step.value > 1 ? 1 : 0));
+const stepsDone = computed(() => step.value - 1);
 const progressPct = computed(() => `${(stepsDone.value / 6) * 100}%`);
 const cur = computed(() => STEPS[step.value - 1]);
 
 function railSub(i: number): string {
-  if (i === step.value - 1) {
-    if (i === 0) return "Título y modalidad";
-    if (i === 1) return evidence.count ? `${evidence.count} fuentes · ${evidence.label}` : "Vincula ≥1 fuente";
-    return STEPS[i].desc;
-  }
-  return STEPS[i].lockReason;
+  // Locked steps show why; done and active steps show their positive status.
+  if (railState(i) === "locked") return STEPS[i].lockReason;
+  if (i === 0) return form.mod || "Título y modalidad";
+  if (i === 1) return evidence.count ? `${evidence.count} ${evidence.count === 1 ? "fuente" : "fuentes"} · ${evidence.label}` : "Sin fuentes";
+  if (i === 2) return priority.scored ? `P ${priority.total} · ${priority.bandLabel}` : "Por calcular";
+  return STEPS[i].desc;
 }
 function railState(i: number): "done" | "active" | "locked" {
   if (i < step.value - 1) return "done";
@@ -110,13 +119,28 @@ async function createLead() {
   }
 }
 
-function onEvidenceChange(p: { count: number; label: string; tone: string }) {
+function onEvidenceChange(p: { count: number; label: string; tone: string; key: EvidenceLevel }) {
   evidence.count = p.count;
   evidence.label = p.label;
   evidence.tone = p.tone;
+  evidence.key = p.key;
 }
 
-async function continueToContext() {
+// Step 2 → step 3, in place. The wizard keeps advancing inside the page.
+function continueToContext() {
+  step.value = 3;
+  window.scrollTo({ top: 0 });
+}
+
+function onPriorityChange(p: { total: number; band: string; bandLabel: string }) {
+  priority.scored = true;
+  priority.total = p.total;
+  priority.band = p.band;
+  priority.bandLabel = p.bandLabel;
+}
+
+// Step 3 → the lead detail workspace, where Ficha and later steps live.
+async function continueToFicha() {
   if (leadId.value != null) await navigateTo(`/leads/${leadId.value}`);
 }
 </script>
@@ -148,6 +172,13 @@ async function continueToContext() {
             <span class="rounded-full bg-surface-sunken px-2.5 py-0.5 text-caption font-medium text-ink-muted">
               Evidencia {{ evidence.label }}
             </span>
+            <span
+              v-if="priority.scored"
+              class="rounded-full px-2.5 py-0.5 text-caption font-semibold"
+              :class="BAND_CHIP[priority.band]"
+            >
+              Prioridad {{ priority.bandLabel }} · P {{ priority.total }}
+            </span>
           </template>
         </div>
       </div>
@@ -164,7 +195,8 @@ async function continueToContext() {
             <span class="text-ink-muted">Alcance</span><span>{{ form.alc.trim() || "—" }}</span>
             <span class="text-ink-muted">Fuentes</span>
             <span class="font-mono">{{ evidence.count ? `${evidence.count} · ${evidence.label}` : "—" }}</span>
-            <span class="text-ink-muted">Prioridad</span><span class="font-mono">—</span>
+            <span class="text-ink-muted">Prioridad</span>
+            <span class="font-mono">{{ priority.scored ? `${priority.total} · ${priority.bandLabel}` : "—" }}</span>
           </div>
           <div class="h-1 overflow-hidden rounded-full bg-surface-sunken">
             <div class="h-full bg-success transition-[width] duration-500" :style="{ width: progressPct }" />
@@ -301,6 +333,15 @@ async function continueToContext() {
             @back="step = 1"
             @continue="continueToContext"
             @change="onEvidenceChange"
+          />
+
+          <!-- Step 3 · Contexto & Priorización -->
+          <ContextStep
+            v-else-if="step === 3"
+            :evidence-level="evidence.key"
+            @back="step = 2"
+            @continue="continueToFicha"
+            @change="onPriorityChange"
           />
         </div>
       </section>

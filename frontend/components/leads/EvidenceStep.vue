@@ -9,6 +9,7 @@ import {
   CLAIM,
   EXAMPLE_LINK,
   type CatalogSource,
+  type EvidenceLevel,
   type LaneCard,
   type Relation,
   buildSourceChain,
@@ -23,7 +24,7 @@ const props = defineProps<{ leadId: number }>();
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "continue"): void;
-  (e: "change", payload: { count: number; label: string; tone: string }): void;
+  (e: "change", payload: { count: number; label: string; tone: string; key: EvidenceLevel }): void;
 }>();
 
 const linkedIds = ref<string[]>([]);
@@ -41,7 +42,7 @@ const isLinked = (id: string) => linkedIds.value.includes(id);
 
 watch(
   derived,
-  (d) => emit("change", { count: d.linked.length, label: d.state.label, tone: d.state.tone }),
+  (d) => emit("change", { count: d.linked.length, label: d.state.label, tone: d.state.tone, key: d.state.key }),
   { immediate: true, deep: false }
 );
 
