@@ -181,13 +181,11 @@ def run_ingestion(
     tvn_rss_url: str = "",
 ) -> dict[str, Any]:
     """Run the full ingestion; returns the quality report (also persisted)."""
-    from evidentia.config import get_settings
+    from evidentia.config import get_settings, resolve_data_path
 
     settings = get_settings()
-    data_dir = Path(data_dir or settings.data_dir)
-    seed_dir = Path(seed_dir or settings.seed_dir)
-    if not seed_dir.exists() and (Path("backend") / seed_dir).exists():
-        seed_dir = Path("backend") / seed_dir
+    data_dir = resolve_data_path(data_dir or settings.data_dir)
+    seed_dir = resolve_data_path(seed_dir or settings.seed_dir)
     processed = data_dir / "processed"
     processed.mkdir(parents=True, exist_ok=True)
 
@@ -203,6 +201,10 @@ def run_ingestion(
     if use_seed:
         for name in ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl"):
             src = seed_dir / name
+            if not src.exists():
+                alt = resolve_data_path(Path("data/seed") / name)
+                if alt.exists():
+                    src = alt
             if not src.exists():
                 report["warnings"].append(f"seed file missing: {name}")
                 continue
@@ -331,7 +333,13 @@ def run_ingestion(
 
         enriched, relations = rel_mod.build_article_relations(news.valid)
         with Session(get_engine()) as session:
-            report["graph"] = persist_graph(session, enriched, relations)
+            report["graph"] = persist_graph(
+                session,
+                enriched,
+                relations,
+                indicators=indicators.valid,
+                events=events.valid,
+            )
     except Exception as exc:
         report["warnings"].append(f"graph skipped: {exc}")
         logger.warning("Graph build skipped: %s", exc)

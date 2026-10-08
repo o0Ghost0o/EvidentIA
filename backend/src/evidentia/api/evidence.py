@@ -316,6 +316,9 @@ def get_global_graph(
     limit_relations: int = Query(default=250, ge=10, le=1000),
 ) -> dict:
     """Return the global GraphRAG knowledge graph with nodes and typed relations."""
+    import csv
+    import json
+    from evidentia.config import resolve_data_path
     from evidentia.graph.graph_service import _node_label
 
     rels = session.exec(select(models.Relation).limit(limit_relations)).all()
@@ -333,6 +336,108 @@ def get_global_graph(
             "tipo": r.tipo,
             "peso": r.peso,
         })
+
+    # Central entity for Panama
+    panama_ent = session.exec(
+        select(models.Entity).where(models.Entity.normalizado == "panamá")
+    ).first()
+    if panama_ent is None:
+        try:
+            panama_ent = models.Entity(nombre="Panamá", tipo="LOC", normalizado="panamá")
+            session.add(panama_ent)
+            session.commit()
+            session.refresh(panama_ent)
+        except Exception:
+            session.rollback()
+            panama_ent = session.exec(
+                select(models.Entity).where(models.Entity.normalizado == "panamá")
+            ).first()
+
+    panama_key = f"entity:{panama_ent.id}" if panama_ent else None
+    if panama_ent:
+        node_keys.add(("entity", str(panama_ent.id)))
+
+    # Ensure indicators are represented in the graph
+    has_indicators = any(k[0] == "indicator" for k in node_keys)
+    if not has_indicators or sum(1 for k in node_keys if k[0] == "indicator") < 10:
+        db_inds = session.exec(
+            select(models.Indicator)
+            .where(models.Indicator.pais_iso3 == "PAN")
+            .order_by(models.Indicator.anio.desc())
+            .limit(30)
+        ).all()
+
+        ind_tuples: list[tuple[str, str, int]] = []
+        if db_inds:
+            ind_tuples = [(i.pais_iso3, i.indicador_id, i.anio) for i in db_inds]
+        else:
+            # Fallback to seed/processed CSV
+            for path_cand in ("data/seed/indicadores.csv", "data/processed/indicadores.csv"):
+                p = resolve_data_path(path_cand)
+                if p.exists():
+                    try:
+                        with p.open(encoding="utf-8") as fh:
+                            reader = csv.DictReader(fh)
+                            for row in reader:
+                                if row.get("pais_iso3") == "PAN":
+                                    ind_tuples.append((row["pais_iso3"], row["indicador_id"], int(row.get("anio", 2024))))
+                                    if len(ind_tuples) >= 25:
+                                        break
+                    except Exception:
+                        pass
+                    if ind_tuples:
+                        break
+
+        for iso, iid, yr in ind_tuples:
+            ind_key = f"{iso}:{iid}:{yr}"
+            node_keys.add(("indicator", ind_key))
+            if panama_key:
+                links.append({
+                    "source": f"indicator:{ind_key}",
+                    "target": panama_key,
+                    "tipo": "measures",
+                    "peso": 0.9,
+                })
+
+    # Ensure geophysical events are represented in the graph
+    has_events = any(k[0] == "event" for k in node_keys)
+    if not has_events or sum(1 for k in node_keys if k[0] == "event") < 8:
+        db_evts = session.exec(
+            select(models.GeoEvent)
+            .order_by(models.GeoEvent.time.desc())
+            .limit(20)
+        ).all()
+
+        evt_ids: list[str] = []
+        if db_evts:
+            evt_ids = [e.event_id for e in db_evts]
+        else:
+            # Fallback to seed/processed GeoJSON
+            for path_cand in ("data/seed/eventos.geojson", "data/processed/eventos.geojson"):
+                p = resolve_data_path(path_cand)
+                if p.exists():
+                    try:
+                        data = json.loads(p.read_text(encoding="utf-8"))
+                        for feat in data.get("features", []):
+                            eid = str(feat.get("id") or feat.get("properties", {}).get("id") or "")
+                            if eid:
+                                evt_ids.append(eid)
+                                if len(evt_ids) >= 15:
+                                    break
+                    except Exception:
+                        pass
+                    if evt_ids:
+                        break
+
+        for eid in evt_ids:
+            node_keys.add(("event", eid))
+            if panama_key:
+                links.append({
+                    "source": f"event:{eid}",
+                    "target": panama_key,
+                    "tipo": "geolocated_in",
+                    "peso": 0.85,
+                })
 
     # Also include existing cases and their linked evidence
     cases = session.exec(select(models.Case).limit(20)).all()
