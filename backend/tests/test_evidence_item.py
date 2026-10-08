@@ -184,3 +184,19 @@ def test_not_found_and_invalid_type() -> None:
     client = _auth_client()
     assert client.get("/evidence/item/news/non-existent-id").status_code == 404
     assert client.get("/evidence/item/unknown_type/123").status_code == 400
+
+
+def test_get_global_graph() -> None:
+    data = _seed_test_data()
+    client = _auth_client()
+    resp = client.get("/evidence/graph")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "nodes" in body
+    assert "links" in body
+    assert body["total_nodes"] > 0
+    assert body["total_links"] > 0
+    node_ids = {n["id"] for n in body["nodes"]}
+    assert f"news:{data['news_id']}" in node_ids
+    assert f"entity:{data['entity_id']}" in node_ids
+

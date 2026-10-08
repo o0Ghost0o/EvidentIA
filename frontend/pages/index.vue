@@ -4,7 +4,16 @@ import Input from "~/components/ui/Input.vue";
 import Select from "~/components/ui/Select.vue";
 import StateChip from "~/components/ui/StateChip.vue";
 import ScoreBreakdown from "~/components/ScoreBreakdown.vue";
+import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
 import { api } from "~/composables/useApi";
+
+const modalOpen = ref(false);
+const activeSource = ref<{ tipo: string; id: string } | null>(null);
+
+function inspectSource(sourceId: string) {
+  activeSource.value = { tipo: "news", id: sourceId };
+  modalOpen.value = true;
+}
 
 // Bandeja de temas — the prioritised inbox. Deterministic P ranking with traceable
 // evidence; every row can be opened as a Lead (ficha de evidencia). Layout and
@@ -351,6 +360,28 @@ async function openAsLead(item: RankItem) {
                   {{ r.dedupText }}
                 </span>
               </div>
+
+              <!-- Sources 1-click preview -->
+              <div v-if="r.item.ids_fuente && r.item.ids_fuente.length" class="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span class="text-[11px] font-mono text-ink-muted">Fuentes:</span>
+                <button
+                  v-for="srcId in r.item.ids_fuente.slice(0, 3)"
+                  :key="srcId"
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[11px] text-ink-muted border border-hairline transition-colors hover:border-primary hover:text-primary cursor-pointer"
+                  :title="`Inspeccionar contenido de la noticia ${srcId}`"
+                  @click.stop="inspectSource(srcId)"
+                >
+                  <svg class="h-3 w-3 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  <span>{{ srcId }}</span>
+                </button>
+                <span v-if="r.item.ids_fuente.length > 3" class="text-caption font-mono text-ink-muted">
+                  +{{ r.item.ids_fuente.length - 3 }} más
+                </span>
+              </div>
             </div>
 
             <!-- Prioridad -->
@@ -444,6 +475,14 @@ async function openAsLead(item: RankItem) {
         Ir a Ingesta →
       </NuxtLink>
     </div>
+
+    <!-- Evidence detail interactive modal -->
+    <EvidenceDetailModal
+      v-model:open="modalOpen"
+      :tipo="activeSource?.tipo"
+      :id="activeSource?.id"
+      @navigate="(t, i) => { activeSource = { tipo: t, id: i }; modalOpen = true; }"
+    />
   </div>
 </template>
 

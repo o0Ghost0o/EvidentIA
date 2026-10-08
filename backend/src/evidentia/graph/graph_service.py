@@ -112,8 +112,23 @@ def _node_label(tipo: str, ref: str, session: Session) -> str:
         except (TypeError, ValueError):
             obj = None
         return (obj.nombre if obj else ref) or ref
+    if tipo == "case":
+        try:
+            case_obj = session.get(models.Case, int(ref))
+            return (case_obj.titulo if case_obj else f"Lead #{ref}")
+        except (TypeError, ValueError):
+            return f"Lead #{ref}"
     if tipo == "indicator":
-        return ref
+        from evidentia.retrieval.chunking import COUNTRY_NAMES, INDICATOR_NAMES
+        if ":" in ref:
+            parts = ref.split(":")
+            if len(parts) == 3:
+                p, ind, yr = parts
+                p_name = COUNTRY_NAMES.get(p, p)
+                ind_name = INDICATOR_NAMES.get(ind, ind)
+                return f"{p_name} · {ind_name} ({yr})"
+        from evidentia.retrieval.chunking import INDICATOR_NAMES
+        return INDICATOR_NAMES.get(ref, ref)
     if tipo == "event":
         obj = session.exec(
             select(models.GeoEvent).where(models.GeoEvent.event_id == ref)

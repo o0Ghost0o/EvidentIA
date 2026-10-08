@@ -11,6 +11,7 @@ const showAuthModal = ref(false);
 const nav = [
   { label: "Bandeja", to: "/" },
   { label: "Leads", to: "/leads" },
+  { label: "Grafo", to: "/graph" },
   { label: "Ingesta", to: "/ingest" },
 ];
 

@@ -296,3 +296,66 @@ def get_evidence_item_by_query(
 ) -> EvidenceItemDetail:
     """Resolve enriched details of an evidence item by type and query ID."""
     return _resolve_evidence_item(session, tipo, id)
+
+
+@router.get("/graph")
+def get_global_graph(
+    session: SessionDep,
+    limit_relations: int = Query(default=250, ge=10, le=1000),
+) -> dict:
+    """Return the global GraphRAG knowledge graph with nodes and typed relations."""
+    from evidentia.graph.graph_service import _node_label
+
+    rels = session.exec(select(models.Relation).limit(limit_relations)).all()
+    node_keys: set[tuple[str, str]] = set()
+    links: list[dict[str, Any]] = []
+
+    for r in rels:
+        src = f"{r.origen_tipo}:{r.origen_id}"
+        dst = f"{r.destino_tipo}:{r.destino_id}"
+        node_keys.add((r.origen_tipo, r.origen_id))
+        node_keys.add((r.destino_tipo, r.destino_id))
+        links.append({
+            "source": src,
+            "target": dst,
+            "tipo": r.tipo,
+            "peso": r.peso,
+        })
+
+    # Also include existing cases and their linked evidence
+    cases = session.exec(select(models.Case).limit(20)).all()
+    for c in cases:
+        if c.id is None:
+            continue
+        c_key = ("case", str(c.id))
+        node_keys.add(c_key)
+        ev_items = session.exec(
+            select(models.EvidenceItem).where(models.EvidenceItem.case_id == c.id)
+        ).all()
+        for ev in ev_items:
+            ev_key = f"{ev.fuente_tipo}:{ev.fuente_id}"
+            node_keys.add((ev.fuente_tipo, ev.fuente_id))
+            links.append({
+                "source": f"case:{c.id}",
+                "target": ev_key,
+                "tipo": "has_evidence",
+                "peso": 1.0,
+            })
+
+    nodes: list[dict[str, Any]] = []
+    for tipo, ref in node_keys:
+        label = _node_label(tipo, ref, session)
+        nodes.append({
+            "id": f"{tipo}:{ref}",
+            "ref": ref,
+            "tipo": tipo,
+            "label": label,
+        })
+
+    return {
+        "nodes": nodes,
+        "links": links,
+        "total_nodes": len(nodes),
+        "total_links": len(links),
+    }
+
