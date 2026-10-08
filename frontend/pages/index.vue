@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import type { Component } from "vue";
+import { SlidersHorizontal, Layers, Newspaper, BarChart3, Globe } from "lucide-vue-next";
 import Input from "~/components/ui/Input.vue";
 import Select from "~/components/ui/Select.vue";
+import Button from "~/components/ui/Button.vue";
+import Badge from "~/components/ui/Badge.vue";
 import StateChip from "~/components/ui/StateChip.vue";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "~/components/ui/sheet";
 import ScoreBreakdown from "~/components/ScoreBreakdown.vue";
 import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
 import { api } from "~/composables/useApi";
@@ -81,6 +86,7 @@ const q = ref("");
 const fBand = ref<"all" | Band>("all");
 const fEv = ref<"all" | Evidence>("all");
 const sort = ref<"p" | "u" | "n">("p");
+const filtersOpen = ref(false);
 
 async function refresh() {
   loading.value = true;
@@ -141,15 +147,23 @@ const summary = computed(() => [
   { key: "ins", label: "Evid. insuficiente", dot: "bg-error", n: insItems.value.length, cap: `${insAlto.value} en banda alta`, active: fEv.value === "insuficiente", red: insItems.value.length > 0, onClick: toggleEvInsuf, title: "Filtrar evidencia insuficiente" },
 ]);
 
-const tipoPills = computed(() => [
-  { value: "all" as TopicTipo, label: "Todos", count: countsByType.value.total || items.value.length, icon: "📑" },
-  { value: "news" as TopicTipo, label: "Noticias", count: countsByType.value.news, icon: "📰" },
-  { value: "indicator" as TopicTipo, label: "Indicadores", count: countsByType.value.indicator, icon: "📊" },
-  { value: "event" as TopicTipo, label: "Sismos", count: countsByType.value.event, icon: "🌍" },
+const tipoPills = computed<{ value: TopicTipo; label: string; count: number; icon: Component }[]>(() => [
+  { value: "all", label: "Todos", count: countsByType.value.total || items.value.length, icon: Layers },
+  { value: "news", label: "Noticias", count: countsByType.value.news, icon: Newspaper },
+  { value: "indicator", label: "Indicadores", count: countsByType.value.indicator, icon: BarChart3 },
+  { value: "event", label: "Sismos", count: countsByType.value.event, icon: Globe },
 ]);
 
 const hasFilters = computed(
   () => !!q.value.trim() || fBand.value !== "all" || fEv.value !== "all" || fTipo.value !== "all"
+);
+// Count of active facets, shown as a badge on the Filtros trigger. Search is a
+// separate inline control, so it is not counted here.
+const activeFilterCount = computed(
+  () =>
+    (fTipo.value !== "all" ? 1 : 0) +
+    (fBand.value !== "all" ? 1 : 0) +
+    (fEv.value !== "all" ? 1 : 0)
 );
 function clearFilters() {
   q.value = "";
@@ -351,77 +365,34 @@ async function openAsLead(item: RankItem) {
         </div>
       </div>
 
-      <!-- Segmented filter pills by ingestion family -->
-      <div class="flex flex-wrap items-center gap-2 rounded-md border border-hairline bg-surface p-2 shadow-ev-1">
-        <span class="text-caption font-semibold uppercase text-ink-muted px-2">Tipo de Fuente:</span>
-        <div class="flex flex-wrap items-center gap-1.5">
-          <button
-            v-for="p in tipoPills"
-            :key="p.value"
-            type="button"
-            class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-caption font-semibold transition-all cursor-pointer border"
-            :class="
-              fTipo === p.value
-                ? 'bg-primary text-primary-contrast border-primary shadow-sm'
-                : 'bg-surface-sunken text-ink-muted border-hairline hover:text-ink hover:bg-surface-elevated'
-            "
-            @click="fTipo = p.value"
-          >
-            <span>{{ p.icon }}</span>
-            <span>{{ p.label }}</span>
-            <span
-              class="rounded-full px-1.5 py-0.5 font-mono text-[11px]"
-              :class="fTipo === p.value ? 'bg-white/20 text-primary-contrast' : 'bg-surface text-ink-muted'"
-            >
-              {{ p.count }}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Filter bar -->
+      <!-- Compact bar: search + Filtros drawer trigger -->
       <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Input
           v-model="q"
           placeholder="Buscar tema, indicador o #id..."
           class="min-w-0 flex-1 basis-[220px] font-mono"
         />
-        <!-- Modalidad segmented control (scoring lens) -->
-        <div class="flex gap-0.5 rounded-md bg-surface-sunken p-0.5">
-          <button
-            v-for="m in modOptions"
-            :key="m.value"
-            type="button"
-            class="h-8 rounded-sm px-3 text-body-sm font-semibold transition-colors cursor-pointer"
-            :class="
-              mod === m.value
-                ? 'bg-surface text-ink shadow-ev-1'
-                : 'bg-transparent text-ink-muted hover:text-ink'
-            "
-            @click="mod = m.value as Modalidad"
-          >
-            {{ m.label }}
-          </button>
-        </div>
-        <Select v-model="fBand" :options="bandOptions" class="w-auto min-w-[160px]" />
-        <Select v-model="fEv" :options="evOptions" class="w-auto min-w-[180px]" />
-        <div class="ml-auto flex items-center gap-2">
-          <Select v-model="sort" :options="sortOptions" class="w-auto min-w-[150px]" />
-          <span
-            title="Reglas de priorización · pesos 30 / 25 / 20 / 15 / 10"
-            class="whitespace-nowrap rounded-md border border-hairline bg-surface-sunken px-1.5 py-0.5 font-mono text-caption text-ink-muted"
-          >
-            reglas {{ rulesVersion }}
-          </span>
-          <button
-            v-if="hasFilters"
-            type="button"
-            class="h-9 whitespace-nowrap px-2 text-body-sm font-semibold text-ink-muted transition-colors hover:text-ink cursor-pointer"
-            @click="clearFilters"
-          >
-            Limpiar filtros
-          </button>
-        </div>
+        <Button variant="outline" class="h-9 gap-2" @click="filtersOpen = true">
+          <SlidersHorizontal class="h-4 w-4" aria-hidden="true" />
+          Filtros
+          <Badge v-if="activeFilterCount" variant="default" class="px-1.5 font-mono tabular-nums">
+            {{ activeFilterCount }}
+          </Badge>
+        </Button>
+        <span
+          title="Reglas de priorización · pesos 30 / 25 / 20 / 15 / 10"
+          class="whitespace-nowrap rounded-md border border-hairline bg-surface-sunken px-1.5 py-0.5 font-mono text-caption text-ink-muted"
+        >
+          reglas {{ rulesVersion }}
+        </span>
+        <button
+          v-if="hasFilters"
+          type="button"
+          class="h-9 whitespace-nowrap px-2 text-body-sm font-semibold text-ink-muted transition-colors hover:text-ink cursor-pointer"
+          @click="clearFilters"
+        >
+          Limpiar filtros
+        </button>
       </div>
 
       <!-- Rows -->
@@ -596,6 +567,94 @@ async function openAsLead(item: RankItem) {
         Ir a Ingesta →
       </NuxtLink>
     </div>
+
+    <!-- Filter drawer: every facet lives here. Kept at page root (outside the
+         loading / hasAny branches) so a tipo/modalidad change — which refetches
+         and briefly toggles `loading` — does not unmount and reopen the sheet. -->
+    <Sheet v-model:open="filtersOpen">
+      <SheetContent side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-[420px]">
+        <SheetHeader class="border-b border-hairline p-5">
+          <SheetTitle class="font-serif text-heading-md text-ink">Filtros</SheetTitle>
+          <SheetDescription class="text-caption text-ink-muted">
+            Refina la bandeja por fuente, lente de scoring, banda, evidencia y orden.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div class="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
+          <!-- Tipo de fuente -->
+          <div class="flex flex-col gap-2">
+            <span class="text-label uppercase text-ink-muted">Tipo de fuente</span>
+            <div class="flex flex-col gap-1.5">
+              <button
+                v-for="p in tipoPills"
+                :key="p.value"
+                type="button"
+                class="inline-flex items-center gap-2.5 rounded-md border px-3 py-2 text-body-sm font-semibold transition-colors cursor-pointer min-h-[44px]"
+                :class="
+                  fTipo === p.value
+                    ? 'bg-primary-soft border-primary/40 text-primary'
+                    : 'bg-surface border-hairline text-ink-muted hover:text-ink hover:border-ink-muted'
+                "
+                @click="fTipo = p.value"
+              >
+                <component :is="p.icon" class="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span class="flex-1 text-left">{{ p.label }}</span>
+                <span
+                  class="rounded-full px-1.5 py-0.5 font-mono text-[11px] tabular-nums"
+                  :class="fTipo === p.value ? 'bg-primary/15 text-primary' : 'bg-surface-sunken text-ink-muted'"
+                >
+                  {{ p.count }}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Modalidad (scoring lens) -->
+          <div class="flex flex-col gap-2">
+            <span class="text-label uppercase text-ink-muted">Lente de scoring</span>
+            <div class="flex gap-0.5 rounded-md bg-surface-sunken p-0.5">
+              <button
+                v-for="m in modOptions"
+                :key="m.value"
+                type="button"
+                class="h-9 flex-1 rounded-sm px-3 text-body-sm font-semibold transition-colors cursor-pointer"
+                :class="
+                  mod === m.value
+                    ? 'bg-surface text-ink shadow-ev-1'
+                    : 'bg-transparent text-ink-muted hover:text-ink'
+                "
+                @click="mod = m.value as Modalidad"
+              >
+                {{ m.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Banda -->
+          <div class="flex flex-col gap-2">
+            <span class="text-label uppercase text-ink-muted">Banda de prioridad</span>
+            <Select v-model="fBand" :options="bandOptions" class="w-full" />
+          </div>
+
+          <!-- Evidencia -->
+          <div class="flex flex-col gap-2">
+            <span class="text-label uppercase text-ink-muted">Estado de evidencia</span>
+            <Select v-model="fEv" :options="evOptions" class="w-full" />
+          </div>
+
+          <!-- Orden -->
+          <div class="flex flex-col gap-2">
+            <span class="text-label uppercase text-ink-muted">Orden</span>
+            <Select v-model="sort" :options="sortOptions" class="w-full" />
+          </div>
+        </div>
+
+        <SheetFooter class="flex-row items-center justify-between gap-2 border-t border-hairline p-5">
+          <Button variant="ghost" :disabled="!hasFilters" @click="clearFilters">Limpiar filtros</Button>
+          <Button variant="default" @click="filtersOpen = false">Aplicar</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
 
     <!-- Evidence detail interactive modal -->
     <EvidenceDetailModal
