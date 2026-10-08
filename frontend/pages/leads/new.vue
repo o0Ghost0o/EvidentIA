@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import ContextStep from "~/components/leads/ContextStep.vue";
+import DraftStep from "~/components/leads/DraftStep.vue";
 import EvidenceStep from "~/components/leads/EvidenceStep.vue";
 import FichaStep from "~/components/leads/FichaStep.vue";
 import Button from "~/components/ui/Button.vue";
@@ -35,7 +36,7 @@ const STEPS = [
   { title: "Evidencia", guide: "Prueba «Vincular ejemplo»: tres réplicas del mismo cable cuentan como 1 fuente. Toca una tarjeta para ver su cadena de evidencia.", desc: "Vincula fuentes del catálogo: cada una se ordena según respalde, contradiga o dé contexto a la afirmación.", lockReason: "Crea el lead primero" },
   { title: "Contexto & Priorización", guide: "La prioridad se calcula con reglas versionadas, no a criterio del modelo. Cada componente es explicable.", desc: "Cuánto importa ahora y cuánto respalda la evidencia disponible.", lockReason: "Vincula ≥1 fuente" },
   { title: "Ficha", guide: "La ficha se compone solo con lo vinculado. «Qué falta» es tan importante como lo que hay.", desc: "Qué se reporta, quién, qué lo respalda, qué falta y la acción sugerida.", lockReason: "Calcula la prioridad" },
-  { title: "Borrador", guide: "", desc: "", lockReason: "Confirma la ficha" },
+  { title: "Borrador", guide: "Si la evidencia es insuficiente, este paso se bloquea: puedes volver a vincular fuentes o registrar una abstención.", desc: "Texto generado únicamente a partir de evidencia vinculada, con citas verificables.", lockReason: "Confirma la ficha" },
   { title: "Revisión", guide: "", desc: "", lockReason: "Requiere borrador o abstención" },
 ];
 
@@ -51,6 +52,7 @@ const evidence = reactive({ count: 0, label: "sin fuentes", tone: "neutral", key
 const linkedIds = ref<string[]>([]);
 const priority = reactive({ scored: false, total: 0, band: "", bandLabel: "" });
 const ficha = reactive({ confirmed: false });
+const draftState = reactive({ generated: false, abstained: false });
 
 const BAND_CHIP: Record<string, string> = {
   alto: "bg-destructive/10 text-destructive",
@@ -84,6 +86,11 @@ function railSub(i: number): string {
   if (i === 1) return evidence.count ? `${evidence.count} ${evidence.count === 1 ? "fuente" : "fuentes"} · ${evidence.label}` : "Sin fuentes";
   if (i === 2) return priority.scored ? `P ${priority.total} · ${priority.bandLabel}` : "Por calcular";
   if (i === 3) return ficha.confirmed ? "Confirmada" : "Por confirmar";
+  if (i === 4) {
+    if (draftState.abstained) return "Abstención registrada";
+    if (draftState.generated) return "Borrador listo";
+    return evidence.key === "insuficiente" ? "Evidencia insuficiente" : "Listo para generar";
+  }
   return STEPS[i].desc;
 }
 function railState(i: number): "done" | "active" | "locked" {
@@ -154,8 +161,19 @@ function onFichaChange(p: { confirmed: boolean }) {
   ficha.confirmed = p.confirmed;
 }
 
-// Step 4 → the lead detail workspace, where Borrador and later steps live.
-async function continueToDraft() {
+// Step 4 → step 5 "Borrador", in place.
+function continueToDraft() {
+  step.value = 5;
+  window.scrollTo({ top: 0 });
+}
+
+function onDraftChange(p: { draft: boolean; abstained: boolean }) {
+  draftState.generated = p.draft;
+  draftState.abstained = p.abstained;
+}
+
+// Step 5 → the lead detail workspace, where Revisión and the audit trail live.
+async function continueToReview() {
   if (leadId.value != null) await navigateTo(`/leads/${leadId.value}`);
 }
 </script>
@@ -367,6 +385,17 @@ async function continueToDraft() {
             @back="step = 3"
             @continue="continueToDraft"
             @change="onFichaChange"
+          />
+
+          <!-- Step 5 · Borrador -->
+          <DraftStep
+            v-else-if="step === 5"
+            :linked-ids="linkedIds"
+            :title="form.title"
+            @back="step = 4"
+            @go-evidence="step = 2"
+            @continue="continueToReview"
+            @change="onDraftChange"
           />
         </div>
       </section>
