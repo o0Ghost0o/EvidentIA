@@ -17,14 +17,15 @@ const props = withDefaults(
     title: string;
     readonly?: boolean;
     customCatalog?: any[];
+    initialPkg?: BriefPackage | null;
   }>(),
-  { readonly: false }
+  { readonly: false, initialPkg: null }
 );
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "continue"): void;
   (e: "goEvidence"): void;
-  (e: "change", payload: { draft: boolean; abstained: boolean }): void;
+  (e: "change", payload: { draft: boolean; abstained: boolean; pkg: BriefPackage | null }): void;
 }>();
 
 export type DraftClass = "hecho" | "declaración" | "inferencia" | "hipótesis";
@@ -44,7 +45,7 @@ export interface SentenceBreakdownItem {
 }
 
 // Brief package as returned by the backend (tvn / banca share these keys).
-interface BriefPackage {
+export interface BriefPackage {
   modalidad: string;
   abstained: boolean;
   reason?: string;
@@ -64,7 +65,8 @@ interface BriefPackage {
   sentences?: SentenceBreakdownItem[];
 }
 
-const pkg = ref<BriefPackage | null>(null);
+// Seed from the parent so a back-then-forward keeps the generated draft.
+const pkg = ref<BriefPackage | null>(props.initialPkg);
 const generating = ref(false);
 const error = ref("");
 
@@ -110,8 +112,8 @@ async function generate() {
 }
 
 watch(
-  [draftReady, abstained],
-  () => emit("change", { draft: draftReady.value, abstained: abstained.value }),
+  [draftReady, abstained, pkg],
+  () => emit("change", { draft: draftReady.value, abstained: abstained.value, pkg: pkg.value }),
   { immediate: true }
 );
 

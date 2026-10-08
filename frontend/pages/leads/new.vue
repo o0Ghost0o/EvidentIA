@@ -12,6 +12,8 @@ import Select from "~/components/ui/Select.vue";
 import Textarea from "~/components/ui/Textarea.vue";
 import { api } from "~/composables/useApi";
 import type { EvidenceLevel } from "~/lib/leadEvidence";
+import type { LinkedItem, ScoreResponse } from "~/lib/leadWizard";
+import type { BriefPackage } from "~/components/leads/DraftStep.vue";
 
 // New lead — the Lead Workspace wizard. Step 1 "Definir" captures the minimum that
 // makes a lead exist (título + modalidad); once created, the flow advances in place
@@ -60,11 +62,17 @@ const submitError = ref("");
 const step = ref(1);
 const leadId = ref<number | null>(null);
 const evidence = reactive({ count: 0, label: "sin fuentes", tone: "neutral", key: "none" as EvidenceLevel });
-const linkedIds = ref<string[]>([]);
+// Full linked set lives here so each step re-seeds from the parent after a
+// back-then-forward; linkedIds is the id-only view the later steps consume.
+const evidenceItems = ref<LinkedItem[]>([]);
+const linkedIds = computed(() => evidenceItems.value.map((i) => i.fuenteId));
 const priority = reactive({ scored: false, total: 0, band: "", bandLabel: "" });
+const priorityScore = ref<ScoreResponse | null>(null);
 const ficha = reactive({ confirmed: false });
 const draftState = reactive({ generated: false, abstained: false });
+const draftPkg = ref<BriefPackage | null>(null);
 const reviewState = reactive({ saved: false, label: "" });
+const reviewDraft = reactive({ review: "", note: "" });
 
 const BAND_CHIP: Record<string, string> = {
   alto: "bg-destructive/10 text-destructive",
@@ -144,12 +152,12 @@ async function createLead() {
   }
 }
 
-function onEvidenceChange(p: { count: number; label: string; tone: string; key: EvidenceLevel; linkedIds: string[] }) {
+function onEvidenceChange(p: { count: number; label: string; tone: string; key: EvidenceLevel; linkedIds: string[]; items: LinkedItem[] }) {
   evidence.count = p.count;
   evidence.label = p.label;
   evidence.tone = p.tone;
   evidence.key = p.key;
-  linkedIds.value = p.linkedIds;
+  evidenceItems.value = p.items;
 }
 
 // Step 2 → step 3, in place. The wizard keeps advancing inside the page.
@@ -158,11 +166,12 @@ function continueToContext() {
   window.scrollTo({ top: 0 });
 }
 
-function onPriorityChange(p: { total: number; band: string; bandLabel: string }) {
+function onPriorityChange(p: { total: number; band: string; bandLabel: string; score: ScoreResponse | null }) {
   priority.scored = true;
   priority.total = p.total;
   priority.band = p.band;
   priority.bandLabel = p.bandLabel;
+  priorityScore.value = p.score;
 }
 
 // Step 3 → step 4 "Ficha", in place.
@@ -181,9 +190,10 @@ function continueToDraft() {
   window.scrollTo({ top: 0 });
 }
 
-function onDraftChange(p: { draft: boolean; abstained: boolean }) {
+function onDraftChange(p: { draft: boolean; abstained: boolean; pkg: BriefPackage | null }) {
   draftState.generated = p.draft;
   draftState.abstained = p.abstained;
+  draftPkg.value = p.pkg;
 }
 
 // Step 5 → step 6 "Revisión", in place.
@@ -197,6 +207,11 @@ function onReviewChange(p: { saved: boolean; estado: string; label: string }) {
   reviewState.label = p.label;
 }
 
+function onReviewDraft(p: { review: string; note: string }) {
+  reviewDraft.review = p.review;
+  reviewDraft.note = p.note;
+}
+
 // "Crear otro lead" — reset the wizard to a blank step 1.
 function restartWizard() {
   Object.assign(form, { title: "", mod: "", modalidad: "tvn", alc: "", q: "" });
@@ -204,11 +219,14 @@ function restartWizard() {
   submitError.value = "";
   leadId.value = null;
   Object.assign(evidence, { count: 0, label: "sin fuentes", tone: "neutral", key: "none" as EvidenceLevel });
-  linkedIds.value = [];
+  evidenceItems.value = [];
   Object.assign(priority, { scored: false, total: 0, band: "", bandLabel: "" });
+  priorityScore.value = null;
   ficha.confirmed = false;
   Object.assign(draftState, { generated: false, abstained: false });
+  draftPkg.value = null;
   Object.assign(reviewState, { saved: false, label: "" });
+  Object.assign(reviewDraft, { review: "", note: "" });
   step.value = 1;
   window.scrollTo({ top: 0 });
 }
@@ -412,6 +430,7 @@ function restartWizard() {
             v-else-if="step === 2 && leadId != null"
             :lead-id="leadId"
             :modalidad="form.modalidad"
+            :initial-items="evidenceItems"
             @back="step = 1"
             @continue="continueToContext"
             @change="onEvidenceChange"
@@ -422,6 +441,8 @@ function restartWizard() {
             v-else-if="step === 3 && leadId != null"
             :lead-id="leadId"
             :evidence-level="evidence.key"
+            :initial-scored="priority.scored"
+            :initial-score="priorityScore"
             @back="step = 2"
             @continue="continueToFicha"
             @change="onPriorityChange"
@@ -444,6 +465,7 @@ function restartWizard() {
             :lead-id="leadId"
             :linked-ids="linkedIds"
             :title="form.title"
+            :initial-pkg="draftPkg"
             @back="step = 4"
             @go-evidence="step = 2"
             @continue="continueToReview"
@@ -457,9 +479,12 @@ function restartWizard() {
             :abstained="draftState.abstained"
             :linked-ids="linkedIds"
             :title="form.title"
+            :initial-review="reviewDraft.review"
+            :initial-note="reviewDraft.note"
             @back="step = 5"
             @restart="restartWizard"
             @change="onReviewChange"
+            @draft="onReviewDraft"
           />
         </div>
       </section>

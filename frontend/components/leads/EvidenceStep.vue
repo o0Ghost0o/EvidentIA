@@ -51,7 +51,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "continue"): void;
-  (e: "change", payload: { count: number; label: string; tone: string; key: EvidenceLevel; linkedIds: string[] }): void;
+  (e: "change", payload: { count: number; label: string; tone: string; key: EvidenceLevel; linkedIds: string[]; items: LinkedItem[] }): void;
 }>();
 
 // Linked set, seeded from any already-saved evidence (lead detail / resume).
@@ -119,7 +119,7 @@ async function refreshScore() {
 }
 
 watch(
-  [level, linkedIds],
+  [level, linked],
   () => {
     emit("change", {
       count: linked.value.length,
@@ -127,9 +127,10 @@ watch(
       tone: state.value.tone,
       key: level.value,
       linkedIds: [...linkedIds.value],
+      items: linked.value.map((l) => ({ ...l })),
     });
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 );
 
 // --- Persistence (optimistic) --------------------------------------------

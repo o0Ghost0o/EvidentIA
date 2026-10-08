@@ -17,18 +17,25 @@ import {
 // never unlocks the draft — it is surfaced as a warning; the score alone never
 // authorises publication.
 const props = withDefaults(
-  defineProps<{ leadId: number; evidenceLevel?: EvidenceLevel; readonly?: boolean }>(),
-  { evidenceLevel: "none", readonly: false }
+  defineProps<{
+    leadId: number;
+    evidenceLevel?: EvidenceLevel;
+    readonly?: boolean;
+    initialScored?: boolean;
+    initialScore?: ScoreResponse | null;
+  }>(),
+  { evidenceLevel: "none", readonly: false, initialScored: false, initialScore: null }
 );
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "continue"): void;
-  (e: "change", payload: { total: number; band: string; bandLabel: string }): void;
+  (e: "change", payload: { total: number; band: string; bandLabel: string; score: ScoreResponse | null }): void;
 }>();
 
 const scoring = ref(false);
-const scored = ref(false);
-const score = ref<ScoreResponse | null>(null);
+// Seed from the parent so a back-then-forward keeps the computed priority.
+const scored = ref(props.initialScored);
+const score = ref<ScoreResponse | null>(props.initialScore);
 const error = ref("");
 
 // Weight display order follows the formula P = 30R + 25I + 20U + 15N + 10E.
@@ -87,6 +94,7 @@ async function fetchScore() {
       total: score.value.P,
       band: score.value.band,
       bandLabel: BAND_LABEL[score.value.band],
+      score: score.value,
     });
   } catch (err: any) {
     error.value = err?.data?.detail || err?.message || "No se pudo calcular la prioridad.";
