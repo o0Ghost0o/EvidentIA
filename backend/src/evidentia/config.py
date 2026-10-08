@@ -7,6 +7,8 @@ without any mandatory secrets. No secrets are hard-coded here.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -103,3 +105,25 @@ def reset_settings() -> None:
     """Drop the cached Settings (tests only)."""
     global _settings
     _settings = None
+
+
+def resolve_data_path(rel_path: str | Path = "data") -> Path:
+    """Resolve a data or seed path reliably whether run from repo root or backend/."""
+    p = Path(rel_path)
+    if p.is_absolute() and p.exists():
+        return p
+    if p.exists():
+        return p.resolve()
+    # Check relative to repo root (parents[3] of this file)
+    repo_root = Path(__file__).resolve().parents[3]
+    candidate = repo_root / p
+    if candidate.exists():
+        return candidate.resolve()
+    # Check parent of current working directory
+    curr = Path.cwd()
+    if (curr / p).exists():
+        return (curr / p).resolve()
+    if (curr.parent / p).exists():
+        return (curr.parent / p).resolve()
+    return candidate
+

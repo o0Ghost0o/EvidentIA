@@ -13,6 +13,7 @@ const nav = [
   { label: "Leads", to: "/leads" },
   { label: "Grafo", to: "/graph" },
   { label: "Ingesta", to: "/ingest" },
+  { label: "Modo Jurado", to: "/jurado", isJurado: true },
 ];
 
 function isActive(to: string): boolean {
@@ -72,14 +73,20 @@ onMounted(() => {
             v-for="item in nav"
             :key="item.to"
             :to="item.to"
-            class="border-b-2 py-[18px] text-label uppercase no-underline transition-colors"
+            class="flex items-center gap-1.5 border-b-2 py-[18px] text-label uppercase no-underline transition-colors"
             :class="
               isActive(item.to)
-                ? 'border-primary text-primary'
+                ? 'border-primary text-primary font-semibold'
                 : 'border-transparent text-ink-muted hover:text-ink'
             "
           >
-            {{ item.label }}
+            <span>{{ item.label }}</span>
+            <span
+              v-if="item.isJurado"
+              class="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary border border-primary/20"
+            >
+              T01–T10
+            </span>
           </NuxtLink>
         </nav>
 

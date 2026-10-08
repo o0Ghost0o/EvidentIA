@@ -119,8 +119,9 @@ class BM25Index:
 def load_seed_corpus(seed_dir: Path | str = "data/seed") -> list[dict[str, Any]]:
     """Load news and indicators from seed snapshot."""
     import csv
+    from evidentia.config import resolve_data_path
 
-    path = Path(seed_dir)
+    path = resolve_data_path(seed_dir)
     corpus: list[dict[str, Any]] = []
 
     # 1. News from noticias.csv
@@ -159,11 +160,13 @@ def evaluate_benchmark(
     top_k: int = 5,
 ) -> dict[str, Any]:
     """Run comparative benchmark: BM25 baseline vs Semantic retriever."""
+    from evidentia.config import resolve_data_path
+
     corpus = load_seed_corpus(seed_dir)
     bm25 = BM25Index()
     bm25.index(corpus)
 
-    bench_file = Path(benchmark_path)
+    bench_file = resolve_data_path(benchmark_path)
     if not bench_file.exists():
         raise FileNotFoundError(f"Benchmark file not found: {bench_file}")
 

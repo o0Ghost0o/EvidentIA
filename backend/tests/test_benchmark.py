@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from evidentia.config import resolve_data_path
 from evidentia.evaluation.benchmark_runner import (
     load_corpus_dict,
     split_benchmark,
@@ -12,7 +13,7 @@ from evidentia.evaluation.benchmark_runner import (
 
 
 def test_benchmark_40_20_split_distribution() -> None:
-    bench_file = Path("data/benchmark.jsonl")
+    bench_file = resolve_data_path("data/benchmark.jsonl")
     assert bench_file.exists()
     dev_queries, reserved_queries = split_benchmark(bench_file)
 
@@ -34,7 +35,7 @@ def test_benchmark_40_20_split_distribution() -> None:
 
 
 def test_benchmark_results_metrics_compliance() -> None:
-    results_file = Path("data/benchmark_results_40.json")
+    results_file = resolve_data_path("data/benchmark_results_40.json")
     assert results_file.exists(), "Benchmark results file must exist"
 
     data = json.loads(results_file.read_text(encoding="utf-8"))

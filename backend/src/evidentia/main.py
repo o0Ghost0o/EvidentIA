@@ -23,6 +23,7 @@ from evidentia.api.cases import router as cases_router
 from evidentia.api.evidence import router as evidence_router
 from evidentia.api.health import router as health_router
 from evidentia.api.ingest import router as ingest_router
+from evidentia.api.jurado import router as jurado_router
 from evidentia.api.ranking import router as ranking_router
 from evidentia.auth.dependencies import get_current_user
 from evidentia.config import get_settings
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(ranking_router, dependencies=[Depends(get_current_user)])
     app.include_router(cases_router, dependencies=[Depends(get_current_user)])
     app.include_router(evidence_router, dependencies=[Depends(get_current_user)])
+    app.include_router(jurado_router, dependencies=[Depends(get_current_user)])
     return app
 
 

@@ -12,6 +12,7 @@ from evidentia.scoring.deduplication import label_group
 
 
 def test_T01_invalid_dates_and_nulls_do_not_block_load() -> None:
+    """Validar, separar errores y conservar nulos sin bloquear la carga del lote."""
     res = validators.validate_news([{
         "titulo": "t", "url": "https://example.com/t01", "medio": "",
         "fecha_publicacion": "31/02/2026", "fecha_deteccion": None,
@@ -24,6 +25,7 @@ def test_T01_invalid_dates_and_nulls_do_not_block_load() -> None:
 
 
 def test_T02_three_records_same_event_group_once() -> None:
+    """Agrupar réplicas del mismo evento en 1 procedencia; no triplicar importancia ni corroboración."""
     members = [
         {"id_noticia": f"e{i}", "agencia_primaria": "EFE"} for i in range(3)
     ]
@@ -34,6 +36,7 @@ def test_T02_three_records_same_event_group_once() -> None:
 
 
 def test_T03_recirculated_old_news_keeps_original_date() -> None:
+    """Preservar fecha original de noticia recirculada; no presentarla como evento nuevo ni urgente (U=0)."""
     old = datetime.now(timezone.utc) - timedelta(days=400)
     assert scoring.urgency(old) == 0.0  # never surfaced as breaking
     res = validators.validate_news([{
@@ -44,6 +47,7 @@ def test_T03_recirculated_old_news_keeps_original_date() -> None:
 
 
 def test_T04_world_bank_figure_keeps_country_year_unit() -> None:
+    """Cifra anual del Banco Mundial mantiene país, año y unidad; cita explícita sin describirla como dato de hoy."""
     parent = chunking.build_indicator_parent({
         "pais_iso3": "PAN", "indicador_id": "NY.GDP.MKTP.KD.ZG", "anio": 2024,
         "valor": 2.74, "unidad": "% anual", "fuente_url": "https://api.worldbank.org",
@@ -56,6 +60,7 @@ def test_T04_world_bank_figure_keeps_country_year_unit() -> None:
 
 
 def test_T05_incompatible_claims_both_shown_with_pending_review() -> None:
+    """Afirmaciones incompatibles muestran ambas versiones y revisión pendiente; no elegir arbitrariamente."""
     articles = [
         {"id_noticia": "t5a", "titulo": "Panamá crece 2.7% en 2024, cifra oficial",
          "url": "https://a.example/1", "medio": "A"},
@@ -69,6 +74,7 @@ def test_T05_incompatible_claims_both_shown_with_pending_review() -> None:
 
 
 def test_T06_unanswerable_query_abstains() -> None:
+    """Consulta sin respuesta en el corpus emite abstención explícita; ninguna cifra o cita inventada."""
     from evidentia.generation.synthesizer import Synthesiser
 
     class _Stub:
@@ -81,6 +87,7 @@ def test_T06_unanswerable_query_abstains() -> None:
 
 
 def test_T07_injection_source_is_data_and_forged_citations_stripped() -> None:
+    """Fuente con prompt injection tratada como dato no confiable; citas forjadas eliminadas y clave protegida."""
     from evidentia.generation.synthesizer import (
         SYSTEM_PROMPT,
         EvidenceDoc,
@@ -106,6 +113,7 @@ def test_T07_injection_source_is_data_and_forged_citations_stripped() -> None:
 
 
 def test_T08_high_priority_exposes_components_without_enabling_publish() -> None:
+    """Caso de prioridad alta expone fórmula P=30R+25I+20U+15N+10E; prioridad alta no habilita auto-publicación."""
     now = datetime.now(timezone.utc)
     res = scoring.score_topic(
         title="Panamá aprueba ampliación del Canal", group_size=1,
@@ -119,6 +127,7 @@ def test_T08_high_priority_exposes_components_without_enabling_publish() -> None
 
 
 def test_T09_brief_format_citations_and_fact_vs_inference() -> None:
+    """Brief TVN con citas trazables, límites de palabras y distinción de [HECHO] e [INFERENCIA]."""
     from evidentia.briefs import tvn
     from evidentia.generation.synthesizer import EvidenceDoc, Synthesiser
 
@@ -162,6 +171,7 @@ G
 
 
 def test_T10_seed_mode_never_touches_network(tmp_path, monkeypatch) -> None:
+    """Modo seed snapshot offline opera sin conexión y nunca toca la red durante la ingesta."""
     import csv
     import json
 
