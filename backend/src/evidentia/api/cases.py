@@ -28,11 +28,16 @@ class CaseCreate(BaseModel):
 
 
 def _infer_source_type(ev_id: str) -> str:
-    if ev_id.startswith("evt-"):
+    ev_lower = ev_id.lower().strip()
+    if ev_lower.startswith("evt-") or ev_lower.startswith("geo:") or ev_lower.startswith("us"):
         return "event"
-    if ev_id.startswith("ind-") or (":" in ev_id and not ev_id.startswith("http")):
+    if (
+        ev_lower.startswith("ind-")
+        or ev_lower.startswith("ind:")
+        or (":" in ev_id and not ev_id.startswith("http"))
+    ):
         return "indicator"
-    if ev_id.startswith("doc-") or ev_id.startswith("res-"):
+    if ev_lower.startswith("doc-") or ev_lower.startswith("res-"):
         return "document"
     return "news"
 
@@ -183,13 +188,67 @@ def _compute_activity_flags(
 
 
 def _auto_link_cluster_evidence(session: Session, case: models.Case) -> list[models.EvidenceItem]:
-    """Auto-link event cluster evidence if the case has 0 evidence items."""
+    """Auto-link event cluster evidence, indicators, or events if the case has 0 evidence items."""
     existing = session.exec(
         select(models.EvidenceItem).where(models.EvidenceItem.case_id == case.id)
     ).all()
     if existing:
         return list(existing)
 
+    created_items: list[models.EvidenceItem] = []
+
+    # 1. Indicators auto-link
+    ind_flag = next(
+        (f.replace("topic_id:", "") for f in (case.flags or []) if f.startswith("topic_id:ind:") or f.startswith("ind:")),
+        None,
+    )
+    if ind_flag:
+        parts = ind_flag.split(":")
+        if len(parts) >= 3:
+            pais, ind_code = parts[1], parts[2]
+            inds = list(
+                session.exec(
+                    select(models.Indicator)
+                    .where(models.Indicator.pais_iso3 == pais, models.Indicator.indicador_id == ind_code)
+                    .order_by(models.Indicator.anio.desc())  # type: ignore[attr-defined]
+                ).all()
+            )
+            for ind in inds:
+                item = models.EvidenceItem(
+                    case_id=case.id,
+                    fuente_tipo="indicator",
+                    fuente_id=f"{ind.pais_iso3}:{ind.indicador_id}:{ind.anio}",
+                    rol="respaldo",
+                    marcado_manual=False,
+                )
+                session.add(item)
+                created_items.append(item)
+            if created_items:
+                session.commit()
+                return created_items
+
+    # 2. Geophysical events auto-link
+    geo_flag = next(
+        (f.replace("topic_id:", "") for f in (case.flags or []) if f.startswith("topic_id:geo:") or f.startswith("geo:")),
+        None,
+    )
+    if geo_flag:
+        evt_id = geo_flag.replace("geo:", "")
+        evt = session.exec(select(models.Event).where(models.Event.id == evt_id)).first()
+        if evt:
+            item = models.EvidenceItem(
+                case_id=case.id,
+                fuente_tipo="event",
+                fuente_id=evt.id,
+                rol="respaldo",
+                marcado_manual=False,
+            )
+            session.add(item)
+            created_items.append(item)
+            session.commit()
+            return created_items
+
+    # 3. News cluster auto-link
     group_ids = [f for f in (case.flags or []) if f.startswith("evt-")]
     candidate_articles: list[models.NewsArticle] = []
 
@@ -224,7 +283,6 @@ def _auto_link_cluster_evidence(session: Session, case: models.Case) -> list[mod
         else:
             target_articles = candidate_articles
 
-    created_items: list[models.EvidenceItem] = []
     for art in target_articles:
         item = models.EvidenceItem(
             case_id=case.id,
@@ -244,6 +302,8 @@ def _auto_link_cluster_evidence(session: Session, case: models.Case) -> list[mod
 
 
 def _case_detail(session: Session, case: models.Case) -> dict:
+    from evidentia.api.evidence import _resolve_evidence_item
+
     evidence = session.exec(
         select(models.EvidenceItem).where(models.EvidenceItem.case_id == case.id)
     ).all()
@@ -253,23 +313,141 @@ def _case_detail(session: Session, case: models.Case) -> dict:
         select(models.VerificationNote).where(models.VerificationNote.case_id == case.id)
     ).all()
     activity_flags = _compute_activity_flags(case, evidence, notes)
+
+    enriched_evidence = []
+    for e in evidence:
+        edata = {
+            "id": e.id,
+            "fuente_tipo": e.fuente_tipo,
+            "fuente_id": e.fuente_id,
+            "rol": e.rol,
+            "nota": e.nota,
+            "marcado_manual": e.marcado_manual,
+            "titulo": e.fuente_id,
+            "fuente_nombre": None,
+            "fecha": None,
+            "cita_codigo": f"[{e.fuente_id}]",
+            "cita_texto": None,
+            "url": None,
+            "descripcion": None,
+            "detalles": {},
+        }
+        try:
+            resolved = _resolve_evidence_item(session, e.fuente_tipo, e.fuente_id)
+            edata.update({
+                "titulo": resolved.titulo,
+                "descripcion": resolved.descripcion,
+                "fuente_nombre": resolved.fuente_nombre,
+                "fecha": resolved.fecha,
+                "cita_codigo": resolved.cita_codigo,
+                "cita_texto": resolved.cita_texto,
+                "url": resolved.url,
+                "detalles": resolved.detalles,
+            })
+        except Exception:
+            pass
+        enriched_evidence.append(edata)
+
     return {
         "id": case.id, "titulo": case.titulo, "modalidad": case.modalidad,
         "queries": case.queries, "estado": case.estado,
         "flags": case.flags or [],
         "activity_flags": activity_flags,
         "created_at": case.created_at, "updated_at": case.updated_at,
-        "evidence": [
-            {"id": e.id, "fuente_tipo": e.fuente_tipo, "fuente_id": e.fuente_id,
-             "rol": e.rol, "nota": e.nota, "marcado_manual": e.marcado_manual}
-            for e in evidence
-        ],
+        "evidence": enriched_evidence,
         "notes": [
             {"id": n.id, "autor": n.autor, "estado_revision": n.estado_revision,
              "texto": n.texto, "created_at": n.created_at}
             for n in notes
         ],
     }
+
+
+@router.get("/catalog")
+def get_catalog(
+    session: SessionDep,
+    q: str | None = Query(default=None, description="Search term across sources"),
+    tipo: str | None = Query(default=None, description="news | indicator | event | document"),
+    limit: int = Query(default=60, ge=1, le=200),
+) -> list[dict]:
+    """Return linkable sources from the real database for the evidence catalog drawer."""
+    results: list[dict] = []
+
+    # 1. News
+    if not tipo or tipo in ("news", "noticia"):
+        news_q = select(models.NewsArticle)
+        if q:
+            news_q = news_q.where(models.NewsArticle.titulo.ilike(f"%{q}%"))
+        news_items = session.exec(news_q.order_by(models.NewsArticle.fecha_publicacion.desc()).limit(limit)).all()
+        for art in news_items:
+            results.append({
+                "id": art.id_noticia,
+                "title": art.titulo,
+                "type": "Noticia",
+                "rel": "Respalda",
+                "s": art.titulo,
+                "c": "cifra",
+                "p": art.agencia_primaria or art.medio or "Prensa",
+                "ag": bool(art.agencia_primaria),
+                "m": art.medio,
+                "d": art.fecha_publicacion.strftime("%d %b %Y") if art.fecha_publicacion else "",
+                "x": f"«{art.titulo}»",
+            })
+
+    # 2. Indicators
+    if not tipo or tipo in ("indicator", "indicador"):
+        ind_q = select(models.Indicator)
+        if q:
+            ind_q = ind_q.where(
+                (models.Indicator.indicador_id.ilike(f"%{q}%"))
+                | (models.Indicator.pais_iso3.ilike(f"%{q}%"))
+            )
+        ind_items = session.exec(
+            ind_q.order_by(models.Indicator.anio.desc()).limit(limit)
+        ).all()
+        for ind in ind_items:
+            fid = f"{ind.pais_iso3}:{ind.indicador_id}:{ind.anio}"
+            val_str = f"{ind.valor} {ind.unidad or ''}".strip() if ind.valor is not None else "N/D"
+            title = f"{ind.pais_iso3} · {ind.indicador_id} ({ind.anio})"
+            results.append({
+                "id": fid,
+                "title": title,
+                "type": "Indicador",
+                "rel": "Respalda",
+                "s": f"{title}: {val_str}",
+                "c": "valor",
+                "p": f"{ind.pais_iso3}:{ind.indicador_id}",
+                "ag": False,
+                "m": "Banco Mundial",
+                "d": str(ind.anio),
+                "x": f"Dato oficial BM {ind.anio}: {val_str}",
+            })
+
+    # 3. GeoEvents
+    if not tipo or tipo in ("event", "evento"):
+        geo_q = select(models.GeoEvent)
+        if q:
+            geo_q = geo_q.where(models.GeoEvent.place.ilike(f"%{q}%"))
+        geo_items = session.exec(
+            geo_q.order_by(models.GeoEvent.time.desc()).limit(limit)
+        ).all()
+        for ev in geo_items:
+            title = f"Sismo M{ev.magnitude} — {ev.place or 'Región Panamá'}"
+            results.append({
+                "id": ev.event_id,
+                "title": title,
+                "type": "Evento",
+                "rel": "Contexto",
+                "s": title,
+                "c": "registro",
+                "p": "USGS",
+                "ag": False,
+                "m": "USGS Earthquake Hazards Program",
+                "d": ev.time.strftime("%d %b %Y") if ev.time else "",
+                "x": f"Sismo de magnitud {ev.magnitude} registrado a {ev.depth or 0} km de profundidad",
+            })
+
+    return results[:limit]
 
 
 @router.post("", status_code=201)

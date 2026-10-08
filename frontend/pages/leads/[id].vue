@@ -26,6 +26,14 @@ interface EvidenceItem {
   rol: string;
   nota: string | null;
   marcado_manual: boolean;
+  titulo?: string;
+  descripcion?: string | null;
+  fuente_nombre?: string | null;
+  fecha?: string | null;
+  cita_codigo?: string | null;
+  cita_texto?: string | null;
+  url?: string | null;
+  detalles?: Record<string, any>;
 }
 interface NoteItem {
   id: number;
@@ -68,7 +76,7 @@ const evidenceItems = computed(() =>
     fuenteId: e.fuente_id,
     fuenteTipo: e.fuente_tipo,
     rol: e.rol,
-    titulo: e.nota || e.fuente_id,
+    titulo: e.titulo || e.nota || e.fuente_id,
   }))
 );
 const evidenceLevel = computed<EvidenceLevel>(() =>
@@ -81,20 +89,41 @@ const alcance = computed(() => {
   const f = (detail.value?.flags ?? []).find((x) => x.toLowerCase().startsWith("alcance:"));
   return f ? f.slice(f.indexOf(":") + 1).trim() : "";
 });
+
+// Modalidad: prioritize detail.modalidad (tvn / banca) formatted, or workflow modality from flags ("Investigación", "Verificación", "Seguimiento")
+const WORKFLOW_MODALITIES = new Set(["investigación", "investigacion", "verificación", "verificacion", "seguimiento"]);
 const modalidadFlag = computed(() => {
-  const f = (detail.value?.flags ?? []).find((x) => !x.toLowerCase().startsWith("alcance:"));
+  const f = (detail.value?.flags ?? []).find((x) => WORKFLOW_MODALITIES.has(x.toLowerCase()));
   return f ?? "";
 });
-const modalidad = computed(() => modalidadFlag.value || modalidadLabel(detail.value?.modalidad ?? ""));
+const modalidad = computed(() => {
+  if (modalidadFlag.value) return modalidadFlag.value;
+  const mod = (detail.value?.modalidad ?? "").toLowerCase();
+  if (mod === "tvn") return "TVN";
+  if (mod === "banca") return "Banca";
+  return modalidadLabel(detail.value?.modalidad ?? "") || "Investigación";
+});
 const pregunta = computed(() => detail.value?.queries?.[0] ?? "");
 
 const review = computed(() => reviewMeta(detail.value?.estado ?? "nuevo"));
 // With no primary source the workspace treats the lead as an abstention.
 const abstained = computed(() => evidenceLevel.value === "insuficiente");
 
-const priorityTotal = computed(() => score.value?.P ?? 0);
-const priorityBandKey = computed(() => score.value?.band ?? "bajo");
-const priorityBand = computed(() => BAND_LABEL[priorityBandKey.value]);
+// Priority extraction: score endpoint prioritized, flags fallback
+const scoreFromFlag = computed(() => {
+  const f = (detail.value?.flags ?? []).find((x) => x.startsWith("p:"));
+  return f ? parseFloat(f.slice(2)) : null;
+});
+const bandFromFlag = computed(() => {
+  const f = (detail.value?.flags ?? []).find((x) => x.startsWith("band:"));
+  return f ? (f.slice(5) as "alto" | "medio" | "bajo") : null;
+});
+
+const priorityTotal = computed(() => score.value?.P ?? scoreFromFlag.value ?? 0);
+const priorityBandKey = computed<"alto" | "medio" | "bajo">(() =>
+  score.value?.band ?? bandFromFlag.value ?? "bajo"
+);
+const priorityBand = computed(() => BAND_LABEL[priorityBandKey.value] || priorityBandKey.value);
 
 // Static step copy, mirroring the New-lead workspace rail.
 const STEPS = [

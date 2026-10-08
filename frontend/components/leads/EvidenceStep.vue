@@ -6,7 +6,7 @@ import { api } from "~/composables/useApi";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "~/components/ui/sheet";
 import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
 import ChainNode, { type ChainTreeNode } from "~/components/leads/ChainNode.vue";
-import type { EvidenceLevel } from "~/lib/leadEvidence";
+import type { EvidenceLevel, CatalogSource } from "~/lib/leadEvidence";
 import {
   BAND_LABEL,
   type LinkedItem,
@@ -32,8 +32,21 @@ interface InitialItem {
   titulo: string;
 }
 const props = withDefaults(
-  defineProps<{ leadId: number; modalidad?: string; readonly?: boolean; initialItems?: InitialItem[] }>(),
-  { modalidad: "tvn", readonly: false, initialItems: () => [] }
+  defineProps<{
+    leadId: number;
+    modalidad?: string;
+    readonly?: boolean;
+    initialItems?: InitialItem[];
+    initialLinkedIds?: string[];
+    customCatalog?: CatalogSource[];
+  }>(),
+  {
+    modalidad: "tvn",
+    readonly: false,
+    initialItems: () => [],
+    initialLinkedIds: () => [],
+    customCatalog: () => [],
+  }
 );
 const emit = defineEmits<{
   (e: "back"): void;
@@ -43,13 +56,21 @@ const emit = defineEmits<{
 
 // Linked set, seeded from any already-saved evidence (lead detail / resume).
 const linked = ref<LinkedItem[]>(
-  props.initialItems.map((it) => ({
-    rowId: it.rowId,
-    fuenteId: it.fuenteId,
-    fuenteTipo: it.fuenteTipo,
-    rol: normaliseRol(it.rol),
-    titulo: it.titulo,
-  }))
+  props.initialItems.length
+    ? props.initialItems.map((it) => ({
+        rowId: it.rowId,
+        fuenteId: it.fuenteId,
+        fuenteTipo: it.fuenteTipo,
+        rol: normaliseRol(it.rol),
+        titulo: it.titulo,
+      }))
+    : (props.initialLinkedIds || []).map((id) => ({
+        rowId: null,
+        fuenteId: id,
+        fuenteTipo: "news",
+        rol: "respaldo",
+        titulo: id,
+      }))
 );
 const persistError = ref("");
 

@@ -8,6 +8,7 @@ import ForceGraph, { type GraphNode, type GraphLink } from "~/components/ForceGr
 import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
 import { api } from "~/composables/useApi";
 import { type ScoreResponse, evidenceLevelFrom, normaliseRol } from "~/lib/leadWizard";
+import type { CatalogSource } from "~/lib/leadEvidence";
 
 // Step 4 "Ficha" of the new-lead workspace. The ficha is composed only from what
 // has been linked: the relations graph is the real evidence tree (GET
@@ -17,8 +18,14 @@ import { type ScoreResponse, evidenceLevelFrom, normaliseRol } from "~/lib/leadW
 // evidence changes after a confirmation, the ficha goes stale and must be
 // confirmed again.
 const props = withDefaults(
-  defineProps<{ leadId: number; linkedIds: string[]; alcance: string; readonly?: boolean }>(),
-  { readonly: false }
+  defineProps<{
+    leadId: number;
+    linkedIds: string[];
+    alcance: string;
+    readonly?: boolean;
+    customCatalog?: CatalogSource[];
+  }>(),
+  { readonly: false, customCatalog: () => [] }
 );
 const emit = defineEmits<{
   (e: "back"): void;

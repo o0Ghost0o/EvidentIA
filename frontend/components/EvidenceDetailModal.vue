@@ -45,11 +45,13 @@ const error = ref<string | null>(null);
 const item = ref<EvidenceItemDetail | null>(null);
 const copiedId = ref(false);
 const copiedFull = ref(false);
+const showAllRelaciones = ref(false);
 
 async function fetchItem(tipo: string, idVal: string) {
   loading.value = true;
   error.value = null;
   item.value = null;
+  showAllRelaciones.value = false;
 
   try {
     const res = await api<EvidenceItemDetail>("evidence/item", {
@@ -69,6 +71,7 @@ watch(
     if (isOpen) {
       copiedId.value = false;
       copiedFull.value = false;
+      showAllRelaciones.value = false;
       if (props.initialItem) {
         item.value = props.initialItem;
         loading.value = false;
@@ -79,6 +82,7 @@ watch(
     } else {
       item.value = null;
       error.value = null;
+      showAllRelaciones.value = false;
     }
   },
   { immediate: true }
@@ -349,12 +353,22 @@ function formatDate(dateStr?: string | null): string {
 
             <!-- Graph relations -->
             <div v-if="item.relaciones && item.relaciones.length" class="space-y-2">
-              <h4 class="text-caption font-semibold uppercase tracking-wider text-ink-muted">
-                Conexiones en Grafo ({{ item.relaciones.length }})
-              </h4>
+              <div class="flex items-center justify-between gap-2">
+                <h4 class="text-caption font-semibold uppercase tracking-wider text-ink-muted">
+                  Conexiones en Grafo ({{ item.relaciones.length }})
+                </h4>
+                <button
+                  v-if="item.relaciones.length > 3"
+                  type="button"
+                  class="text-caption font-medium text-primary hover:underline cursor-pointer"
+                  @click="showAllRelaciones = !showAllRelaciones"
+                >
+                  {{ showAllRelaciones ? "Mostrar menos" : `Ver todas (${item.relaciones.length})` }}
+                </button>
+              </div>
               <div class="flex flex-wrap gap-2">
                 <button
-                  v-for="(rel, idx) in item.relaciones"
+                  v-for="(rel, idx) in (showAllRelaciones ? item.relaciones : item.relaciones.slice(0, 3))"
                   :key="idx"
                   type="button"
                   class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-caption border border-hairline bg-surface hover:bg-surface-sunken text-ink transition-colors shadow-ev-1 cursor-pointer"
@@ -364,6 +378,16 @@ function formatDate(dateStr?: string | null): string {
                   <span class="font-mono tabular-nums font-medium text-ink">
                     {{ rel.destino_tipo === item.tipo ? `${rel.origen_tipo}:${rel.origen_id}` : `${rel.destino_tipo}:${rel.destino_id}` }}
                   </span>
+                </button>
+
+                <button
+                  v-if="item.relaciones.length > 3 && !showAllRelaciones"
+                  type="button"
+                  class="flex items-center gap-1 px-2.5 py-1 rounded-md text-caption font-semibold font-mono border border-dashed border-border bg-surface-sunken hover:bg-surface text-ink-muted hover:text-ink transition-colors cursor-pointer shadow-ev-1"
+                  title="Expandir todas las conexiones"
+                  @click="showAllRelaciones = true"
+                >
+                  <span>+{{ item.relaciones.length - 3 }} más</span>
                 </button>
               </div>
             </div>

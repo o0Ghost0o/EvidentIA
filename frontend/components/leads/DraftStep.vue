@@ -11,7 +11,13 @@ import { api } from "~/composables/useApi";
 // cannot ground the central claim it abstains, and the abstention (like a
 // generated draft) is what unlocks the Revisión step.
 const props = withDefaults(
-  defineProps<{ leadId: number; linkedIds: string[]; title: string; readonly?: boolean }>(),
+  defineProps<{
+    leadId: number;
+    linkedIds: string[];
+    title: string;
+    readonly?: boolean;
+    customCatalog?: any[];
+  }>(),
   { readonly: false }
 );
 const emit = defineEmits<{
