@@ -2,9 +2,9 @@
 import { computed, reactive, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
 import Input from "~/components/ui/Input.vue";
-import Sheet from "~/components/ui/Sheet.vue";
 import { api } from "~/composables/useApi";
-import Modal from "~/components/ui/Modal.vue";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "~/components/ui/dialog";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "~/components/ui/sheet";
 import {
   CATALOG,
   EXAMPLE_LINK,
@@ -308,12 +308,15 @@ function toggleNode(node: ChainNode) {
     </div>
 
     <!-- Catalog drawer -->
-    <Sheet
-      v-model:open="catOpen"
-      title="Vincular fuentes"
-      description="Catálogo de ingesta · cada fuente vinculada se agrega al árbol como nodo N1"
-    >
-      <div class="flex flex-col">
+    <Sheet v-model:open="catOpen">
+      <SheetContent side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
+        <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
+          <SheetTitle class="font-serif text-heading-md text-ink">Vincular fuentes</SheetTitle>
+          <SheetDescription class="text-caption text-ink-muted">
+            Catálogo de ingesta · cada fuente vinculada se agrega al árbol como nodo N1
+          </SheetDescription>
+        </div>
+      <div class="min-h-0 flex-1 overflow-y-auto">
         <div class="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
           <Input v-model="query" placeholder="Buscar por título o ID" class="h-8 flex-1 font-mono text-caption" />
           <div class="flex gap-1.5">
@@ -361,26 +364,28 @@ function toggleNode(node: ChainNode) {
         </div>
 
         <p v-if="!catalogFiltered.length" class="px-5 py-4 text-body-sm text-ink-muted">Sin resultados.</p>
-      </div>
+        </div>
 
-      <template #footer>
-        <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
           <span class="text-caption text-ink-muted">{{ linkedIds.length }} fuentes vinculadas</span>
           <Button variant="outline" @click="catOpen = false">Listo</Button>
         </div>
-      </template>
+      </SheetContent>
     </Sheet>
 
     <!-- Evidence-chain drawer — the source's hierarchical tree only.
          Clicking a node opens its detail modal. -->
-    <Sheet
-      :open="!!chainSource"
-      :title="chainSource ? `Cadena de evidencia · ${chainSource.id}` : ''"
-      description="Toca un nodo para ver su ficha completa."
-      width-class="w-full max-w-[480px]"
-      @update:open="(v) => { if (!v) chainSource = null; }"
-    >
-      <div v-if="chain" class="flex flex-col gap-3 px-5 py-4">
+    <Sheet :open="!!chainSource" @update:open="(v) => { if (!v) chainSource = null; }">
+      <SheetContent side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-[480px]">
+        <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
+          <SheetTitle class="font-serif text-heading-md text-ink">
+            {{ chainSource ? `Cadena de evidencia · ${chainSource.id}` : "" }}
+          </SheetTitle>
+          <SheetDescription class="text-caption text-ink-muted">
+            Toca un nodo para ver su ficha completa.
+          </SheetDescription>
+        </div>
+      <div v-if="chain" class="min-h-0 flex-1 overflow-y-auto flex flex-col gap-3 px-5 py-4">
         <!-- N0 · central claim (tree root) -->
         <button
           type="button"
@@ -424,16 +429,20 @@ function toggleNode(node: ChainNode) {
           </button>
         </div>
       </div>
+      </SheetContent>
     </Sheet>
 
     <!-- Node detail modal — the complete evidence information. -->
-    <Modal
-      :open="!!selectedNode"
-      :title="selectedNode?.title"
-      :description="selectedNode ? `N${selectedNode.depth} · ${selectedNode.levelName}` : ''"
-      @update:open="(v) => { if (!v) selectedNode = null; }"
-    >
-      <div v-if="selectedNode" class="flex flex-col gap-4 px-5 py-4">
+    <Dialog :open="!!selectedNode" @update:open="(v) => { if (!v) selectedNode = null; }">
+      <DialogContent class="flex max-h-[calc(100vh-48px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+        <div v-if="selectedNode" class="flex min-h-0 flex-1 flex-col">
+        <div class="flex flex-col gap-1 border-b border-border px-5 py-4 pr-12">
+          <DialogTitle class="font-serif text-heading-md text-ink">{{ selectedNode.title }}</DialogTitle>
+          <DialogDescription class="font-mono text-caption text-ink-muted">
+            N{{ selectedNode.depth }} · {{ selectedNode.levelName }}
+          </DialogDescription>
+        </div>
+        <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
         <div class="flex flex-wrap items-center gap-1.5">
           <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="kindTone(selectedNode.kind)">
             {{ selectedNode.kind }}
@@ -468,10 +477,12 @@ function toggleNode(node: ChainNode) {
         >
           Abrir en ingesta ↗
         </a>
-      </div>
+        </div>
 
-      <template v-if="selectedNode?.catId" #footer>
-        <div class="flex items-center justify-between gap-3">
+        <div
+          v-if="selectedNode.catId"
+          class="flex items-center justify-between gap-3 border-t border-border px-5 py-4"
+        >
           <span
             class="rounded-full border px-2 py-0.5 text-caption font-semibold"
             :class="nodeLinked(selectedNode) ? 'border-success/40 bg-success/10 text-success' : 'border-border bg-surface text-ink-muted'"
@@ -485,7 +496,8 @@ function toggleNode(node: ChainNode) {
             {{ nodeLinked(selectedNode) ? "Desvincular" : "Vincular al caso" }}
           </Button>
         </div>
-      </template>
-    </Modal>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
