@@ -4,6 +4,7 @@ import ContextStep from "~/components/leads/ContextStep.vue";
 import DraftStep from "~/components/leads/DraftStep.vue";
 import EvidenceStep from "~/components/leads/EvidenceStep.vue";
 import FichaStep from "~/components/leads/FichaStep.vue";
+import ReviewStep from "~/components/leads/ReviewStep.vue";
 import Button from "~/components/ui/Button.vue";
 import Input from "~/components/ui/Input.vue";
 import Label from "~/components/ui/Label.vue";
@@ -53,6 +54,7 @@ const linkedIds = ref<string[]>([]);
 const priority = reactive({ scored: false, total: 0, band: "", bandLabel: "" });
 const ficha = reactive({ confirmed: false });
 const draftState = reactive({ generated: false, abstained: false });
+const reviewState = reactive({ saved: false, label: "" });
 
 const BAND_CHIP: Record<string, string> = {
   alto: "bg-destructive/10 text-destructive",
@@ -75,7 +77,7 @@ const titleHelp = computed(() => {
 });
 
 // Progress & rail.
-const stepsDone = computed(() => step.value - 1);
+const stepsDone = computed(() => (reviewState.saved ? 6 : step.value - 1));
 const progressPct = computed(() => `${(stepsDone.value / 6) * 100}%`);
 const cur = computed(() => STEPS[step.value - 1]);
 
@@ -91,6 +93,7 @@ function railSub(i: number): string {
     if (draftState.generated) return "Borrador listo";
     return evidence.key === "insuficiente" ? "Evidencia insuficiente" : "Listo para generar";
   }
+  if (i === 5) return reviewState.saved ? reviewState.label : "Pendiente de decisión";
   return STEPS[i].desc;
 }
 function railState(i: number): "done" | "active" | "locked" {
@@ -172,9 +175,31 @@ function onDraftChange(p: { draft: boolean; abstained: boolean }) {
   draftState.abstained = p.abstained;
 }
 
-// Step 5 → the lead detail workspace, where Revisión and the audit trail live.
-async function continueToReview() {
-  if (leadId.value != null) await navigateTo(`/leads/${leadId.value}`);
+// Step 5 → step 6 "Revisión", in place.
+function continueToReview() {
+  step.value = 6;
+  window.scrollTo({ top: 0 });
+}
+
+function onReviewChange(p: { saved: boolean; estado: string; label: string }) {
+  reviewState.saved = p.saved;
+  reviewState.label = p.label;
+}
+
+// "Crear otro lead" — reset the wizard to a blank step 1.
+function restartWizard() {
+  Object.assign(form, { title: "", mod: "", alc: "", q: "" });
+  tried.value = false;
+  submitError.value = "";
+  leadId.value = null;
+  Object.assign(evidence, { count: 0, label: "sin fuentes", tone: "neutral", key: "none" as EvidenceLevel });
+  linkedIds.value = [];
+  Object.assign(priority, { scored: false, total: 0, band: "", bandLabel: "" });
+  ficha.confirmed = false;
+  Object.assign(draftState, { generated: false, abstained: false });
+  Object.assign(reviewState, { saved: false, label: "" });
+  step.value = 1;
+  window.scrollTo({ top: 0 });
 }
 </script>
 
@@ -396,6 +421,18 @@ async function continueToReview() {
             @go-evidence="step = 2"
             @continue="continueToReview"
             @change="onDraftChange"
+          />
+
+          <!-- Step 6 · Revisión -->
+          <ReviewStep
+            v-else-if="step === 6 && leadId != null"
+            :lead-id="leadId"
+            :abstained="draftState.abstained"
+            :linked-ids="linkedIds"
+            :title="form.title"
+            @back="step = 5"
+            @restart="restartWizard"
+            @change="onReviewChange"
           />
         </div>
       </section>
