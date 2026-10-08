@@ -30,6 +30,8 @@ interface SimPoint {
   vy: number;
 }
 
+export type GraphLayoutMode = "hierarchy" | "radial";
+
 const props = withDefaults(
   defineProps<{
     nodes: GraphNode[];
@@ -37,11 +39,13 @@ const props = withDefaults(
     showControls?: boolean;
     showLegend?: boolean;
     initialHeight?: number;
+    defaultLayout?: GraphLayoutMode;
   }>(),
   {
     showControls: true,
     showLegend: true,
     initialHeight: 520,
+    defaultLayout: "hierarchy",
   }
 );
 
@@ -51,6 +55,10 @@ const emit = defineEmits<{
 
 const W = 960;
 const H = 580;
+
+const currentLayout = ref<GraphLayoutMode>(props.defaultLayout);
+const hierarchicalTargets = ref<Map<string, { x: number; y: number }>>(new Map());
+const nodeDepths = ref<Map<string, number>>(new Map());
 
 const positions = ref<Map<string, SimPoint>>(new Map());
 const hovered = ref<GraphNode | null>(null);
@@ -69,15 +77,148 @@ function colorFor(type?: string): string {
 
 function radiusFor(type?: string): number {
   const t = (type || "").toLowerCase();
-  if (t === "case") return 20;
-  if (t === "news") return 14;
+  if (t === "case") return 22;
+  if (t === "news") return 15;
   if (t === "indicator") return 13;
   if (t === "event") return 13;
-  return 10;
+  return 11;
 }
 
 // ---------------------------------------------------------------------------
-// Simulación física continua (fuerza dirigida)
+// Algoritmo de Topología Jerárquica Causal (Top-Down BFS)
+// ---------------------------------------------------------------------------
+function computeHierarchicalLayout() {
+  const targets = new Map<string, { x: number; y: number }>();
+  const depths = new Map<string, number>();
+
+  if (!props.nodes.length) {
+    hierarchicalTargets.value = targets;
+    nodeDepths.value = depths;
+    return;
+  }
+
+  const inDegree = new Map<string, number>();
+  const outDegree = new Map<string, number>();
+
+  props.nodes.forEach((n) => {
+    inDegree.set(n.id, 0);
+    outDegree.set(n.id, 0);
+  });
+
+  props.links.forEach((l) => {
+    if (inDegree.has(l.target)) {
+      inDegree.set(l.target, (inDegree.get(l.target) || 0) + 1);
+    }
+    if (outDegree.has(l.source)) {
+      outDegree.set(l.source, (outDegree.get(l.source) || 0) + 1);
+    }
+  });
+
+  // 1. Identificar nodos raíz (Nivel 0: Arriba)
+  // Prioridad 1: Casos / Leads editoriales
+  let roots = props.nodes
+    .filter((n) => {
+      const t = getNodeType(n);
+      return t === "case" || t === "lead";
+    })
+    .map((n) => n.id);
+
+  // Prioridad 2: Fuentes con out-degree alto y in-degree bajo
+  if (!roots.length) {
+    roots = props.nodes
+      .filter((n) => (inDegree.get(n.id) || 0) === 0 && (outDegree.get(n.id) || 0) > 0)
+      .map((n) => n.id);
+  }
+
+  // Prioridad 3: El nodo central con mayor grado acumulado (hub temático)
+  if (!roots.length) {
+    let maxDeg = -1;
+    let hubId = props.nodes[0].id;
+    for (const n of props.nodes) {
+      const deg = (inDegree.get(n.id) || 0) + (outDegree.get(n.id) || 0);
+      if (deg > maxDeg) {
+        maxDeg = deg;
+        hubId = n.id;
+      }
+    }
+    roots = [hubId];
+  }
+
+  // 2. Traversal BFS para asignar niveles (depth)
+  const undirectedAdj = new Map<string, string[]>();
+  props.nodes.forEach((n) => undirectedAdj.set(n.id, []));
+  props.links.forEach((l) => {
+    if (undirectedAdj.has(l.source) && undirectedAdj.has(l.target)) {
+      undirectedAdj.get(l.source)!.push(l.target);
+      undirectedAdj.get(l.target)!.push(l.source);
+    }
+  });
+
+  const visited = new Set<string>();
+  const queue: { id: string; depth: number }[] = [];
+
+  for (const r of roots) {
+    depths.set(r, 0);
+    visited.add(r);
+    queue.push({ id: r, depth: 0 });
+  }
+
+  while (queue.length > 0) {
+    const { id, depth } = queue.shift()!;
+    const neighbors = undirectedAdj.get(id) || [];
+    for (const neighbor of neighbors) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        const nextDepth = depth + 1;
+        depths.set(neighbor, nextDepth);
+        queue.push({ id: neighbor, depth: nextDepth });
+      }
+    }
+  }
+
+  // Cualquier nodo huérfano va al nivel 1 o 2 según su tipo
+  props.nodes.forEach((n) => {
+    if (!depths.has(n.id)) {
+      const t = getNodeType(n);
+      depths.set(n.id, t === "news" ? 1 : 2);
+    }
+  });
+
+  nodeDepths.value = depths;
+
+  // 3. Agrupar por nivel y calcular coordenadas (x, y)
+  const layers = new Map<number, string[]>();
+  let maxDepth = 0;
+  depths.forEach((d, id) => {
+    if (!layers.has(d)) layers.set(d, []);
+    layers.get(d)!.push(id);
+    if (d > maxDepth) maxDepth = d;
+  });
+
+  const numLayers = maxDepth + 1;
+  const layerHeight = Math.min(130, Math.max(85, 460 / Math.max(numLayers, 2)));
+  const startY = -((numLayers - 1) * layerHeight) / 2;
+
+  for (let d = 0; d <= maxDepth; d++) {
+    const layerNodes = layers.get(d) || [];
+    const count = layerNodes.length;
+    const y = startY + d * layerHeight;
+
+    const maxLayerWidth = Math.min(840, Math.max(180, count * 135));
+    const stepX = count > 1 ? maxLayerWidth / (count - 1) : 0;
+    const startX = -maxLayerWidth / 2;
+
+    layerNodes.forEach((nodeId, idx) => {
+      const x = count === 1 ? 0 : startX + idx * stepX;
+      targets.set(nodeId, { x, y });
+    });
+  }
+
+  hierarchicalTargets.value = targets;
+}
+
+// ---------------------------------------------------------------------------
+// Simulación física continua (fuerza dirigida + anclaje jerárquico)
 // ---------------------------------------------------------------------------
 const REPULSION = 5200;
 const SPRING_LEN = 115;
@@ -90,21 +231,35 @@ let rafId = 0;
 const pinned = new Set<string>();
 
 function seedPositions() {
+  computeHierarchicalLayout();
   const pos = positions.value;
   const seen = new Set<string>();
+  const targets = hierarchicalTargets.value;
+
   props.nodes.forEach((n, i) => {
     seen.add(n.id);
     if (!pos.has(n.id)) {
-      const angle = (i / Math.max(props.nodes.length, 1)) * Math.PI * 2;
-      const radius = getNodeType(n) === "case" ? 20 : 170 + (Math.random() - 0.5) * 50;
-      pos.set(n.id, {
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
-        vx: 0,
-        vy: 0,
-      });
+      if (currentLayout.value === "hierarchy" && targets.has(n.id)) {
+        const t = targets.get(n.id)!;
+        pos.set(n.id, {
+          x: t.x + (Math.random() - 0.5) * 15,
+          y: t.y + (Math.random() - 0.5) * 15,
+          vx: 0,
+          vy: 0,
+        });
+      } else {
+        const angle = (i / Math.max(props.nodes.length, 1)) * Math.PI * 2;
+        const radius = getNodeType(n) === "case" ? 20 : 170 + (Math.random() - 0.5) * 50;
+        pos.set(n.id, {
+          x: Math.cos(angle) * radius,
+          y: Math.sin(angle) * radius,
+          vx: 0,
+          vy: 0,
+        });
+      }
     }
   });
+
   for (const id of [...pos.keys()]) {
     if (!seen.has(id)) pos.delete(id);
   }
@@ -114,8 +269,11 @@ function step() {
   const pos = positions.value;
   const ids = [...pos.keys()];
   const pairs = props.links.filter((l) => pos.has(l.source) && pos.has(l.target));
+  const isHierarchy = currentLayout.value === "hierarchy";
+  const targets = hierarchicalTargets.value;
 
-  // 1. Repulsión electrostática entre todos los pares
+  // 1. Repulsión electrostática
+  const repFactor = isHierarchy ? 0.35 : 1.0;
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
       const a = pos.get(ids[i])!;
@@ -129,45 +287,66 @@ function step() {
         distSq = 1;
       }
       const dist = Math.sqrt(distSq);
-      const force = Math.min(REPULSION / distSq, 30) * alpha;
+      const force = Math.min((REPULSION * repFactor) / distSq, 30) * alpha;
       const fx = (dx / dist) * force;
       const fy = (dy / dist) * force;
       if (!pinned.has(ids[i])) {
         a.vx += fx;
-        a.vy += fy;
+        if (!isHierarchy) a.vy += fy;
       }
       if (!pinned.has(ids[j])) {
         b.vx -= fx;
-        b.vy -= fy;
+        if (!isHierarchy) b.vy -= fy;
       }
     }
   }
 
-  // 2. Resortes en las aristas conectadas
+  // 2. Resortes en enlaces
   for (const l of pairs) {
     const a = pos.get(l.source)!;
     const b = pos.get(l.target)!;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-    const force = (dist - SPRING_LEN) * SPRING_K * alpha;
-    const fx = (dx / dist) * force;
-    const fy = (dy / dist) * force;
-    if (!pinned.has(l.source)) {
-      a.vx += fx;
-      a.vy += fy;
-    }
-    if (!pinned.has(l.target)) {
-      b.vx -= fx;
-      b.vy -= fy;
+
+    if (isHierarchy) {
+      // En modo jerarquía, los enlaces atraen suavemente a lo horizontal
+      const fx = (dx / dist) * (dist - 40) * 0.015 * alpha;
+      if (!pinned.has(l.source)) a.vx += fx;
+      if (!pinned.has(l.target)) b.vx -= fx;
+    } else {
+      const force = (dist - SPRING_LEN) * SPRING_K * alpha;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      if (!pinned.has(l.source)) {
+        a.vx += fx;
+        a.vy += fy;
+      }
+      if (!pinned.has(l.target)) {
+        b.vx -= fx;
+        b.vy -= fy;
+      }
     }
   }
 
-  // 3. Gravedad hacia el centro y amortiguación
+  // 3. Fuerzas de anclaje de capa o gravedad central
   for (const [id, p] of pos) {
     if (pinned.has(id)) continue;
-    p.vx -= p.x * GRAVITY * alpha;
-    p.vy -= p.y * GRAVITY * alpha;
+
+    if (isHierarchy) {
+      const target = targets.get(id);
+      if (target) {
+        // Atracción fuerte hacia la capa Y correspondiente
+        p.vy += (target.y - p.y) * 0.16 * alpha;
+        // Atracción moderada hacia la posición X calculada
+        p.vx += (target.x - p.x) * 0.09 * alpha;
+      }
+    } else {
+      // Gravedad radial hacia el centro (0, 0)
+      p.vx -= p.x * GRAVITY * alpha;
+      p.vy -= p.y * GRAVITY * alpha;
+    }
+
     const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
     if (speed > MAX_SPEED) {
       p.vx = (p.vx / speed) * MAX_SPEED;
@@ -175,8 +354,8 @@ function step() {
     }
     p.x += p.vx;
     p.y += p.vy;
-    p.vx *= 0.82;
-    p.vy *= 0.82;
+    p.vx *= 0.81;
+    p.vy *= 0.81;
   }
 }
 
@@ -212,8 +391,21 @@ function centerMass() {
 
 function rebuild() {
   seedPositions();
-  centerMass();
+  if (currentLayout.value === "radial") {
+    centerMass();
+  }
   reheat(1);
+}
+
+function switchLayout(mode: GraphLayoutMode) {
+  if (currentLayout.value === mode) return;
+  currentLayout.value = mode;
+  if (mode === "hierarchy") {
+    computeHierarchicalLayout();
+    reheat(1.2);
+  } else {
+    reheat(1.0);
+  }
 }
 
 watch(() => [props.nodes, props.links] as const, rebuild, { deep: true, immediate: true });
@@ -276,7 +468,7 @@ function zoomOut() {
   view.value.k = Math.max(MIN_K, view.value.k * 0.7);
 }
 
-defineExpose({ resetView, zoomIn, zoomOut });
+defineExpose({ resetView, zoomIn, zoomOut, switchLayout });
 
 function onNodeDown(node: GraphNode, evt: PointerEvent) {
   evt.preventDefault();
@@ -314,7 +506,6 @@ function onSvgUp(evt: PointerEvent) {
     svgEl.value?.releasePointerCapture(evt.pointerId);
     reheat(0.5);
 
-    // Si no hubo arrastre apreciable, considerarlo un clic
     if (!hasDraggedNode) {
       const clickedNode = props.nodes.find((n) => n.id === releasedId);
       if (clickedNode) {
@@ -356,7 +547,7 @@ function nodeOpacity(node: GraphNode): number {
 }
 
 function linkOpacity(link: GraphLink): number {
-  if (!hovered.value) return 0.65;
+  if (!hovered.value) return currentLayout.value === "hierarchy" ? 0.75 : 0.65;
   return isLinkHighlighted(link) ? 1 : 0.08;
 }
 
@@ -391,6 +582,10 @@ const activeLegendTypes = computed(() => {
   }
   return [...set];
 });
+
+function isRootNode(node: GraphNode): boolean {
+  return nodeDepths.value.get(node.id) === 0 || getNodeType(node) === "case";
+}
 </script>
 
 <template>
@@ -398,36 +593,72 @@ const activeLegendTypes = computed(() => {
     <!-- Floating Toolbar -->
     <div
       v-if="showControls"
-      class="absolute top-3 right-3 z-10 flex items-center gap-1.5 p-1 rounded-md bg-surface/90 backdrop-blur-md border border-hairline shadow-ev-1 text-caption"
+      class="absolute top-3 right-3 z-10 flex flex-wrap items-center gap-2 p-1 rounded-md bg-surface/90 backdrop-blur-md border border-hairline shadow-ev-1 text-caption"
     >
-      <button
-        type="button"
-        class="h-7 w-7 rounded-sm flex items-center justify-center hover:bg-surface-sunken font-bold text-ink-muted hover:text-ink transition-colors cursor-pointer"
-        title="Acercar (Zoom In)"
-        @click="zoomIn"
-      >
-        +
-      </button>
-      <button
-        type="button"
-        class="h-7 w-7 rounded-sm flex items-center justify-center hover:bg-surface-sunken font-bold text-ink-muted hover:text-ink transition-colors cursor-pointer"
-        title="Alejar (Zoom Out)"
-        @click="zoomOut"
-      >
-        −
-      </button>
+      <!-- Layout Mode Toggle (Jerarquía Causal vs. Red Radial) -->
+      <div class="flex items-center rounded-sm bg-surface-sunken/80 p-0.5 border border-hairline text-caption font-medium">
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-sm transition-colors cursor-pointer flex items-center gap-1.5"
+          :class="currentLayout === 'hierarchy' ? 'bg-primary text-canvas shadow-xs font-semibold' : 'text-ink-muted hover:text-ink'"
+          title="Vista jerárquica de árbol causal (nodo principal arriba, relaciones abajo)"
+          @click="switchLayout('hierarchy')"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v5m-7 8v5m14-5v5M5 8h14M12 8v8" />
+          </svg>
+          <span>Jerarquía Causal</span>
+        </button>
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-sm transition-colors cursor-pointer flex items-center gap-1.5"
+          :class="currentLayout === 'radial' ? 'bg-primary text-canvas shadow-xs font-semibold' : 'text-ink-muted hover:text-ink'"
+          title="Vista de red radial con órbitas dinámicas"
+          @click="switchLayout('radial')"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <circle cx="12" cy="4" r="2" />
+            <circle cx="19" cy="16" r="2" />
+            <circle cx="5" cy="16" r="2" />
+          </svg>
+          <span>Red Radial</span>
+        </button>
+      </div>
+
       <div class="h-4 w-px bg-hairline"></div>
-      <button
-        type="button"
-        class="h-7 px-2.5 rounded-sm flex items-center gap-1.5 hover:bg-surface-sunken text-[11px] font-medium text-ink-muted hover:text-ink transition-colors cursor-pointer"
-        title="Centrar vista del grafo"
-        @click="resetView"
-      >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-        </svg>
-        <span>Centrar</span>
-      </button>
+
+      <!-- Zoom and Reset Buttons -->
+      <div class="flex items-center gap-1">
+        <button
+          type="button"
+          class="h-7 w-7 rounded-sm flex items-center justify-center hover:bg-surface-sunken font-bold text-ink-muted hover:text-ink transition-colors cursor-pointer"
+          title="Acercar (Zoom In)"
+          @click="zoomIn"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          class="h-7 w-7 rounded-sm flex items-center justify-center hover:bg-surface-sunken font-bold text-ink-muted hover:text-ink transition-colors cursor-pointer"
+          title="Alejar (Zoom Out)"
+          @click="zoomOut"
+        >
+          −
+        </button>
+        <div class="h-4 w-px bg-hairline"></div>
+        <button
+          type="button"
+          class="h-7 px-2.5 rounded-sm flex items-center gap-1.5 hover:bg-surface-sunken text-[11px] font-medium text-ink-muted hover:text-ink transition-colors cursor-pointer"
+          title="Centrar vista del grafo"
+          @click="resetView"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+          <span>Centrar</span>
+        </button>
+      </div>
     </div>
 
     <!-- Stats pill top left -->
@@ -435,6 +666,10 @@ const activeLegendTypes = computed(() => {
       <span>{{ nodes.length }} nodos</span>
       <span>·</span>
       <span>{{ links.length }} enlaces</span>
+      <span>·</span>
+      <span class="text-primary font-sans font-semibold">
+        {{ currentLayout === 'hierarchy' ? 'Jerarquía Causal' : 'Red Radial' }}
+      </span>
     </div>
 
     <!-- Interactive SVG Graph Canvas -->
@@ -454,7 +689,7 @@ const activeLegendTypes = computed(() => {
       @wheel="onWheel"
     >
       <defs>
-        <!-- Gradients and markers -->
+        <!-- Drop Shadow Filter -->
         <filter id="node-shadow" x="-20%" y="-20%" width="140%" height="140%">
           <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.25" />
         </filter>
@@ -470,7 +705,7 @@ const activeLegendTypes = computed(() => {
           :x2="point(link.target).x"
           :y2="point(link.target).y"
           :stroke="linkStroke(link)"
-          :stroke-width="isLinkHighlighted(link) ? 2.5 : 1.3"
+          :stroke-width="isLinkHighlighted(link) ? 2.5 : (currentLayout === 'hierarchy' ? 1.6 : 1.3)"
           :opacity="linkOpacity(link)"
           class="transition-opacity duration-150"
         />
@@ -483,6 +718,19 @@ const activeLegendTypes = computed(() => {
         :opacity="nodeOpacity(node)"
         class="transition-opacity duration-150"
       >
+        <!-- Halo for root node in hierarchy view -->
+        <circle
+          v-if="currentLayout === 'hierarchy' && isRootNode(node)"
+          :cx="point(node.id).x"
+          :cy="point(node.id).y"
+          :r="radiusFor(getNodeType(node)) + 6"
+          fill="none"
+          stroke="#0284c7"
+          stroke-width="1.8"
+          stroke-dasharray="3 3"
+          opacity="0.8"
+        />
+
         <!-- Highlight halo if hovered -->
         <circle
           v-if="hovered && node.id === hovered.id"
@@ -511,7 +759,7 @@ const activeLegendTypes = computed(() => {
 
         <!-- Node Label -->
         <text
-          v-if="nodes.length <= 60 || (highlightedIds && highlightedIds.has(node.id)) || getNodeType(node) === 'case'"
+          v-if="nodes.length <= 60 || (highlightedIds && highlightedIds.has(node.id)) || isRootNode(node)"
           :x="point(node.id).x"
           :y="point(node.id).y + radiusFor(getNodeType(node)) + 13"
           text-anchor="middle"
@@ -571,7 +819,7 @@ const activeLegendTypes = computed(() => {
         </div>
       </div>
       <div class="text-[11px] text-ink-muted italic">
-        Arrastra nodos para reorganizar · Rueda para zoom · Clic para inspeccionar
+        {{ currentLayout === 'hierarchy' ? 'Estructura Jerárquica Causal (arriba hacia abajo)' : 'Órbita Radial Continua' }} · Arrastra nodos para reorganizar · Rueda para zoom
       </div>
     </div>
   </div>
