@@ -205,7 +205,7 @@ function formatDate(dateStr?: string | null): string {
   <Teleport to="body">
     <div
       v-if="open"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
     >
       <!-- Backdrop (DESIGN.md: 40% ink backdrop with subtle blur) -->
       <div
