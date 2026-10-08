@@ -24,6 +24,17 @@ class CaseCreate(BaseModel):
     modalidad: str = Field(default="tvn", pattern="^(tvn|banca)$")
     queries: list[str] = Field(default_factory=list)
     flags: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+def _infer_source_type(ev_id: str) -> str:
+    if ev_id.startswith("evt-"):
+        return "event"
+    if ev_id.startswith("ind-") or (":" in ev_id and not ev_id.startswith("http")):
+        return "indicator"
+    if ev_id.startswith("doc-") or ev_id.startswith("res-"):
+        return "document"
+    return "news"
 
 
 class CaseUpdate(BaseModel):
@@ -171,10 +182,73 @@ def _compute_activity_flags(
     return flags
 
 
+def _auto_link_cluster_evidence(session: Session, case: models.Case) -> list[models.EvidenceItem]:
+    """Auto-link event cluster evidence if the case has 0 evidence items."""
+    existing = session.exec(
+        select(models.EvidenceItem).where(models.EvidenceItem.case_id == case.id)
+    ).all()
+    if existing:
+        return list(existing)
+
+    group_ids = [f for f in (case.flags or []) if f.startswith("evt-")]
+    candidate_articles: list[models.NewsArticle] = []
+
+    if group_ids:
+        candidate_articles = list(session.exec(
+            select(models.NewsArticle).where(models.NewsArticle.grupo_evento_id.in_(group_ids))
+        ).all())
+
+    if not candidate_articles:
+        candidate_articles = list(session.exec(
+            select(models.NewsArticle).where(models.NewsArticle.titulo == case.titulo)
+        ).all())
+
+    if not candidate_articles and case.queries:
+        for q in case.queries:
+            if q and q.strip():
+                candidate_articles = list(session.exec(
+                    select(models.NewsArticle).where(models.NewsArticle.titulo == q.strip())
+                ).all())
+                if candidate_articles:
+                    break
+
+    target_articles: list[models.NewsArticle] = []
+    if candidate_articles:
+        detected_groups = {a.grupo_evento_id for a in candidate_articles if a.grupo_evento_id}
+        if detected_groups:
+            target_articles = list(session.exec(
+                select(models.NewsArticle).where(
+                    models.NewsArticle.grupo_evento_id.in_(list(detected_groups))
+                )
+            ).all())
+        else:
+            target_articles = candidate_articles
+
+    created_items: list[models.EvidenceItem] = []
+    for art in target_articles:
+        item = models.EvidenceItem(
+            case_id=case.id,
+            fuente_tipo="news",
+            fuente_id=art.id_noticia,
+            rol="respaldo",
+            marcado_manual=False,
+        )
+        session.add(item)
+        created_items.append(item)
+
+    if created_items:
+        session.commit()
+        return created_items
+
+    return []
+
+
 def _case_detail(session: Session, case: models.Case) -> dict:
     evidence = session.exec(
         select(models.EvidenceItem).where(models.EvidenceItem.case_id == case.id)
     ).all()
+    if not evidence:
+        evidence = _auto_link_cluster_evidence(session, case)
     notes = session.exec(
         select(models.VerificationNote).where(models.VerificationNote.case_id == case.id)
     ).all()
@@ -209,6 +283,24 @@ def create_case(payload: CaseCreate, session: SessionDep) -> dict:
     session.add(case)
     session.commit()
     session.refresh(case)
+
+    # Automatically link evidence sources if supplied
+    for ev_id in payload.evidence_ids:
+        tipo = _infer_source_type(ev_id)
+        item = models.EvidenceItem(
+            case_id=case.id,
+            fuente_tipo=tipo,
+            fuente_id=ev_id,
+            rol="respaldo",
+            marcado_manual=False,
+        )
+        session.add(item)
+    if payload.evidence_ids:
+        session.commit()
+        session.refresh(case)
+    else:
+        _auto_link_cluster_evidence(session, case)
+
     return _case_detail(session, case)
 
 
@@ -339,21 +431,46 @@ def case_tree(case_id: int, session: SessionDep, depth: int = Query(default=5, g
     items = session.exec(
         select(models.EvidenceItem).where(models.EvidenceItem.case_id == case.id)
     ).all()
+    if not items:
+        items = _auto_link_cluster_evidence(session, case)
+
     nodes: dict[tuple[str, str], dict] = {("case", str(case.id)): {
         "tipo": "case", "id": str(case.id), "label": case.titulo,
     }}
-    edges: list[dict] = []
+    edges_map: dict[tuple[str, str, str, str, str], dict] = {}
+
     for item in items:
-        edges.append({
+        edge_key = ("case", str(case.id), item.fuente_tipo, item.fuente_id, "has_evidence")
+        edges_map[edge_key] = {
             "origen_tipo": "case", "origen_id": str(case.id),
             "destino_tipo": item.fuente_tipo, "destino_id": item.fuente_id,
             "tipo": "has_evidence", "peso": 1.0,
-        })
+        }
         sub = evidence_tree(session, item.fuente_tipo, item.fuente_id, depth=depth)
         for node in sub["nodes"]:
             nodes.setdefault((node["tipo"], node["id"]), node)
-        edges.extend(sub["edges"])
-    return {"root": {"tipo": "case", "id": str(case.id)}, "nodes": list(nodes.values()), "edges": edges}
+        for e in sub["edges"]:
+            ek = (e["origen_tipo"], e["origen_id"], e["destino_tipo"], e["destino_id"], e.get("tipo", ""))
+            edges_map[ek] = e
+
+    # Ensure all direct relations between the linked items are included
+    if len(items) > 1:
+        item_ids = [it.fuente_id for it in items]
+        inter_rels = session.exec(
+            select(models.Relation).where(
+                models.Relation.origen_id.in_(item_ids),
+                models.Relation.destino_id.in_(item_ids),
+            )
+        ).all()
+        for r in inter_rels:
+            rk = (r.origen_tipo, r.origen_id, r.destino_tipo, r.destino_id, r.tipo)
+            edges_map[rk] = {
+                "origen_tipo": r.origen_tipo, "origen_id": r.origen_id,
+                "destino_tipo": r.destino_tipo, "destino_id": r.destino_id,
+                "tipo": r.tipo, "peso": r.peso,
+            }
+
+    return {"root": {"tipo": "case", "id": str(case.id)}, "nodes": list(nodes.values()), "edges": list(edges_map.values())}
 
 
 def _evidence_docs(session: Session, case: models.Case) -> tuple[list, list[str]]:

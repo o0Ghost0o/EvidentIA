@@ -204,9 +204,16 @@ const sortOptions = [
 ];
 
 async function openAsLead(item: RankItem) {
+  const flags = [item.id, `band:${item.band}`].filter(Boolean);
   const created = await api<{ id: number }>("cases", {
     method: "POST",
-    body: { titulo: item.titulo, modalidad: item.modalidad, queries: [item.titulo] },
+    body: {
+      titulo: item.titulo,
+      modalidad: item.modalidad,
+      queries: [item.titulo],
+      flags,
+      evidence_ids: item.ids_fuente || [],
+    },
   });
   await navigateTo(`/leads/${created.id}`);
 }

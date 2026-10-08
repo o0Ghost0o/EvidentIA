@@ -265,8 +265,11 @@ onMounted(refresh);
       </template>
 
       <div class="space-y-4">
-        <div v-if="!detail.evidence.length" class="text-sm text-muted-foreground py-2">
-          No hay fichas de evidencia vinculadas directamente a este lead aún. Agrega una abajo.
+        <div v-if="!detail.evidence.length" class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-2 text-sm text-muted-foreground">
+          <span>No hay fichas de evidencia vinculadas directamente a este lead aún. Agrega una abajo.</span>
+          <Button variant="outline" size="sm" class="h-7 text-xs" @click="refresh">
+            Re-escanear y vincular fuentes del tema
+          </Button>
         </div>
 
         <ul v-else class="divide-y text-sm">

@@ -154,3 +154,62 @@ def test_brief_abstains_without_key_and_renders_markdown(monkeypatch) -> None:
     assert resp.status_code == 200
     assert "text/markdown" in resp.headers["content-type"]
     assert "ABSTENCIÓN" in resp.text
+
+
+def test_create_case_with_evidence_ids_links_sources_and_relations() -> None:
+    _seed_news()
+    client = _auth_client()
+
+    resp = client.post("/cases", json={
+        "titulo": "Ampliación del Canal",
+        "modalidad": "tvn",
+        "evidence_ids": ["g1", "g2"],
+    })
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert len(body["evidence"]) == 2
+    ev_ids = {e["fuente_id"] for e in body["evidence"]}
+    assert ev_ids == {"g1", "g2"}
+
+    # Verify tree contains case node, both news nodes and relations
+    tree_resp = client.get(f"/cases/{body['id']}/tree")
+    assert tree_resp.status_code == 200, tree_resp.text
+    tree = tree_resp.json()
+    node_ids = {n["id"] for n in tree["nodes"]}
+    assert str(body["id"]) in node_ids
+    assert "g1" in node_ids
+    assert "g2" in node_ids
+    assert len(tree["edges"]) >= 2
+
+
+def test_case_auto_healing_populates_empty_case_from_matching_articles() -> None:
+    _seed_news()
+    client = _auth_client()
+
+    # Create empty case without evidence_ids, but with matching title
+    resp = client.post("/cases", json={
+        "titulo": "Panamá aprueba ampliación del Canal",
+        "modalidad": "tvn",
+        "flags": ["evt-1"],
+    })
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    case_id = body["id"]
+
+    # When querying detail, auto-healing populates both articles from the event group
+    detail_resp = client.get(f"/cases/{case_id}")
+    assert detail_resp.status_code == 200
+    detail = detail_resp.json()
+    assert len(detail["evidence"]) == 2
+    ev_ids = {e["fuente_id"] for e in detail["evidence"]}
+    assert ev_ids == {"g1", "g2"}
+
+    # When querying tree, the tree has both news nodes and edges
+    tree_resp = client.get(f"/cases/{case_id}/tree")
+    assert tree_resp.status_code == 200
+    tree = tree_resp.json()
+    node_ids = {n["id"] for n in tree["nodes"]}
+    assert "g1" in node_ids
+    assert "g2" in node_ids
+    assert len(tree["edges"]) >= 2
+
