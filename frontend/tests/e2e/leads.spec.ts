@@ -6,30 +6,34 @@ test.describe("E2E: Bandeja y Gestión de Leads", () => {
     await loginAsAdmin(page);
   });
 
-  test("debe cargar la lista de leads y mostrar el formulario de creación", async ({ page }) => {
+  test("debe cargar la lista de leads con el acceso a crear", async ({ page }) => {
     await page.goto("/leads");
 
     await expect(page.locator("h1:has-text('Leads')")).toBeVisible();
     await expect(page.locator("text=Fichas de Evidencia")).toBeVisible();
 
-    // Validar presencia de controles para nuevo lead
-    const inputTitulo = page.locator("input[placeholder*='Título']").or(page.locator("input[type='text']").first());
-    await expect(inputTitulo).toBeVisible();
+    // La creación vive en el asistente, enlazado desde la lista.
+    await expect(page.locator("a[href='/leads/new']").first()).toBeVisible();
   });
 
-  test("debe permitir crear un nuevo lead y redirigir a su detalle", async ({ page }) => {
+  test("debe crear un nuevo lead a través del asistente", async ({ page }) => {
     await page.goto("/leads");
+    await page.locator("a[href='/leads/new']").first().click();
+    await expect(page).toHaveURL(/\/leads\/new/);
 
-    const uniqueTitle = `E2E Lead Verificación ${Date.now()}`;
-    const inputTitulo = page.locator("input[placeholder*='Título']").or(page.locator("input[type='text']").first());
-    await inputTitulo.fill(uniqueTitle);
+    // El ejemplo rellena un título válido y la modalidad.
+    await page.click("button:has-text('Usar ejemplo')");
 
-    // Enviar creación
-    const btnCrear = page.locator("button:has-text('Crear')").or(page.locator("button:has-text('Guardar')")).first();
-    await btnCrear.click();
+    const [resp] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes("/api/cases") && r.request().method() === "POST",
+        { timeout: 15000 }
+      ),
+      page.click("button:has-text('Crear lead')"),
+    ]);
+    expect(resp.ok()).toBeTruthy();
 
-    // Redirige a /leads/[id]
-    await expect(page).toHaveURL(/\/leads\/\d+/, { timeout: 15000 });
-    await expect(page.locator("h1", { hasText: uniqueTitle })).toBeVisible();
+    // El asistente avanza al paso 2 "Evidencia" en el mismo lugar.
+    await expect(page.locator("h2:has-text('Evidencia')")).toBeVisible({ timeout: 15000 });
   });
 });

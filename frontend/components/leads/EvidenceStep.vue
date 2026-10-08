@@ -21,14 +21,19 @@ import {
 // Step 2 "Evidencia" of the new-lead workspace. Links sources from the ingest
 // catalog; the evidence state, role lanes and requirement checklist are derived
 // from the linked set. Links persist to the real evidence API, optimistically.
-const props = defineProps<{ leadId: number }>();
+const props = withDefaults(
+  defineProps<{ leadId: number; readonly?: boolean; initialLinkedIds?: string[] }>(),
+  { readonly: false, initialLinkedIds: () => [] }
+);
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "continue"): void;
   (e: "change", payload: { count: number; label: string; tone: string; key: EvidenceLevel; linkedIds: string[] }): void;
 }>();
 
-const linkedIds = ref<string[]>([]);
+// Seed from already-linked sources (lead detail) so the lanes, checklist and
+// chains render the saved evidence without any catalog interaction.
+const linkedIds = ref<string[]>([...props.initialLinkedIds]);
 // Catalog id → backend evidence row id, so unlinks can DELETE the right row.
 const evidenceRowId = reactive<Record<string, number>>({});
 const persistError = ref("");
@@ -235,7 +240,7 @@ function toggleNode(node: ChainNode) {
         <span class="text-label uppercase text-ink-muted">Fuentes por papel</span>
         <span class="text-caption text-ink-muted">Toca una fuente para ver su cadena de evidencia.</span>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div v-if="!readonly" class="flex flex-wrap gap-2">
         <Button variant="outline" @click="linkExample">Vincular ejemplo</Button>
         <Button @click="catOpen = true">+ Vincular fuentes</Button>
       </div>
@@ -300,7 +305,7 @@ function toggleNode(node: ChainNode) {
     </div>
 
     <!-- Footer nav -->
-    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+    <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
       <Button variant="outline" @click="emit('back')">← Atrás</Button>
       <Button :disabled="!derived.linked.length" @click="emit('continue')">
         Continuar · Contexto →
@@ -480,7 +485,7 @@ function toggleNode(node: ChainNode) {
         </div>
 
         <div
-          v-if="selectedNode.catId"
+          v-if="selectedNode.catId && !readonly"
           class="flex items-center justify-between gap-3 border-t border-border px-5 py-4"
         >
           <span

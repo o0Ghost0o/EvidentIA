@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { deriveEvidence } from "~/lib/leadEvidence";
@@ -11,8 +11,8 @@ import { type DraftClass, type DraftMode, draftGaps, draftSents, words } from "~
 // is blocked — the reporter can link more evidence or register an abstention. A
 // generated draft (or an abstention) is what unlocks the Revisión step.
 const props = withDefaults(
-  defineProps<{ linkedIds: string[]; title: string; genDelay?: number }>(),
-  { genDelay: 1800 }
+  defineProps<{ linkedIds: string[]; title: string; genDelay?: number; readonly?: boolean }>(),
+  { genDelay: 1800, readonly: false }
 );
 const emit = defineEmits<{
   (e: "back"): void;
@@ -279,6 +279,17 @@ watch(
 
 watch([draft, abstained], () => emit("change", { draft: draft.value, abstained: abstained.value }));
 
+// Read-only (lead detail): the draft is already settled. When the evidence backs a
+// draft, present the finished text at once — no generation animation; otherwise the
+// blocked state stands on its own.
+onMounted(() => {
+  if (props.readonly && !insuf.value) {
+    tr.value = 5;
+    gen.value = false;
+    draft.value = true;
+  }
+});
+
 onBeforeUnmount(clearGen);
 </script>
 
@@ -312,7 +323,7 @@ onBeforeUnmount(clearGen);
     <!-- Work · generation trace + the draft itself -->
     <template v-else-if="is5Work">
       <!-- Reasoning over the linked evidence -->
-      <div class="flex flex-col gap-2.5 rounded-md border border-border bg-canvas p-4">
+      <div v-if="!readonly" class="flex flex-col gap-2.5 rounded-md border border-border bg-canvas p-4">
         <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <span class="text-label uppercase text-primary">Razonamiento sobre evidencia vinculada</span>
           <span class="font-mono text-caption text-ink-muted [font-variant-numeric:tabular-nums]">
@@ -408,7 +419,7 @@ onBeforeUnmount(clearGen);
       </article>
 
       <!-- Controlled actions, available once the draft is settled -->
-      <div v-if="dDone" class="flex flex-col gap-2.5">
+      <div v-if="dDone && !readonly" class="flex flex-col gap-2.5">
         <span class="text-label uppercase text-ink-muted">Acciones controladas</span>
         <div class="flex flex-wrap gap-2">
           <Button
@@ -443,12 +454,12 @@ onBeforeUnmount(clearGen);
           Ninguna fuente primaria (documento o indicador) respalda la afirmación central. Prioridad alta con
           evidencia insuficiente nunca habilita publicación.
         </p>
-        <div class="mt-1 flex flex-wrap items-center gap-3">
+        <div v-if="!readonly" class="mt-1 flex flex-wrap items-center gap-3">
           <Button disabled>Generar borrador</Button>
           <span class="text-caption font-medium text-ink-muted">Requiere evidencia parcial o suficiente</span>
         </div>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div v-if="!readonly" class="flex flex-wrap gap-2">
         <Button variant="outline" @click="emit('goEvidence')">← Vincular más evidencia</Button>
         <Button
           variant="outline"
@@ -462,7 +473,7 @@ onBeforeUnmount(clearGen);
 
     <!-- Abstained -->
     <div
-      v-else-if="is5Abstained"
+      v-else-if="is5Abstained && !readonly"
       class="flex flex-col gap-3 rounded-md border-[1.5px] border-destructive bg-destructive/5 p-6"
     >
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -482,7 +493,7 @@ onBeforeUnmount(clearGen);
     </div>
 
     <!-- Footer nav -->
-    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+    <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
       <Button variant="outline" @click="emit('back')">← Atrás</Button>
       <Button v-if="draft || abstained" @click="emit('continue')">Continuar · Revisión →</Button>
       <Button v-else-if="!insuf" :disabled="gen" @click="generate">
