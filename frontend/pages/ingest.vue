@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
+import {
+  RefreshCw,
+  Download,
+  Upload,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  X,
+} from "lucide-vue-next";
 import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
-import Badge from "~/components/ui/Badge.vue";
+import StateChip from "~/components/ui/StateChip.vue";
 import { api } from "~/composables/useApi";
 
 interface AutoScheduleStatus {
@@ -103,7 +112,7 @@ async function runLiveNow() {
       { method: "POST" }
     );
     if (res.status === "success") {
-      liveSuccessMsg.value = "¡Noticias en vivo de hoy sincronizadas exitosamente!";
+      liveSuccessMsg.value = "Noticias en vivo sincronizadas exitosamente.";
       if (res.report) report.value = res.report;
       else await loadReport();
       await loadScheduleStatus();
@@ -139,8 +148,12 @@ function formatDate(isoStr: string | null) {
   if (!isoStr) return "Nunca";
   try {
     const d = new Date(isoStr);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
-      " (" + d.toLocaleDateString() + ")";
+    return (
+      d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
+      " (" +
+      d.toLocaleDateString() +
+      ")"
+    );
   } catch {
     return isoStr;
   }
@@ -194,10 +207,13 @@ async function uploadFamilyFile(event: Event, familyKey: string) {
       body: formData,
     });
 
-    uploadResultMsg.value[familyKey] = `✓ ${record.valid_rows} filas válidas procesadas (${record.upload_id})${record.duplicates_found ? ` · ${record.duplicate_count} duplicados detectados` : ''}`;
+    uploadResultMsg.value[familyKey] = `${record.valid_rows} filas válidas procesadas (${record.upload_id})${
+      record.duplicates_found ? ` · ${record.duplicate_count} duplicados detectados` : ""
+    }`;
     await Promise.all([loadUploadHistory(), loadReport()]);
   } catch (err: any) {
-    uploadErrorMsg.value[familyKey] = err?.data?.detail || err?.message || "Error al procesar el archivo.";
+    uploadErrorMsg.value[familyKey] =
+      err?.data?.detail || err?.message || "Error al procesar el archivo.";
   } finally {
     uploading.value[familyKey] = false;
     input.value = "";
@@ -228,66 +244,104 @@ onUnmounted(() => {
 });
 </script>
 
-
 <template>
   <div class="space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <h1 class="text-3xl font-extrabold tracking-tight">Ingesta y Flujo de Noticias</h1>
-        <p class="text-sm text-muted-foreground mt-1">
-          Monitoreo continuo de feeds RSS de TVN-2 y Panamá, extracción de entidades y actualización de señales.
+    <!-- Page Header (Editorial Serif + StateChips) -->
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 border-b border-hairline pb-5">
+      <div class="space-y-1">
+        <h1 class="font-serif text-display-xl text-ink font-semibold tracking-tight">
+          Ingesta y Calidad de Datos
+        </h1>
+        <p class="text-body-sm text-ink-muted max-w-[72ch]">
+          Monitoreo continuo de fuentes primarias, escaneo periódico de feeds RSS, validación determinista por esquemas y auditoría de duplicados.
         </p>
       </div>
 
-      <!-- Live badge -->
-      <div class="flex items-center gap-2">
-        <Badge v-if="report?.source === 'live'" class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-1">
-          🔴 Corpus: Noticias en Vivo (TVN RSS)
-        </Badge>
-        <Badge v-else class="bg-amber-600/20 text-amber-300 border border-amber-500/30 text-xs px-2.5 py-1">
-          🟡 Corpus: Snapshot Local (T10 Demo Offline)
-        </Badge>
+      <!-- Corpus and Pipeline Status Chips -->
+      <div class="flex flex-wrap items-center gap-2">
+        <StateChip
+          :tone="report?.source === 'live' ? 'success' : 'warning'"
+          dot
+        >
+          {{ report?.source === 'live' ? 'Corpus: Noticias en Vivo (TVN RSS)' : 'Corpus: Snapshot Local (Demo T10)' }}
+        </StateChip>
+        <StateChip
+          :tone="scheduleStatus.enabled ? 'success' : 'neutral'"
+          dot
+        >
+          {{ scheduleStatus.enabled ? 'Autoprogramador Activo' : 'Autoprogramador Pausado' }}
+        </StateChip>
       </div>
     </div>
 
-    <!-- Alert feedback -->
-    <div v-if="liveSuccessMsg" class="p-4 rounded-lg bg-emerald-950/60 border border-emerald-800 text-emerald-200 text-sm flex items-center justify-between">
-      <span>{{ liveSuccessMsg }}</span>
-      <button class="text-xs text-emerald-400 hover:underline" @click="liveSuccessMsg = ''">Cerrar</button>
-    </div>
-    <div v-if="error" class="p-4 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive text-sm flex items-center justify-between">
-      <span>{{ error }}</span>
-      <button class="text-xs text-destructive hover:underline" @click="error = ''">Cerrar</button>
+    <!-- Alert Notifications (System Tone Colors + Crisp SVG Icons) -->
+    <div
+      v-if="liveSuccessMsg"
+      class="flex items-center justify-between rounded-md border border-success/30 bg-success/10 px-4 py-3 text-body-sm text-success"
+    >
+      <div class="flex items-center gap-2">
+        <CheckCircle2 class="h-4 w-4 shrink-0 text-success" />
+        <span>{{ liveSuccessMsg }}</span>
+      </div>
+      <button
+        type="button"
+        class="text-caption font-semibold text-success hover:underline ml-4 cursor-pointer"
+        @click="liveSuccessMsg = ''"
+      >
+        Cerrar
+      </button>
     </div>
 
-    <!-- Auto-Ingest Pitch Control Card -->
-    <Card class="border-border/60 bg-gradient-to-br from-card to-secondary/10">
+    <div
+      v-if="error"
+      class="flex items-center justify-between rounded-md border border-error/30 bg-error/10 px-4 py-3 text-body-sm text-error"
+    >
+      <div class="flex items-center gap-2">
+        <AlertCircle class="h-4 w-4 shrink-0 text-error" />
+        <span>{{ error }}</span>
+      </div>
+      <button
+        type="button"
+        class="text-caption font-semibold text-error hover:underline ml-4 cursor-pointer"
+        @click="error = ''"
+      >
+        Cerrar
+      </button>
+    </div>
+
+    <!-- Card 1: Auto-Ingest Scheduler & Pitch Mode -->
+    <Card>
       <template #header>
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="inline-block w-2.5 h-2.5 rounded-full" :class="scheduleStatus.enabled ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'"></span>
-            <span class="font-semibold text-base">Ingesta Automática en Segundo Plano (Pitch Mode)</span>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <span
+              class="h-2.5 w-2.5 rounded-full"
+              :class="scheduleStatus.enabled ? 'bg-success animate-pulse' : 'bg-ink-muted'"
+            />
+            <h2 class="font-serif text-heading-md text-ink">
+              Monitoreo Automático en Segundo Plano (Pitch Mode)
+            </h2>
           </div>
-          <Badge :class="scheduleStatus.enabled ? 'bg-emerald-900/60 text-emerald-300 border-emerald-700' : 'bg-muted/60 text-muted-foreground'">
+          <StateChip :tone="scheduleStatus.enabled ? 'success' : 'neutral'">
             {{ scheduleStatus.enabled ? 'ACTIVO' : 'PAUSADO' }}
-          </Badge>
+          </StateChip>
         </div>
       </template>
 
-      <div class="space-y-4">
-        <p class="text-sm text-muted-foreground">
-          Activa el copiloto para escanear periódicamente el feed RSS de TVN-2 y medios de Panamá, extrayendo entidades,
-          actualizando el grafo de eventos y recalculando el ranking de atención en tiempo real.
+      <div class="space-y-5">
+        <p class="text-body-sm text-ink-muted max-w-[76ch]">
+          Activa el copiloto para escanear periódicamente los feeds RSS de TVN-2 y medios de Panamá, extrayendo entidades, actualizando el grafo de conocimiento interactivo y recalculando el ranking de atención en tiempo real.
         </p>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-          <!-- Toggle Box -->
-          <div class="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-secondary/20">
-            <div>
-              <div class="font-medium text-sm">Monitoreo Automático</div>
-              <div class="text-xs text-muted-foreground">Feature flag global</div>
+        <!-- Scheduler Configuration Settings (2 Columns) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Col 1: Toggle Feature Flag -->
+          <div class="flex items-center justify-between rounded-md border border-hairline bg-surface-sunken p-3.5">
+            <div class="space-y-0.5 pr-3">
+              <div class="text-body-sm font-semibold text-ink">Monitoreo Automático</div>
+              <div class="text-caption text-ink-muted">Copiloto en segundo plano</div>
             </div>
-            <label class="relative inline-flex items-center cursor-pointer">
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
               <input
                 type="checkbox"
                 class="sr-only peer"
@@ -295,20 +349,20 @@ onUnmounted(() => {
                 :disabled="savingSchedule"
                 @change="toggleAutoSchedule(!scheduleStatus.enabled)"
               />
-              <div class="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+              <div class="w-11 h-6 bg-hairline peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-hairline after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
             </label>
           </div>
 
-          <!-- Interval Selector -->
-          <div class="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-secondary/20">
-            <div>
-              <div class="font-medium text-sm">Frecuencia de Escaneo</div>
-              <div class="text-xs text-muted-foreground">Intervalo en minutos</div>
+          <!-- Col 2: Interval Selector -->
+          <div class="flex items-center justify-between rounded-md border border-hairline bg-surface-sunken p-3.5">
+            <div class="space-y-0.5 pr-3">
+              <div class="text-body-sm font-semibold text-ink">Frecuencia de Escaneo</div>
+              <div class="text-caption text-ink-muted">Intervalo en minutos</div>
             </div>
             <select
               :value="scheduleStatus.interval_minutes"
               :disabled="savingSchedule"
-              class="bg-background border border-input text-foreground text-sm rounded-md px-2.5 py-1 focus:ring-1 focus:ring-ring"
+              class="h-9 rounded-sm border border-hairline bg-surface px-3 py-1 text-body-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 cursor-pointer shrink-0"
               @change="changeInterval"
             >
               <option :value="5">Cada 5 min</option>
@@ -317,71 +371,130 @@ onUnmounted(() => {
               <option :value="60">Cada 60 min</option>
             </select>
           </div>
-
-          <!-- Action: Force Live Ingest Now -->
-          <div class="flex items-center justify-center p-3 rounded-lg border border-emerald-900/40 bg-emerald-950/20">
-            <Button
-              class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-sm transition-all text-xs sm:text-sm py-2"
-              :disabled="runningLive || scheduleStatus.is_running"
-              @click="runLiveNow"
-            >
-              {{ (runningLive || scheduleStatus.is_running) ? 'Sincronizando Noticias…' : '⚡ Sincronizar Noticias de Hoy en Vivo' }}
-            </Button>
-          </div>
         </div>
 
-        <!-- Schedule Diagnostics -->
-        <div class="pt-2 text-xs text-muted-foreground flex flex-wrap gap-4 border-t border-border/40">
-          <div>Última ejecución: <span class="font-mono text-foreground">{{ formatDate(scheduleStatus.last_run) }}</span></div>
-          <div v-if="scheduleStatus.enabled">Próximo ciclo: <span class="font-mono text-foreground">{{ formatDate(scheduleStatus.next_run) }}</span></div>
-          <div>Estado: <span class="font-medium capitalize" :class="scheduleStatus.is_running ? 'text-amber-400' : 'text-emerald-400'">{{ scheduleStatus.is_running ? 'Ejecutando…' : scheduleStatus.last_status }}</span></div>
+        <!-- Dedicated Live Sync Action Panel (Wrap-safe, full-width) -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3.5 rounded-md border border-hairline bg-surface-sunken p-4">
+          <div class="space-y-0.5">
+            <div class="text-body-sm font-semibold text-ink">Sincronización en Vivo</div>
+            <p class="text-caption text-ink-muted">
+              Forzar escaneo inmediato de feeds RSS de TVN-2 y medios de Panamá sin esperar el siguiente ciclo automático.
+            </p>
+          </div>
+          <Button
+            variant="default"
+            class="h-9 px-4 text-xs font-semibold shrink-0 gap-2 self-start sm:self-auto cursor-pointer whitespace-nowrap"
+            :disabled="runningLive || scheduleStatus.is_running"
+            @click="runLiveNow"
+          >
+            <RefreshCw
+              class="h-3.5 w-3.5 shrink-0"
+              :class="{ 'animate-spin': runningLive || scheduleStatus.is_running }"
+            />
+            <span>{{ (runningLive || scheduleStatus.is_running) ? 'Sincronizando noticias…' : 'Sincronizar ahora' }}</span>
+          </Button>
+        </div>
+
+        <!-- Schedule Diagnostics Bar -->
+        <div class="rounded-md border border-hairline bg-surface-sunken p-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-caption text-ink-muted">
+          <div>
+            Última ejecución: <span class="font-mono tabular-nums text-ink font-medium">{{ formatDate(scheduleStatus.last_run) }}</span>
+          </div>
+          <div v-if="scheduleStatus.enabled">
+            Próximo ciclo: <span class="font-mono tabular-nums text-ink font-medium">{{ formatDate(scheduleStatus.next_run) }}</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span>Estado:</span>
+            <span
+              class="font-mono font-medium capitalize"
+              :class="scheduleStatus.is_running ? 'text-warning' : 'text-success'"
+            >
+              {{ scheduleStatus.is_running ? 'Ejecutando…' : scheduleStatus.last_status }}
+            </span>
+          </div>
           <div v-if="scheduleStatus.items_ingested_last_run > 0">
-            Titulares procesados: <span class="font-mono text-foreground font-semibold">{{ scheduleStatus.items_ingested_last_run }}</span>
+            Titulares procesados: <span class="font-mono tabular-nums text-ink font-semibold">{{ scheduleStatus.items_ingested_last_run }}</span>
           </div>
         </div>
       </div>
     </Card>
 
-    <!-- Schema File Upload with Downloadable Templates -->
+    <!-- Card 2: Manual Seed / Offline Mode (T10 Requirement - preserves E2E test locator) -->
     <Card>
       <template #header>
         <div class="flex items-center justify-between">
-          <div>
-            <h3 class="font-semibold text-base">Carga de Archivos por Esquema (Upload & Validación)</h3>
-            <p class="text-xs text-muted-foreground mt-0.5">
-              Carga manual de datos con validación determinista, detección automática de duplicados y plantillas descargables.
-            </p>
-          </div>
+          <h2 class="font-serif text-heading-md text-ink">
+            Ejecutar carga / Modo Contingencia Offline (T10)
+          </h2>
+          <span class="font-mono text-caption text-ink-muted bg-surface-sunken px-2 py-0.5 rounded-sm border border-hairline">
+            Snapshot Local
+          </span>
+        </div>
+      </template>
+
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <label class="flex items-center gap-3 text-body-sm text-ink cursor-pointer select-none">
+          <input
+            v-model="useSeed"
+            type="checkbox"
+            class="h-4 w-4 rounded border-hairline text-primary focus:ring-primary"
+          />
+          <span>Usar snapshot local congelado (Simulación demo sin internet / offline T10)</span>
+        </label>
+
+        <Button
+          variant="outline"
+          class="h-9 px-4 text-xs font-semibold cursor-pointer"
+          :disabled="runningManual || runningLive"
+          @click="runManualIngest"
+        >
+          {{ runningManual ? "Cargando…" : "Ejecutar ingesta manual" }}
+        </Button>
+      </div>
+    </Card>
+
+    <!-- Card 3: Schema File Upload with Downloadable Templates -->
+    <Card>
+      <template #header>
+        <div class="space-y-1">
+          <h2 class="font-serif text-heading-md text-ink">
+            Carga de Archivos por Esquema (Upload &amp; Validación)
+          </h2>
+          <p class="text-body-sm text-ink-muted">
+            Carga manual de datos con validación determinista, detección automática de duplicados y plantillas descargables oficiales.
+          </p>
         </div>
       </template>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- 1. Noticias CSV -->
-        <div class="p-4 rounded-lg border border-border/50 bg-secondary/15 flex flex-col justify-between space-y-3">
-          <div>
+        <div class="rounded-md border border-hairline bg-surface p-4 flex flex-col justify-between space-y-4 hover:border-ink-muted/30 transition-colors">
+          <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                📰 Noticias de Prensa
+              <span class="font-semibold text-body-sm text-ink">
+                Noticias de Prensa
               </span>
-              <Badge variant="outline" class="text-[11px] font-mono">noticias.csv</Badge>
+              <span class="font-mono text-caption text-ink-muted bg-surface-sunken px-2 py-0.5 rounded-sm border border-hairline">
+                noticias.csv
+              </span>
             </div>
-            <p class="text-xs text-muted-foreground mt-1">
-              Titulares de medios locales y GDELT. Detección automática de duplicados por URL y títulos repetidos (Jaccard > 0.85).
+            <p class="text-caption text-ink-muted">
+              Titulares de medios locales y GDELT. Detección automática de duplicados por URL y similitud léxica Jaccard &gt; 0.85.
             </p>
-            <div class="mt-2 text-[11px] text-muted-foreground font-mono bg-background/50 p-2 rounded border border-border/40">
+            <div class="font-mono text-[11px] text-ink-muted bg-surface-sunken p-2.5 rounded-sm border border-hairline break-all select-all">
               id_noticia, titulo, url, medio, idioma, fecha_publicacion, tema, origen, alcance_texto
             </div>
           </div>
 
-          <div class="space-y-2 pt-2 border-t border-border/40">
-            <div class="flex items-center justify-between gap-2">
+          <div class="space-y-2 pt-3 border-t border-hairline">
+            <div class="flex flex-wrap items-center justify-between gap-2">
               <Button
                 variant="ghost"
-                size="sm"
-                class="text-xs h-8 text-primary hover:text-primary-deep"
+                class="h-8 px-2.5 text-caption font-semibold text-primary hover:text-primary-deep gap-1.5 cursor-pointer"
                 @click="downloadTemplate('noticias')"
               >
-                📥 Descargar Plantilla
+                <Download class="h-3.5 w-3.5 shrink-0" />
+                <span>Descargar plantilla</span>
               </Button>
               <label class="cursor-pointer">
                 <input
@@ -391,42 +504,45 @@ onUnmounted(() => {
                   :disabled="uploading['noticias']"
                   @change="uploadFamilyFile($event, 'noticias')"
                 />
-                <span class="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs">
-                  {{ uploading['noticias'] ? 'Validando…' : 'Subir Archivo CSV' }}
+                <span class="inline-flex items-center justify-center gap-1.5 rounded-md text-caption font-semibold h-8 px-3 border border-hairline bg-transparent hover:bg-surface-sunken text-ink transition-colors cursor-pointer">
+                  <Upload class="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                  <span>{{ uploading['noticias'] ? 'Validando…' : 'Subir archivo CSV' }}</span>
                 </span>
               </label>
             </div>
-            <p v-if="uploadResultMsg['noticias']" class="text-xs text-emerald-400 font-medium">{{ uploadResultMsg['noticias'] }}</p>
-            <p v-if="uploadErrorMsg['noticias']" class="text-xs text-destructive font-medium">{{ uploadErrorMsg['noticias'] }}</p>
+            <p v-if="uploadResultMsg['noticias']" class="text-caption font-mono text-success font-medium">{{ uploadResultMsg['noticias'] }}</p>
+            <p v-if="uploadErrorMsg['noticias']" class="text-caption font-mono text-error font-medium">{{ uploadErrorMsg['noticias'] }}</p>
           </div>
         </div>
 
         <!-- 2. Indicadores CSV -->
-        <div class="p-4 rounded-lg border border-border/50 bg-secondary/15 flex flex-col justify-between space-y-3">
-          <div>
+        <div class="rounded-md border border-hairline bg-surface p-4 flex flex-col justify-between space-y-4 hover:border-ink-muted/30 transition-colors">
+          <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                📊 Indicadores Banco Mundial
+              <span class="font-semibold text-body-sm text-ink">
+                Indicadores Banco Mundial
               </span>
-              <Badge variant="outline" class="text-[11px] font-mono">indicadores.csv</Badge>
+              <span class="font-mono text-caption text-ink-muted bg-surface-sunken px-2 py-0.5 rounded-sm border border-hairline">
+                indicadores.csv
+              </span>
             </div>
-            <p class="text-xs text-muted-foreground mt-1">
+            <p class="text-caption text-ink-muted">
               Series macroeconómicas oficiales. Clave de unicidad: (pais_iso3, indicador_id, anio).
             </p>
-            <div class="mt-2 text-[11px] text-muted-foreground font-mono bg-background/50 p-2 rounded border border-border/40">
+            <div class="font-mono text-[11px] text-ink-muted bg-surface-sunken p-2.5 rounded-sm border border-hairline break-all select-all">
               pais_iso3, indicador_id, anio, valor, unidad, fuente_url, licencia, fecha_extraccion
             </div>
           </div>
 
-          <div class="space-y-2 pt-2 border-t border-border/40">
-            <div class="flex items-center justify-between gap-2">
+          <div class="space-y-2 pt-3 border-t border-hairline">
+            <div class="flex flex-wrap items-center justify-between gap-2">
               <Button
                 variant="ghost"
-                size="sm"
-                class="text-xs h-8 text-primary hover:text-primary-deep"
+                class="h-8 px-2.5 text-caption font-semibold text-primary hover:text-primary-deep gap-1.5 cursor-pointer"
                 @click="downloadTemplate('indicadores')"
               >
-                📥 Descargar Plantilla
+                <Download class="h-3.5 w-3.5 shrink-0" />
+                <span>Descargar plantilla</span>
               </Button>
               <label class="cursor-pointer">
                 <input
@@ -436,42 +552,45 @@ onUnmounted(() => {
                   :disabled="uploading['indicadores']"
                   @change="uploadFamilyFile($event, 'indicadores')"
                 />
-                <span class="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs">
-                  {{ uploading['indicadores'] ? 'Validando…' : 'Subir Archivo CSV' }}
+                <span class="inline-flex items-center justify-center gap-1.5 rounded-md text-caption font-semibold h-8 px-3 border border-hairline bg-transparent hover:bg-surface-sunken text-ink transition-colors cursor-pointer">
+                  <Upload class="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                  <span>{{ uploading['indicadores'] ? 'Validando…' : 'Subir archivo CSV' }}</span>
                 </span>
               </label>
             </div>
-            <p v-if="uploadResultMsg['indicadores']" class="text-xs text-emerald-400 font-medium">{{ uploadResultMsg['indicadores'] }}</p>
-            <p v-if="uploadErrorMsg['indicadores']" class="text-xs text-destructive font-medium">{{ uploadErrorMsg['indicadores'] }}</p>
+            <p v-if="uploadResultMsg['indicadores']" class="text-caption font-mono text-success font-medium">{{ uploadResultMsg['indicadores'] }}</p>
+            <p v-if="uploadErrorMsg['indicadores']" class="text-caption font-mono text-error font-medium">{{ uploadErrorMsg['indicadores'] }}</p>
           </div>
         </div>
 
         <!-- 3. Eventos GeoJSON -->
-        <div class="p-4 rounded-lg border border-border/50 bg-secondary/15 flex flex-col justify-between space-y-3">
-          <div>
+        <div class="rounded-md border border-hairline bg-surface p-4 flex flex-col justify-between space-y-4 hover:border-ink-muted/30 transition-colors">
+          <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                🌍 Eventos Geofísicos USGS
+              <span class="font-semibold text-body-sm text-ink">
+                Eventos Geofísicos USGS
               </span>
-              <Badge variant="outline" class="text-[11px] font-mono">eventos.geojson</Badge>
+              <span class="font-mono text-caption text-ink-muted bg-surface-sunken px-2 py-0.5 rounded-sm border border-hairline">
+                eventos.geojson
+              </span>
             </div>
-            <p class="text-xs text-muted-foreground mt-1">
-              Sismicidad regional en formato FeatureCollection. Clave de unicidad: id de evento USGS.
+            <p class="text-caption text-ink-muted">
+              Sismicidad regional en formato FeatureCollection. Clave de unicidad: ID de evento sísmico USGS.
             </p>
-            <div class="mt-2 text-[11px] text-muted-foreground font-mono bg-background/50 p-2 rounded border border-border/40">
-              FeatureCollection -> features: [id, geometry.coordinates, properties: mag, place, time]
+            <div class="font-mono text-[11px] text-ink-muted bg-surface-sunken p-2.5 rounded-sm border border-hairline break-all select-all">
+              FeatureCollection -&gt; features: [id, geometry.coordinates, properties: mag, place, time]
             </div>
           </div>
 
-          <div class="space-y-2 pt-2 border-t border-border/40">
-            <div class="flex items-center justify-between gap-2">
+          <div class="space-y-2 pt-3 border-t border-hairline">
+            <div class="flex flex-wrap items-center justify-between gap-2">
               <Button
                 variant="ghost"
-                size="sm"
-                class="text-xs h-8 text-primary hover:text-primary-deep"
+                class="h-8 px-2.5 text-caption font-semibold text-primary hover:text-primary-deep gap-1.5 cursor-pointer"
                 @click="downloadTemplate('eventos')"
               >
-                📥 Descargar Plantilla
+                <Download class="h-3.5 w-3.5 shrink-0" />
+                <span>Descargar plantilla</span>
               </Button>
               <label class="cursor-pointer">
                 <input
@@ -481,42 +600,45 @@ onUnmounted(() => {
                   :disabled="uploading['eventos']"
                   @change="uploadFamilyFile($event, 'eventos')"
                 />
-                <span class="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs">
-                  {{ uploading['eventos'] ? 'Validando…' : 'Subir GeoJSON' }}
+                <span class="inline-flex items-center justify-center gap-1.5 rounded-md text-caption font-semibold h-8 px-3 border border-hairline bg-transparent hover:bg-surface-sunken text-ink transition-colors cursor-pointer">
+                  <Upload class="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                  <span>{{ uploading['eventos'] ? 'Validando…' : 'Subir GeoJSON' }}</span>
                 </span>
               </label>
             </div>
-            <p v-if="uploadResultMsg['eventos']" class="text-xs text-emerald-400 font-medium">{{ uploadResultMsg['eventos'] }}</p>
-            <p v-if="uploadErrorMsg['eventos']" class="text-xs text-destructive font-medium">{{ uploadErrorMsg['eventos'] }}</p>
+            <p v-if="uploadResultMsg['eventos']" class="text-caption font-mono text-success font-medium">{{ uploadResultMsg['eventos'] }}</p>
+            <p v-if="uploadErrorMsg['eventos']" class="text-caption font-mono text-error font-medium">{{ uploadErrorMsg['eventos'] }}</p>
           </div>
         </div>
 
         <!-- 4. Fichas JSONL -->
-        <div class="p-4 rounded-lg border border-border/50 bg-secondary/15 flex flex-col justify-between space-y-3">
-          <div>
+        <div class="rounded-md border border-hairline bg-surface p-4 flex flex-col justify-between space-y-4 hover:border-ink-muted/30 transition-colors">
+          <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                📋 Fichas Editoriales
+              <span class="font-semibold text-body-sm text-ink">
+                Fichas Editoriales
               </span>
-              <Badge variant="outline" class="text-[11px] font-mono">fichas.jsonl</Badge>
+              <span class="font-mono text-caption text-ink-muted bg-surface-sunken px-2 py-0.5 rounded-sm border border-hairline">
+                fichas.jsonl
+              </span>
             </div>
-            <p class="text-xs text-muted-foreground mt-1">
+            <p class="text-caption text-ink-muted">
               Casos investigativos con fuentes vinculadas, afirmaciones y puntajes. Clave de unicidad: id_caso.
             </p>
-            <div class="mt-2 text-[11px] text-muted-foreground font-mono bg-background/50 p-2 rounded border border-border/40">
+            <div class="font-mono text-[11px] text-ink-muted bg-surface-sunken p-2.5 rounded-sm border border-hairline break-all select-all">
               {"id_caso": "...", "modalidad": "tvn", "ids_fuente": [...], "puntaje": ...}
             </div>
           </div>
 
-          <div class="space-y-2 pt-2 border-t border-border/40">
-            <div class="flex items-center justify-between gap-2">
+          <div class="space-y-2 pt-3 border-t border-hairline">
+            <div class="flex flex-wrap items-center justify-between gap-2">
               <Button
                 variant="ghost"
-                size="sm"
-                class="text-xs h-8 text-primary hover:text-primary-deep"
+                class="h-8 px-2.5 text-caption font-semibold text-primary hover:text-primary-deep gap-1.5 cursor-pointer"
                 @click="downloadTemplate('fichas')"
               >
-                📥 Descargar Plantilla
+                <Download class="h-3.5 w-3.5 shrink-0" />
+                <span>Descargar plantilla</span>
               </Button>
               <label class="cursor-pointer">
                 <input
@@ -526,85 +648,90 @@ onUnmounted(() => {
                   :disabled="uploading['fichas']"
                   @change="uploadFamilyFile($event, 'fichas')"
                 />
-                <span class="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs">
-                  {{ uploading['fichas'] ? 'Validando…' : 'Subir JSONL' }}
+                <span class="inline-flex items-center justify-center gap-1.5 rounded-md text-caption font-semibold h-8 px-3 border border-hairline bg-transparent hover:bg-surface-sunken text-ink transition-colors cursor-pointer">
+                  <Upload class="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                  <span>{{ uploading['fichas'] ? 'Validando…' : 'Subir JSONL' }}</span>
                 </span>
               </label>
             </div>
-            <p v-if="uploadResultMsg['fichas']" class="text-xs text-emerald-400 font-medium">{{ uploadResultMsg['fichas'] }}</p>
-            <p v-if="uploadErrorMsg['fichas']" class="text-xs text-destructive font-medium">{{ uploadErrorMsg['fichas'] }}</p>
+            <p v-if="uploadResultMsg['fichas']" class="text-caption font-mono text-success font-medium">{{ uploadResultMsg['fichas'] }}</p>
+            <p v-if="uploadErrorMsg['fichas']" class="text-caption font-mono text-error font-medium">{{ uploadErrorMsg['fichas'] }}</p>
           </div>
         </div>
       </div>
     </Card>
 
-    <!-- Upload History & Duplicate Audit Table -->
+    <!-- Card 4: Upload History & Duplicate Audit Table -->
     <Card v-if="uploadHistory.length > 0">
       <template #header>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <span class="font-semibold text-base">Historial de Cargas y Trazabilidad de Duplicados</span>
-            <Badge variant="outline" class="text-xs">{{ uploadHistory.length }} registradas</Badge>
+            <h2 class="font-serif text-heading-md text-ink">
+              Historial de Cargas y Trazabilidad de Duplicados
+            </h2>
+            <span class="font-mono text-caption text-ink-muted bg-surface-sunken px-2 py-0.5 rounded-sm border border-hairline">
+              {{ uploadHistory.length }} registradas
+            </span>
           </div>
         </div>
       </template>
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs">
-          <thead class="border-b border-border/50 bg-secondary/30 text-muted-foreground uppercase tracking-wider font-semibold">
+      <div class="overflow-x-auto -mx-4 md:-mx-6">
+        <table class="w-full text-left text-body-sm">
+          <thead class="border-b border-hairline bg-surface-sunken text-label uppercase tracking-wider text-ink-muted">
             <tr>
-              <th class="py-2.5 px-3">Upload ID</th>
-              <th class="py-2.5 px-3">Fecha / Hora</th>
-              <th class="py-2.5 px-3">Archivo / Familia</th>
-              <th class="py-2.5 px-3">Filas Procesadas</th>
-              <th class="py-2.5 px-3">Detección de Duplicados</th>
-              <th class="py-2.5 px-3 text-right">Estado</th>
+              <th class="py-2.5 px-4 font-semibold">Upload ID</th>
+              <th class="py-2.5 px-4 font-semibold">Fecha / Hora</th>
+              <th class="py-2.5 px-4 font-semibold">Archivo / Familia</th>
+              <th class="py-2.5 px-4 font-semibold">Filas Procesadas</th>
+              <th class="py-2.5 px-4 font-semibold">Detección de Duplicados</th>
+              <th class="py-2.5 px-4 text-right font-semibold">Estado</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-border/30">
-            <tr v-for="item in uploadHistory" :key="item.upload_id" class="hover:bg-secondary/15 transition-colors">
-              <td class="py-2.5 px-3 font-mono font-medium text-primary">
+          <tbody class="divide-y divide-hairline">
+            <tr
+              v-for="item in uploadHistory"
+              :key="item.upload_id"
+              class="hover:bg-surface-sunken/60 transition-colors"
+            >
+              <td class="py-3 px-4 font-mono text-caption font-medium text-primary">
                 {{ item.upload_id }}
               </td>
-              <td class="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
+              <td class="py-3 px-4 font-mono text-caption text-ink-muted tabular-nums whitespace-nowrap">
                 {{ formatDate(item.timestamp) }}
               </td>
-              <td class="py-2.5 px-3">
-                <span class="font-medium text-foreground">{{ item.filename }}</span>
-                <span class="block text-[11px] text-muted-foreground font-mono">{{ item.family }}</span>
+              <td class="py-3 px-4">
+                <span class="font-medium text-ink block">{{ item.filename }}</span>
+                <span class="font-mono text-[11px] text-ink-muted">{{ item.family }}</span>
               </td>
-              <td class="py-2.5 px-3 whitespace-nowrap">
-                <span class="text-emerald-400 font-semibold">{{ item.valid_rows }} válidas</span>
-                <span v-if="item.dropped_rows > 0" class="text-muted-foreground"> / {{ item.dropped_rows }} descartadas</span>
-                <span class="text-[11px] text-muted-foreground block">Total: {{ item.total_rows }}</span>
+              <td class="py-3 px-4 whitespace-nowrap font-mono tabular-nums text-caption">
+                <span class="text-success font-semibold">{{ item.valid_rows }} válidas</span>
+                <span v-if="item.dropped_rows > 0" class="text-ink-muted"> / {{ item.dropped_rows }} descartadas</span>
+                <span class="text-[11px] text-ink-muted block">Total: {{ item.total_rows }}</span>
               </td>
-              <td class="py-2.5 px-3">
+              <td class="py-3 px-4">
                 <div v-if="item.duplicates_found" class="flex items-center gap-2">
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                    ⚠️ {{ item.duplicate_count }} duplicados detectados
-                  </span>
+                  <StateChip tone="warning" dot>
+                    {{ item.duplicate_count }} duplicados
+                  </StateChip>
                   <button
                     type="button"
-                    class="text-[11px] text-primary hover:underline"
+                    class="text-caption font-medium text-primary hover:underline cursor-pointer"
                     @click="selectedDuplicates = item"
                   >
                     Ver detalle
                   </button>
                 </div>
-                <span v-else class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                  ✓ Sin duplicados
-                </span>
+                <StateChip v-else tone="success" dot>
+                  Sin duplicados
+                </StateChip>
               </td>
-              <td class="py-2.5 px-3 text-right whitespace-nowrap">
-                <Badge
-                  :class="{
-                    'bg-emerald-950/60 text-emerald-300 border-emerald-700': item.status === 'completed',
-                    'bg-amber-950/60 text-amber-300 border-amber-700': item.status === 'completed_with_warnings',
-                    'bg-destructive/20 text-destructive border-destructive/40': item.status === 'failed',
-                  }"
+              <td class="py-3 px-4 text-right whitespace-nowrap">
+                <StateChip
+                  :tone="item.status === 'completed' ? 'success' : item.status === 'completed_with_warnings' ? 'warning' : 'error'"
                 >
                   {{ item.status === 'completed' ? 'Completado' : item.status === 'completed_with_warnings' ? 'Advertencias' : 'Error' }}
-                </Badge>
+                </StateChip>
               </td>
             </tr>
           </tbody>
@@ -612,104 +739,125 @@ onUnmounted(() => {
       </div>
     </Card>
 
-    <!-- Modal de Detalle de Duplicados -->
+    <!-- Modal de Detalle de Duplicados (Elevación Nivel 3) -->
     <div
       v-if="selectedDuplicates"
-      class="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-xs p-4"
       @click.self="selectedDuplicates = null"
     >
-      <div class="rounded-lg border border-border bg-card p-6 shadow-xl max-w-lg w-full space-y-4">
-        <div class="flex items-center justify-between border-b border-border/50 pb-3">
+      <div class="rounded-lg border border-hairline bg-surface p-6 shadow-ev-3 max-w-lg w-full space-y-4 text-ink animate-in fade-in zoom-in-95 duration-150">
+        <div class="flex items-center justify-between border-b border-hairline pb-3">
           <div>
-            <h4 class="font-semibold text-base">Duplicados Detectados en Carga</h4>
-            <p class="text-xs font-mono text-muted-foreground">{{ selectedDuplicates.upload_id }} · {{ selectedDuplicates.filename }}</p>
+            <h3 class="font-serif text-heading-md text-ink">Duplicados Detectados en Carga</h3>
+            <p class="font-mono text-caption text-ink-muted mt-0.5">
+              {{ selectedDuplicates.upload_id }} · {{ selectedDuplicates.filename }}
+            </p>
           </div>
-          <button class="text-muted-foreground hover:text-foreground text-sm" @click="selectedDuplicates = null">✕</button>
+          <button
+            type="button"
+            class="text-ink-muted hover:text-ink p-1 rounded-sm cursor-pointer"
+            @click="selectedDuplicates = null"
+          >
+            <X class="h-4 w-4" />
+          </button>
         </div>
 
-        <p class="text-xs text-muted-foreground">
-          Los siguientes registros duplicados fueron detectados por el validador y consolidados para no duplicar volumen ni adulterar el cálculo de precedencia:
+        <p class="text-body-sm text-ink-muted">
+          Los siguientes registros duplicados fueron detectados por el validador y consolidados para preservar la unicidad del corpus sin adulterar el cálculo de precedencia:
         </p>
 
-        <div class="max-h-60 overflow-y-auto space-y-2 font-mono text-xs">
+        <div class="max-h-60 overflow-y-auto space-y-2 font-mono text-caption">
           <div
             v-for="(dup, idx) in selectedDuplicates.duplicate_details"
             :key="idx"
-            class="p-2.5 rounded bg-secondary/30 border border-border/40 text-[11px]"
+            class="p-2.5 rounded-sm bg-surface-sunken border border-hairline text-[11px]"
           >
-            <div class="text-amber-400 font-semibold">{{ dup.reason }} (fila {{ dup.row }})</div>
-            <div v-if="dup.url" class="truncate text-muted-foreground mt-0.5">{{ dup.url }}</div>
-            <div v-if="dup.titulo" class="text-muted-foreground mt-0.5">«{{ dup.titulo }}»</div>
-            <div v-if="dup.id_caso" class="text-muted-foreground mt-0.5">Caso ID: {{ dup.id_caso }}</div>
+            <div class="text-warning font-semibold">{{ dup.reason }} (fila {{ dup.row }})</div>
+            <div v-if="dup.url" class="truncate text-ink-muted mt-0.5">{{ dup.url }}</div>
+            <div v-if="dup.titulo" class="text-ink mt-0.5">«{{ dup.titulo }}»</div>
+            <div v-if="dup.id_caso" class="text-ink-muted mt-0.5">Caso ID: {{ dup.id_caso }}</div>
           </div>
         </div>
 
-        <div class="flex justify-end pt-2 border-t border-border/50">
-          <Button size="sm" variant="outline" @click="selectedDuplicates = null">Cerrar</Button>
+        <div class="flex justify-end pt-3 border-t border-hairline">
+          <Button variant="outline" class="h-8 px-3 text-caption cursor-pointer" @click="selectedDuplicates = null">
+            Cerrar
+          </Button>
         </div>
       </div>
     </div>
 
-    <!-- Manual Seed / Offline Mode (T10 Requirement) -->
-    <Card>
-      <template #header>Carga Manual / Modo Contingencia Offline (T10)</template>
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <input v-model="useSeed" type="checkbox" class="h-4 w-4 rounded border-border text-primary focus:ring-primary" />
-          <span>Usar snapshot local congelado (Simulación demo sin internet / offline T10)</span>
-        </label>
-        <Button variant="outline" :disabled="runningManual || runningLive" @click="runManualIngest">
-          {{ runningManual ? "Cargando…" : "Ejecutar Ingesta Manual" }}
-        </Button>
-      </div>
-    </Card>
-
-
-    <!-- Quality Report -->
+    <!-- Card 5: Quality Report & Data Provenance -->
     <Card v-if="report">
-      <template #header>Reporte de Calidad y Procedencia de Datos</template>
-      <div class="space-y-4 text-sm">
-        <div class="flex flex-wrap gap-4 text-xs text-muted-foreground pb-2 border-b border-border/40">
-          <div>Origen: <strong class="text-foreground uppercase">{{ report.source }}</strong></div>
+      <template #header>
+        <div class="flex items-center justify-between">
+          <h2 class="font-serif text-heading-md text-ink">
+            Reporte de Calidad y Procedencia de Datos
+          </h2>
+          <span class="font-mono text-caption text-ink-muted bg-surface-sunken px-2 py-0.5 rounded-sm border border-hairline uppercase">
+            {{ report.source }}
+          </span>
+        </div>
+      </template>
+
+      <div class="space-y-5 text-body-sm">
+        <!-- Metadata Strip -->
+        <div class="rounded-md border border-hairline bg-surface-sunken p-3 flex flex-wrap gap-x-6 gap-y-2 text-caption text-ink-muted">
+          <div>Origen: <strong class="text-ink uppercase font-semibold">{{ report.source }}</strong></div>
           <div v-if="(report.manifest as Record<string,string>)?.fecha_corte_UTC">
-            Corte UTC: <span class="font-mono text-foreground">{{ (report.manifest as Record<string,string>).fecha_corte_UTC }}</span>
+            Corte UTC: <span class="font-mono tabular-nums text-ink font-medium">{{ (report.manifest as Record<string,string>).fecha_corte_UTC }}</span>
           </div>
           <div v-if="report.finished_at">
-            Finalizado: <span class="font-mono text-foreground">{{ formatDate(report.finished_at as string) }}</span>
+            Finalizado: <span class="font-mono tabular-nums text-ink font-medium">{{ formatDate(report.finished_at as string) }}</span>
           </div>
         </div>
 
+        <!-- Families Grid -->
         <div>
-          <h4 class="font-medium mb-2">Familias de Datos:</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <h3 class="text-label uppercase tracking-wider text-ink-muted mb-3 font-semibold">
+            Familias de Datos Ingestadas
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div
               v-for="(fam, name) in (report.families as Record<string, Record<string, number>>)"
               :key="name"
-              class="p-3 rounded-lg border border-border/40 bg-secondary/15"
+              class="p-3.5 rounded-md border border-hairline bg-surface-sunken flex flex-col justify-between"
             >
-              <div class="font-mono font-medium text-xs text-primary truncate">{{ name }}</div>
-              <div class="mt-2 flex items-baseline justify-between text-xs">
-                <span class="text-emerald-400 font-bold text-sm">{{ fam.valid }} válidas</span>
-                <span class="text-muted-foreground">{{ fam.dropped }} descartadas</span>
+              <div class="font-mono font-semibold text-caption text-primary truncate">{{ name }}</div>
+              <div class="mt-2 flex items-baseline justify-between">
+                <span class="font-mono text-heading-md font-bold text-success tabular-nums">{{ fam.valid }}</span>
+                <span class="font-mono text-caption text-ink-muted tabular-nums">{{ fam.dropped }} descartadas</span>
               </div>
-              <div class="text-[11px] text-muted-foreground mt-1">
+              <div class="font-mono text-[11px] text-ink-muted mt-1 tabular-nums">
                 Total leídas: {{ fam.raw }}
               </div>
             </div>
           </div>
         </div>
 
-        <div v-if="(report.warnings as string[])?.length">
-          <p class="font-medium text-xs text-amber-400">Observaciones / Advertencias registradas:</p>
-          <ul class="list-disc pl-5 text-xs text-muted-foreground space-y-0.5 mt-1">
+        <!-- Warnings / Observations -->
+        <div v-if="(report.warnings as string[])?.length" class="rounded-md border border-warning/30 bg-warning/10 p-4 space-y-1.5">
+          <p class="font-semibold text-caption text-warning flex items-center gap-1.5">
+            <AlertTriangle class="h-4 w-4 shrink-0 text-warning" />
+            <span>Observaciones / Advertencias registradas:</span>
+          </p>
+          <ul class="list-disc pl-5 text-caption text-ink space-y-1">
             <li v-for="(w, i) in (report.warnings as string[])" :key="i">{{ w }}</li>
           </ul>
         </div>
       </div>
     </Card>
 
-    <div v-else class="text-center py-10 border border-dashed rounded-lg text-muted-foreground text-sm">
-      No hay reporte de calidad generado todavía. Sincroniza noticias o ejecuta una ingesta.
+    <!-- Empty State for Quality Report -->
+    <div
+      v-else
+      class="flex flex-col items-center gap-3 rounded-lg border border-dashed border-hairline bg-surface px-6 py-12 text-center"
+    >
+      <span class="rounded-md bg-surface-sunken px-2 py-0.5 font-mono text-caption text-ink-muted">Sin reporte</span>
+      <h3 class="font-serif text-display-lg text-ink">No hay reporte de calidad generado todavía</h3>
+      <p class="max-w-[46ch] text-body-sm text-ink-muted">
+        Sincroniza noticias en vivo desde los feeds RSS de TVN o ejecuta una ingesta manual para inspeccionar la procedencia del corpus.
+      </p>
     </div>
   </div>
 </template>
