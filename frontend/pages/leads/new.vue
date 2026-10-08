@@ -325,7 +325,7 @@ function restartWizard() {
 
             <div class="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
               <div class="col-span-full flex flex-col gap-1.5">
-                <Label for="lead-title">Título *</Label>
+                <Label for="lead-title" class="normal-case">Título *</Label>
                 <Input
                   id="lead-title"
                   v-model="form.title"
@@ -338,7 +338,7 @@ function restartWizard() {
               </div>
 
               <div class="flex flex-col gap-1.5">
-                <Label>Modalidad *</Label>
+                <Label class="normal-case">Modalidad *</Label>
                 <Select
                   v-model="form.mod"
                   :options="MODALIDAD_OPTIONS"
@@ -351,12 +351,12 @@ function restartWizard() {
               </div>
 
               <div class="flex flex-col gap-1.5">
-                <Label for="lead-alcance">Alcance</Label>
+                <Label for="lead-alcance" class="normal-case">Alcance</Label>
                 <Input id="lead-alcance" v-model="form.alc" placeholder="Región o ámbito" />
               </div>
 
               <div class="col-span-full flex flex-col gap-1.5">
-                <Label for="lead-q">Pregunta de investigación</Label>
+                <Label for="lead-q" class="normal-case">Pregunta de investigación</Label>
                 <Textarea
                   id="lead-q"
                   v-model="form.q"
