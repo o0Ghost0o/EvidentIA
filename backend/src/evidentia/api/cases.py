@@ -37,7 +37,7 @@ class FlagRequest(BaseModel):
 
 
 class EvidenceCreate(BaseModel):
-    fuente_tipo: str = Field(pattern="^(news|indicator|event)$")
+    fuente_tipo: str = Field(pattern="^(news|indicator|event|document)$")
     fuente_id: str = Field(min_length=1, max_length=128)
     rol: str = Field(default="respaldo", max_length=32)
     nota: str | None = None
@@ -139,6 +139,14 @@ def _compute_activity_flags(
             "category": "source",
             "variant": "warning",
             "description": "Contiene eventos geosísmicos USGS",
+        })
+    if "document" in source_kinds:
+        flags.append({
+            "id": "source-document",
+            "label": "Documentos oficiales",
+            "category": "source",
+            "variant": "info",
+            "description": "Contiene documentos y fuentes primarias",
         })
 
     # 5. Review trail actions

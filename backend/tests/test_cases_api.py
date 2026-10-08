@@ -118,6 +118,22 @@ def test_case_lifecycle_evidence_notes_tree() -> None:
     assert resp.json()["root"] == {"tipo": "news", "id": "g1"}
 
 
+def test_evidence_accepts_document_source_type() -> None:
+    # Step 2 "Evidencia" links documents (primary sources) alongside news/indicator/event.
+    init_db()
+    client = _auth_client()
+    case_id = client.post("/cases", json={"titulo": "Caso con documento"}).json()["id"]
+
+    resp = client.post(f"/cases/{case_id}/evidence", json={
+        "fuente_tipo": "document", "fuente_id": "res-1187", "rol": "Respalda",
+    })
+    assert resp.status_code == 201, resp.text
+
+    detail = client.get(f"/cases/{case_id}").json()
+    assert any(e["fuente_tipo"] == "document" for e in detail["evidence"])
+    assert "source-document" in {af["id"] for af in detail["activity_flags"]}
+
+
 def test_brief_abstains_without_key_and_renders_markdown(monkeypatch) -> None:
     monkeypatch.setenv("TOGETHER_API_KEY", "")
     from evidentia.config import reset_settings
