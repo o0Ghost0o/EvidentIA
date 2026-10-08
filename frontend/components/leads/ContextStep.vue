@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Button from "~/components/ui/Button.vue";
 import { EVIDENCE_STATES, type EvidenceLevel } from "~/lib/leadEvidence";
 import {
@@ -13,7 +13,9 @@ import {
 // with versioned rules (not model judgement): every component is explainable. A
 // high priority with insufficient evidence never unlocks the draft — it is
 // surfaced as a warning, the score alone never authorises publication.
-const props = defineProps<{ evidenceLevel: EvidenceLevel }>();
+const props = withDefaults(defineProps<{ evidenceLevel: EvidenceLevel; readonly?: boolean }>(), {
+  readonly: false,
+});
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "continue"): void;
@@ -64,17 +66,25 @@ const BAND_CHIP: Record<string, string> = {
   bajo: "border-border bg-surface-sunken text-ink-muted",
 };
 
+function applyScore() {
+  const p = computePriority();
+  priority.value = p;
+  scoring.value = false;
+  scored.value = true;
+  emit("change", { total: p.total, band: p.band, bandLabel: BAND_LABEL[p.band] });
+}
+
 function score() {
   if (scoring.value || scored.value) return;
   scoring.value = true;
-  timer = setTimeout(() => {
-    const p = computePriority();
-    priority.value = p;
-    scoring.value = false;
-    scored.value = true;
-    emit("change", { total: p.total, band: p.band, bandLabel: BAND_LABEL[p.band] });
-  }, 900);
+  timer = setTimeout(applyScore, 900);
 }
+
+// Read-only (lead detail): the priority is already settled, so show it at once
+// without the calculate step.
+onMounted(() => {
+  if (props.readonly) applyScore();
+});
 
 onBeforeUnmount(() => {
   if (timer) clearTimeout(timer);
@@ -150,7 +160,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Footer nav -->
-    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+    <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
       <Button variant="outline" @click="emit('back')">← Atrás</Button>
       <Button v-if="scored" @click="emit('continue')">Continuar · Ficha →</Button>
       <Button v-else :disabled="scoring" @click="score">

@@ -20,7 +20,10 @@ import {
 // has been linked: "Qué falta" matters as much as what is there. Confirming the
 // ficha is the gate that unlocks the Borrador step. If the evidence changes after
 // a confirmation, the ficha goes stale and must be confirmed again.
-const props = defineProps<{ linkedIds: string[]; alcance: string }>();
+const props = withDefaults(
+  defineProps<{ linkedIds: string[]; alcance: string; readonly?: boolean }>(),
+  { readonly: false }
+);
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "continue"): void;
@@ -205,7 +208,7 @@ watch(
 
 <template>
   <div class="flex flex-col gap-3">
-    <Alert v-if="stale" variant="warning">
+    <Alert v-if="stale && !readonly" variant="warning">
       <AlertDescription class="text-body-sm leading-relaxed text-ink">
         <strong class="font-semibold text-warning">La evidencia cambió.</strong>
         Revisa y confirma la ficha de nuevo.
@@ -292,7 +295,7 @@ watch(
     />
 
     <!-- Footer nav -->
-    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+    <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
       <Button variant="outline" @click="emit('back')">← Atrás</Button>
       <Button v-if="confirmed" @click="emit('continue')">Continuar · Borrador →</Button>
       <Button v-else @click="confirm">Confirmar ficha</Button>
