@@ -484,7 +484,7 @@ def create_case(payload: CaseCreate, session: SessionDep) -> dict:
 
 @router.get("")
 def list_cases(session: SessionDep, modalidad: str | None = None) -> dict:
-    query = select(models.Case)
+    query = select(models.Case).order_by(models.Case.created_at.desc(), models.Case.id.desc())
     if modalidad:
         query = query.where(models.Case.modalidad == modalidad)
     cases = session.exec(query).all()
