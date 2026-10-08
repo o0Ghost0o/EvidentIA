@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
 import Textarea from "~/components/ui/Textarea.vue";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
@@ -28,13 +28,17 @@ const props = withDefaults(
     // Lead detail: the case's current estado and its recorded review notes.
     decision?: string;
     auditNotes?: PersistedNote[];
+    // Wizard: seed the pick and note so a back-then-forward keeps them.
+    initialReview?: string;
+    initialNote?: string;
   }>(),
-  { readonly: false, decision: "", auditNotes: () => [] }
+  { readonly: false, decision: "", auditNotes: () => [], initialReview: "", initialNote: "" }
 );
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "restart"): void;
   (e: "change", payload: { saved: boolean; estado: string; label: string }): void;
+  (e: "draft", payload: { review: string; note: string }): void;
 }>();
 
 // The five editorial states, in the design's order. Keys match the backend's
@@ -48,11 +52,17 @@ const REVIEW_OPTIONS = [
 ] as const;
 const LABEL: Record<string, string> = Object.fromEntries(REVIEW_OPTIONS.map((o) => [o.key, o.label]));
 
-const review = ref<string>(props.readonly ? props.decision : "");
-const note = ref("");
+const review = ref<string>(props.readonly ? props.decision : props.initialReview);
+const note = ref(props.readonly ? "" : props.initialNote);
 const saved = ref(false);
 const saving = ref(false);
 const saveError = ref("");
+
+// Keep the parent's draft of the editorial decision in sync so it survives a
+// back-then-forward through the wizard.
+watch([review, note], () => {
+  if (!props.readonly) emit("draft", { review: review.value, note: note.value });
+});
 
 // What is under review: the abstention, or the generated draft.
 const reviewSubject = computed(() =>
