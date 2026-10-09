@@ -6,6 +6,7 @@
  */
 import { ref, computed } from "vue";
 import { useChat } from "@ai-sdk/vue";
+import { DefaultChatTransport } from "ai";
 import { useRoute } from "vue-router";
 import { useAuth } from "~/composables/useAuth";
 
@@ -36,13 +37,15 @@ export function useCopilot() {
   }));
 
   const chat = useChat({
-    api: "/api/copilot",
-    headers: computed(() => ({
-      ...(auth.accessToken.value ? { authorization: `Bearer ${auth.accessToken.value}` } : {}),
-    })),
-    body: computed(() => ({
-      context: currentContext.value,
-    })),
+    transport: new DefaultChatTransport({
+      api: "/api/copilot",
+      headers: () => ({
+        ...(auth.accessToken.value ? { authorization: `Bearer ${auth.accessToken.value}` } : {}),
+      }),
+      body: () => ({
+        context: currentContext.value,
+      }),
+    }),
   });
 
   return {
