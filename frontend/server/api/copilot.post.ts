@@ -49,14 +49,14 @@ export default defineEventHandler(async (event) => {
       apiKey: config.togetherApiKey as string,
       baseURL: (config.togetherBaseUrl as string) || "https://api.together.xyz/v1",
     });
-    model = together(
+    model = together.chat(
       (config.llmModel as string) || "meta-llama/Llama-3.3-70B-Instruct-Turbo"
     );
   } else if (config.openaiApiKey) {
     const openai = createOpenAI({
       apiKey: config.openaiApiKey as string,
     });
-    model = openai((config.llmModel as string) || "gpt-4o");
+    model = openai.chat((config.llmModel as string) || "gpt-4o");
   } else {
     throw createError({
       statusCode: 500,
