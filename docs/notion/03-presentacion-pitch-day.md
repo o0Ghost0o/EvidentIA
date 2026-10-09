@@ -1,188 +1,278 @@
-# 🖥️ Presentación para el Pitch Day — EvidentIA
-> **hackIAthon Panamá 4ta edición — TVN Media / Viamatica**  
-> *Sustentación Oficial ante el Jurado Calificador*  
-> **Formato:** Notion Presentation · **Tiempo Asignado:** 10 minutos (5 min Pitch + 5 min Preguntas)  
-> **Demo en Vivo (Main):** [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com) · **Dev:** [https://dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
+# 🖥️ Sustentación Ejecutiva — EvidentIA
+
+<callout icon="🚀" color="blue_bg">
+**EvidentIA: Copiloto de Entorno y Verificación Trazable para TVN Media**<br>
+*Transformamos el flujo informativo: de la señal bruta a la decisión editorial con rigor periodístico inmutable, cero alucinaciones y matemática determinista.*
+</callout>
+
+<columns>
+<column ratio="50">
+
+**Datos del Reto & Sustentación**
+- **Evento:** hackIAthon Panamá 2026 — 4ta Edición
+- **Reto Oficial:** TVN Media — *"De la señal a la decisión"*
+- **Extensión:** Inteligencia de Entorno y Banca
+- **Equipo:** **Alek Rutherford** & **Pedro Carreras**
+
+</column>
+<column ratio="50">
+
+**Accesos en Vivo al Entorno**
+- 🌐 **Producción (Cloud Live):** [evidentia.vertexdc.com](https://evidentia.vertexdc.com)
+- 🧪 **Staging / Dev:** [dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
+- ⚙️ **Consola Jurado (T01–T10):** [/jurado](https://evidentia.vertexdc.com/jurado)
+- 📚 **Swagger API Docs:** [/docs](https://evidentia-api.vertexdc.com/docs)
+
+</column>
+</columns>
 
 ---
 
-## 🧭 Índice Rápido de la Presentación
-
-* [Diapositiva 1: Portada y Propósito Central](#diapositiva-1-portada-y-propósito-central)
-* [Diapositiva 2: El Problema en TVN — La Trampa de la Inmediatez](#diapositiva-2-el-problema-en-tvn--la-trampa-de-la-inmediatez)
-* [Diapositiva 3: Nuestra Tesis — EvidentIA](#diapositiva-3-nuestra-tesis--evidentia)
-* [Diapositiva 4: Demostración — Bandeja Inteligente y Grafo a 60 FPS](#diapositiva-4-demostración--bandeja-inteligente-y-grafo-a-60-fps)
-* [Diapositiva 5: El Rigor Periodístico — Citas Canónicas y Abstención](#diapositiva-5-el-rigor-periodístico--citas-canónicas-y-abstención)
-* [Diapositiva 6: Auditoría Técnica — Suite T01 a T10 en Vivo en 7 Segundos](#diapositiva-6-auditoría-técnica--suite-t01-a-t10-en-vivo-en-7-segundos)
-* [Diapositiva 7: Arquitectura Corporativa y Modo Offline a $0.00](#diapositiva-7-arquitectura-corporativa-y-modo-offline-a-000)
-* [Diapositiva 8: Impacto Operativo para TVN Media y Cierre](#diapositiva-8-impacto-operativo-para-tvn-media-y-cierre)
+<table_of_contents color="blue"/>
 
 ---
 
-## Diapositiva 1: Portada y Propósito Central
+## ⚠️ El Desafío Editorial: La Trampa de la Inmediatez
 
-> ### 🚀 EvidentIA
-> **Copiloto de Entorno y Verificación Trazable**  
-> *"De la señal a la decisión con rigor editorial inmutable."*
+<callout icon="⚠️" color="orange_bg">
+**El dilema en la sala de redacción moderna:**<br>
+Un periodista contemporáneo no sufre por escasez de noticias; sufre por saturación de ruido sin corroboración oportuna.
+</callout>
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          HACKIATHON PANAMÁ 2026                             │
-│                                                                             │
-│   • Reto: TVN Media (Editorial Periodística)                                │
-│   • Extensión: Inteligencia de Entorno y Banca                              │
-│   • Plataforma en Producción: https://evidentia.vertexdc.com                │
-│   • Equipo: Alek Rutherford & Pedro Carreras                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+<columns>
+<column ratio="50">
 
-* **El Mensaje en 1 Frase:** En lugar de un chatbot genérico que inventa o parafrasea noticias, EvidentIA entrega una sala de redacción con trazabilidad de fuentes, ranking transparente y abstención matemática ante la falta de evidencia.
+### El Ruido Informativo Tradicional
+- **Repetición Masiva:** Cuando 10 medios replican el mismo cable de agencia (ej. EFE o AP), la redacción percibe una falsa sensación de corroboración independiente.
+- **Cifras Anacrónicas y Descontextualizadas:** Se publican titulares con cifras como *"El PIB subió 7%"* sin especificar año de corte, metodología o entidad emisora.
+- **Tiempos de Ciclo Extenuantes:** Contrastar una pista requiere hasta 55 minutos entre bases de datos dispersas, llamadas y hemerotecas.
 
----
+</column>
+<column ratio="50">
 
-## Diapositiva 2: El Problema en TVN — La Trampa de la Inmediatez
+### El Riesgo de los Modelos LLM Genéricos
+- **Alucinación Epistémica:** Un chatbot convencional inventa fuentes que parecen verídicas o adjudica declaraciones a funcionarios equivocados.
+- **Vulnerabilidad a Inyecciones:** Titulares maliciosos pueden manipular el contexto del prompt y alterar las conclusiones del redactor.
+- **Riesgo Reputacional Crítico:** Para TVN Media, una sola retractación pública destruye años de credibilidad editorial acumulada.
 
-> ### ⚠️ El Dilema de la Sala de Redacción
-> *"Un periodista no sufre por falta de noticias; sufre por falta de verificación oportuna."*
-
-```
-             LLUVIA DE CABLES Y TELETIPOS (Ruido Informativo)
-                                   │
-      ┌────────────────────────────┼────────────────────────────┐
-      ▼                            ▼                            ▼
-5 Medios repiten              Cifras sueltas              Modelos LLM
-el mismo cable de EFE         "El PIB subió 7%"           alucinan datos
-(Falsa corroboración)         (¿De qué año? ¿Fuente?)     y falsifican citas
-```
-
-### Los 3 Grandes Dolores de TVN:
-1. **Volumen confundido con Verdad:** La repetición masiva de una noticia crea una ilusión de confirmación.
-2. **Cifras Anacrónicas:** Datos de inflación o empleo citados sin año de corte ni unidad canónica.
-3. **Riesgo Reputacional Inaceptable:** Usar herramientas de IA tradicionales que inventan fuentes o son vulnerables a titulares maliciosos.
+</column>
+</columns>
 
 ---
 
-## Diapositiva 3: Nuestra Tesis — EvidentIA
+## 💡 Nuestra Tesis: Principios Rectores Innegociables
 
-> ### 💡 Principios Rectores Innegociables
-> *"Repetir no es corroborar. Prioridad no es certeza. La IA asiste; el ser humano decide."*
+<callout icon="💡" color="yellow_bg">
+**"Repetir no es corroborar. Prioridad no es certeza. La IA asiste; el ser humano decide."**
+</callout>
 
+```mermaid
+graph LR
+  subgraph Fuentes["Señales en Tiempo Real"]
+    RSS["Feeds RSS TVN"]
+    BM["Banco Mundial API"]
+    USGS["USGS Sismos en Vivo"]
+  end
+
+  subgraph Motor["Motor Inteligente EvidentIA"]
+    Jaccard["Deduplicación Jaccard"]
+    Scoring["Scoring Multicriterio (P)"]
+    Graph["Light GraphRAG 60 FPS"]
+    Abst["Abstención Estructurada"]
+  end
+
+  subgraph Redaccion["Sala de Redacción TVN"]
+    Bandeja["Bandeja Priorizada"]
+    Ficha["Ficha de Investigación"]
+    Borrador["Borrador Marcado [HECHO]"]
+    Aprobacion["Validación Periodística"]
+  end
+
+  Fuentes --> Motor
+  Motor --> Redaccion
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    EL FLUJO DE CONVERSIÓN DE EVIDENTIA                      │
-│                                                                             │
-│   SEÑALES BRUTAS       ──►  MOTOR EVIDENTIA         ──► DECISIÓN HUMANA     │
-│   • Feeds RSS TVN           • Deduplicación Jaccard     • Prioridad P clara │
-│   • Banco Mundial           • Light GraphRAG            • Ficha auditable   │
-│   • USGS Terremotos         • Citas WB:PAN:...          • Borrador con tags │
-│   • GDELT 2.0               • Aislamiento XML           • Aprobación humana │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-* **Formula de Prioridad Determinista:**
-  $$\text{Prioridad } P = 30R + 25I + 20U + 15N + 10E$$
-  *Descuenta automáticamente la saturación de réplicas léxicas ($N$) y valida procedencias independientes ($E$).*
 
 ---
 
-## Diapositiva 4: Demostración — Bandeja Inteligente y Grafo a 60 FPS
+## 🧬 Los 3 Pilares Tecnológicos de EvidentIA
 
-> ### 🖥️ Demostración en Pantalla: El Grafo Causal en Vivo
-> *Visualizador físico interactivo en SVG nativo a 60 cuadros por segundo.*
+### 1. Scoring Multicriterio Determinista {toggle="true" color="blue"}
 
-```
-       [Noticia: Cierre de Vía] ──(Ocurre en)──► [Tierras Altas, Chiriquí]
-                  │                                         │
-            (Reportado por)                           (Afecta a)
-                  │                                         │
-                  ▼                                         ▼
-         [Sismo USGS Mag 4.8]                     [PIB Agrícola WB:2023]
-```
+En lugar de delegar el criterio editorial a la temperatura aleatoria de un modelo de lenguaje, EvidentIA aplica una fórmula matemática auditable:
 
-### Lo que nos diferencia de cualquier otra solución:
-* **Física en tiempo real:** Arrastre de nodos, zoom panorámico y filtros por temática sin librerías pesadas.
-* **Cruce Multimodal Instantáneo:** Un temblor del USGS se conecta en el grafo con la nota vial y con el indicador del Banco Mundial en milisegundos.
-* **Inspección con 1 Clic:** Presionar cualquier nodo abre la fuente original validada.
+$$\text{Prioridad } P = 30R + 25I + 20U + 15N + 10E$$
 
----
+- **$R$ (Relevancia):** Coincidencia semántica con la agenda editorial de TVN y palabras clave prioritarias.
+- **$I$ (Impacto):** Alcance poblacional y repercusión socioeconómica estimada.
+- **$U$ (Urgencia):** Decaimiento temporal basado en la frescura del evento noticioso.
+- **$N$ (Novedad):** Descuenta penalizaciones por saturación léxica de cables ya procesados.
+- **$E$ (Evidencia Corroborada):** Recompensa exclusiva para temas respaldados por más de una fuente independiente y confiable.
 
-## Diapositiva 5: El Rigor Periodístico — Citas Canónicas y Abstención
+### 2. Light GraphRAG Causal e Interactivo a 60 FPS {toggle="true" color="purple"}
 
-> ### 🛡️ Blindaje Editorial Anti-Alucinación
-> *Todo hecho tiene su fuente; sin fuente, existe abstención formal.*
+- **Física Vectorial en SVG Nativo:** Renderizado fluido a 60 FPS sin sobrecarga de dependencias pesadas de canvas o WebGL.
+- **Cruce Multimodal Instantáneo:** Un reporte vial de Chiriquí se conecta en milisegundos con un sismo reportado por el USGS y con el indicador macroeconómico del PIB agrícola de Panamá (`WB:PAN:NV.AGR.TOTL.ZS:2023`).
+- **Navegación Panorámica y Filtros:** Permite arrastrar nodos, explorar relaciones de causa-efecto y saltar a la fuente canónica original en 1 clic.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       CLASIFICACIÓN EPISTÉMICA ACTIVA                       │
-│                                                                             │
-│   [HECHO]        "El PIB de Panamá creció 7.3% [WB:PAN:NY.GDP:2023]"        │
-│   [DECLARACIÓN]  "El sindicato anunció paro de 48 horas [TVN:104]"          │
-│   [INFERENCIA]   "El desabastecimiento podría presionar precios locales"    │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+### 3. Clasificación Epistémica y Abstención Formal {toggle="true" color="green"}
 
-### El Comportamiento ante lo Desconocido (Abstención):
-* Si se consulta una métrica que no está en el corpus:
-  👉 **`abstained: true`**
-* EvidentIA no especula: detalla con precisión quirúrgica qué datos faltan y qué llamada periodística corresponde hacer al MEF o a la entidad oficial.
+- **Marcado Estricto de Contenido:**
+  - `[HECHO]`: Aseveración verificada con identificador de fuente inmutable (ej. `[WB:PAN:NY.GDP.MKTP.KD.ZG:2023]`).
+  - `[DECLARACIÓN]`: Cita textual o atribuida a un vocero identificado (ej. `[TVN:104]`).
+  - `[INFERENCIA]`: Conjetura analítica que requiere verificación humana antes de publicación.
+- **Tolerancia Cero a la Alucinación (`abstained: true`):** Si una métrica o hecho no existe en el corpus corroborado, EvidentIA se abstiene formalmente en lugar de especular, indicando qué dato falta y qué consulta específica debe hacerse al MEF o a la entidad correspondiente.
 
 ---
 
-## Diapositiva 6: Auditoría Técnica — Suite T01 a T10 en Vivo en 7 Segundos
+## 🖥️ Flujo Operativo en Sala de Redacción (Live Demo)
 
-> ### 🧪 Corrida de Evaluación Integrada (`/jurado`)
-> *Demostración empírica de cumplimiento del pliego en tiempo real.*
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    CENTRO DE AUDITORÍA OFICIAL (T01 - T10)                  │
-│                                                                             │
-│   ✅ T01 Ingesta Multifuente       ✅ T06 Abstención Estructurada           │
-│   ✅ T02 Deduplicación Léxica      ✅ T07 Blindaje Anti-Prompt Injection    │
-│   ✅ T03 Scoring Multicriterio     ✅ T08 Seguridad Dual JWT & RBAC         │
-│   ✅ T04 Trazabilidad de Citas     ✅ T09 Resiliencia Offline (0 USD)       │
-│   ✅ T05 GraphRAG Causal           ✅ T10 Trazabilidad de Cargas por Esquema │
-│                                                                             │
-│   ⏱️ Tiempo de Ejecución Total: 6.8 segundos | 10/10 Pruebas en Verde      │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-* **Transparencia Inmediata:** Cada prueba muestra su aserción de código, su tiempo en milisegundos y el valor evaluado.
+<table fit-page-width="true" header-row="true">
+<colgroup>
+<col color="blue">
+<col color="default">
+<col color="green">
+</colgroup>
+<tr>
+<td>Etapa del Flujo</td>
+<td>Acción del Periodista / Editor</td>
+<td>Garantía de EvidentIA</td>
+</tr>
+<tr>
+<td>**1. Ingesta y Deduplicación**</td>
+<td>Llegada automática de feeds RSS y carga documental manual</td>
+<td>Deduplicación Jaccard con trazabilidad inmutable de `upload_id`</td>
+</tr>
+<tr>
+<td>**2. Bandeja Inteligente**</td>
+<td>Revisión de leads ordenados de más reciente a más antiguo</td>
+<td>Cálculo transparente del Score $P$ y desglose de factores</td>
+</tr>
+<tr>
+<td>**3. Grafo de Causalidad**</td>
+<td>Exploración visual a 60 FPS de conexiones entre entidades</td>
+<td>Descubrimiento de causas subyacentes y cruce Banco Mundial / USGS</td>
+</tr>
+<tr>
+<td>**4. Redacción & Aprobación**</td>
+<td>Generación de borrador con citas y validación del Editor Jefe</td>
+<td>Marcado epistémico `[HECHO]`, exportación a Markdown y cero alucinaciones</td>
+</tr>
+</table>
 
 ---
 
-## Diapositiva 7: Arquitectura Corporativa y Modo Offline a $0.00
+## 🧪 Auditoría Técnica en Vivo: Suite T01–T10 en <7 Segundos
 
-> ### 🏢 Preparado para la Escala Empresarial
-> *Seguridad de grado financiero y tolerancia a fallos catastróficos.*
+<callout icon="✅" color="green_bg">
+**Consola `/jurado` en Producción:**<br>
+Demostración empírica de cumplimiento del pliego en vivo: **10/10 pruebas en verde** ejecutadas de extremo a extremo en aproximadamente **6.8 segundos**.
+</callout>
 
-| Dimensión | Enfoque EvidentIA | Beneficio Tangible para TVN |
-| :--- | :--- | :--- |
-| **Autenticación** | Dual JWT (15 min Access / 7 días Refresh rotativo) | Máxima seguridad contra secuestro de tokens y control de sesiones. |
-| **Control de Acceso**| RBAC para 4 roles (`Super Admin`, `Owner`, `Admin`, `Member`) | Separación clara entre periodistas, editores y administradores. |
-| **Costo Conectado**| Together.ai Llama-3.3-70B-Turbo (~$0.0011 USD/consulta) | Costos de inferencia ultrabajos y predecibles. |
-| **Modo Desconectado**| Generador Estructurado Determinista Local | **$0.00 USD**: Si se cae internet, la redacción no se detiene. |
-| **Persistencia** | Capa `/app/seed_frozen` + auto-aprovisionamiento | Cero pérdida de datos ante reinicios o despliegues en Coolify. |
+- [x] **T01 Ingesta Multifuente:** Ingesta simultánea de TVN RSS, Banco Mundial y USGS con esquema unificado.
+- [x] **T02 Deduplicación Léxica:** Filtrado de cables redundantes mediante similitud Jaccard $J \ge 0.85$.
+- [x] **T03 Scoring Determinista:** Priorización matemática sin variabilidad aleatoria ni drift de prompt.
+- [x] **T04 Trazabilidad Canónica:** Formato de citas inmutables `WB:PAN:INDICADOR:AÑO` y enlaces directos.
+- [x] **T05 GraphRAG Causal:** Resolución de caminos de causalidad entre eventos físicos y socioeconómicos.
+- [x] **T06 Abstención Formal:** Respuesta estructurada `abstained: true` ante preguntas fuera de corpus.
+- [x] **T07 Blindaje Anti-Prompt Injection:** Aislamiento con delimitadores XML `<untrusted_content>`.
+- [x] **T08 Seguridad Dual JWT & RBAC:** Matriz estricta para Super Admin, Owner, Admin y Member.
+- [x] **T09 Resiliencia Offline ($0.00 USD):** Generación determinista local sin red ni costos de API.
+- [x] **T10 Trazabilidad por Esquema:** Ingesta auditada por lote con metadatos de usuario y timestamp.
 
 ---
 
-## Diapositiva 8: Impacto Operativo para TVN Media y Cierre
+## 🏢 Arquitectura Corporativa & Eficiencia Financiera
 
-> ### 📈 El Valor de Negocio
-> *"Más primicias verificadas, cero retractaciones públicas."*
+<columns>
+<column ratio="50">
 
-```
-           TIEMPO DE PREPARACIÓN DE UNA NOTA INVESTIGATIVA
-  
-  Flujo Tradicional: ████████████████████ (55 minutos)
-  Con EvidentIA:     ████ (11 minutos)  ---> ¡80% DE AHORRO!
-```
+### Grado de Seguridad y Resiliencia
+- **Autenticación Dual JWT:** Access Token de 15 minutos y Refresh Token de 7 días con rotación criptográfica anti-replay.
+- **RBAC Multi-tenant:** Control granular de acciones (el Periodista crea y explora; el Editor Jefe aprueba y descarta; el Super Admin gestiona el sistema).
+- **Persistencia Inmutable:** Capa `/app/seed_frozen` con volumen Docker persistente; cero pérdida de estado ante reinicios o despliegues.
 
-### Conclusiones:
-1. **EvidentIA es una realidad desplegada:** No es un mockup ni un prototipo en Figma; está corriendo en vivo en producción.
-2. **Respalda la reputación de TVN:** Cada número, cada fecha y cada fuente están garantizados de forma auditable.
-3. **Escalable a toda la corporación:** Diseñado para televisión, web, radio y extensible a estudios macroeconómicos.
+</column>
+<column ratio="50">
 
-> **¡Gracias, señores miembros del jurado!**  
-> Pasamos a la sesión de preguntas y respuestas técnicas.  
-> 🔗 Plataforma en vivo (Main): [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com) · [Dev: dev-evidentia.vertexdc.com](https://dev-evidentia.vertexdc.com)
+### Economía Operativa ($0.00 Offline)
+- **Modo Conectado (Together AI):** Modelo Llama-3.3-70B-Turbo de alta velocidad con costo de apenas **~$0.0011 USD por consulta**.
+- **Modo Desconectado (Local Determinista):** Si se interrumpe la conexión a internet, la sala de redacción continúa redactando con **$0.00 USD** de costo.
+- **Infraestructura Ágil:** Despliegue contenerizado sobre Coolify con HTTPS automático y recursos optimizados.
+
+</column>
+</columns>
+
+---
+
+## 📈 Impacto de Negocio para TVN Media
+
+<table fit-page-width="true" header-row="true">
+<tr>
+<td>Dimensión Operativa</td>
+<td>Flujo Tradicional</td>
+<td>Con EvidentIA</td>
+<td>Beneficio Cuantitativo</td>
+</tr>
+<tr>
+<td>**Tiempo de Preparación de Nota**</td>
+<td>55 minutos</td>
+<td>11 minutos</td>
+<td>**80% de ahorro en tiempo de redacción**</td>
+</tr>
+<tr>
+<td>**Riesgo de Alucinación**</td>
+<td>Elevado con LLMs genéricos</td>
+<td>Cero alucinación con citas canónicas</td>
+<td>**Blindaje reputacional total**</td>
+</tr>
+<tr>
+<td>**Corroboración de Cables**</td>
+<td>Manual y sujeta a sesgo</td>
+<td>Deduplicación Jaccard + Factor $E$</td>
+<td>**Eliminación de falsas primicias**</td>
+</tr>
+<tr>
+<td>**Operación ante Cortes de Red**</td>
+<td>Parálisis operativa</td>
+<td>Modo local determinista activo</td>
+<td>**Continuidad editorial ininterrumpida**</td>
+</tr>
+</table>
+
+---
+
+## 🔑 Credenciales Demo Oficiales (Auditoría en 1 Clic)
+
+Para auditar inmediatamente cada rol en [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com):
+
+<table fit-page-width="true" header-row="true">
+<tr>
+<td>Rol</td>
+<td>Correo Electrónico</td>
+<td>Contraseña</td>
+<td>Capacidades Asignadas</td>
+</tr>
+<tr>
+<td>**Super Admin / Jurado**</td>
+<td>`admin@tvn.com`</td>
+<td>`EvidentIA2026!`</td>
+<td>Acceso total, suite T01–T10 en vivo en `/jurado`, carga en `/ingest`.</td>
+</tr>
+<tr>
+<td>**Editor Jefe (Owner)**</td>
+<td>`editor@tvn.com`</td>
+<td>`EvidentIA2026!`</td>
+<td>Bandeja inteligente, priorización editorial y aprobación de fichas.</td>
+</tr>
+<tr>
+<td>**Periodista (Member)**</td>
+<td>`periodista@tvn.com`</td>
+<td>`EvidentIA2026!`</td>
+<td>Creación de leads, exploración del grafo a 60 FPS y redacción asistida.</td>
+</tr>
+</table>
+
+<callout icon="🎯" color="blue_bg">
+**¡Muchas gracias, distinguidos miembros del Jurado Calificador!**<br>
+Quedamos a su entera disposición para la sesión de preguntas y respuestas técnicas, así como para la demostración interactiva en vivo.
+</callout>
