@@ -5,8 +5,8 @@
  * Uses native jsonSchema validation (zero extra dependencies).
  * Executes multi-step tool calls directly against FastAPI, forwarding the user's JWT bearer token.
  */
-import { defineEventHandler, getHeader, readBody, createError } from "h3";
-import { streamText, tool, jsonSchema, convertToModelMessages } from "ai";
+import { defineEventHandler, getHeader, getCookie, readBody, createError } from "h3";
+import { streamText, tool, jsonSchema, convertToModelMessages, stepCountIs } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 
 const SYSTEM_PROMPT = `Eres el Copiloto Editorial e Inteligente de EvidentIA, la plataforma de verificación y periodismo de investigación de TVN Media y Vertex DC.
@@ -17,10 +17,23 @@ Tus responsabilidades principales:
 3. Monitorear y controlar la ingesta de datos (RSS en vivo de TVN o snapshots de datos semilla) y reportes de calidad.
 4. Generar borradores investigativos (briefs) con trazabilidad estricta y citas en formato [id:campo].
 
-Reglas inquebrantables de comportamiento:
-- Comunícate de forma precisa, concisa y profesional en español.
-- Si el usuario te pide crear, buscar, editar o reejecutar algo, utiliza las herramientas disponibles en el servidor directamente.
-- Cuando crees o actualices un lead, menciona su ID claramente (ej: Lead #12) y resume qué cambios se realizaron.
+Reglas inquebrantables de comportamiento y formato Markdown:
+- Comunícate siempre de forma fluida, clara, precisa y profesional en español utilizando Markdown enriquecido y estructurado.
+- FORMATO VISUAL EN MARKDOWN:
+  * Utiliza encabezados jerárquicos (### para secciones principales) para organizar las respuestas de forma limpia y legible.
+  * Emplea listas con viñetas (-) para enumerar puntos clave, usando negrita para resaltar métricas y entidades (ej: - **Noticias válidas:** 177).
+  * Cuando presentes desgloses de ingesta, comparativas o balances, usa tablas Markdown (| Columna 1 | Columna 2 |) concisas y claras.
+  * Cuando hagas referencia a un lead, incluye SIEMPRE su enlace markdown navegable: [Lead #ID](/leads/ID) (por ejemplo: [Lead #12](/leads/12)), para que el periodista pueda hacer click y abrir el lead de inmediato.
+  * Si te refieres a la bandeja de ingesta, enlaza a [Bandeja de Ingesta](/ingest).
+  * Si te refieres al catálogo de evidencias, enlaza a [Catálogo](/evidence).
+  * Usa bloques de cita (>) para destacar advertencias, observaciones metodológicas o notas de verificación.
+  * Emplea código inline (\`query\`) para filtros, queries o identificadores técnicos.
+- REGLA CRÍTICA TRAS EJECUTAR HERRAMIENTAS: Después de llamar a cualquier herramienta (consultar ingesta, buscar evidencias, crear o actualizar leads, etc.), NUNCA te quedes en silencio ni dejes la respuesta vacía o únicamente con el bloque técnico. DEBES redactar inmediatamente a continuación una respuesta explicativa y completa en lenguaje natural en español utilizando Markdown:
+  * Si consultaste la ingesta: presenta un desglose visual con tabla o viñetas de registros válidos y procesados por familia (noticias, indicadores, eventos), y resume si hubo duplicados o advertencias.
+  * Si creaste un lead: confirma la creación resaltando [Lead #ID](/leads/ID), su título y modalidad en negrita, y sugiere 2-3 próximos pasos recomendados con viñetas.
+  * Si buscaste evidencias o leads: presenta los hallazgos principales en una lista con viñetas o tabla compacta con título, fecha/estado y fuente antes de sugerir acciones.
+  * Si editaste o vinculaste fuentes: confirma claramente la acción realizada y su impacto en el lead.
+- Para 'create_lead', utiliza obligatoriamente los parámetros 'titulo' (título descriptivo en español) y 'modalidad' ('tvn' o 'banca').
 - Jamás inventes datos ni afirmes hechos que no estén respaldados por el catálogo o por las fuentes vinculadas.
 - Si no encuentras evidencia suficiente para una afirmación, indícalo de manera transparente.`;
 
@@ -30,6 +43,7 @@ export default defineEventHandler(async (event) => {
 
   // Extract auth header to forward to FastAPI backend
   const authHeader = getHeader(event, "authorization");
+  const refreshTokenCookie = getCookie(event, "evidentia_refresh_token");
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
@@ -49,14 +63,14 @@ export default defineEventHandler(async (event) => {
       apiKey: config.togetherApiKey as string,
       baseURL: (config.togetherBaseUrl as string) || "https://api.together.xyz/v1",
     });
-    model = together(
+    model = together.chat(
       (config.llmModel as string) || "meta-llama/Llama-3.3-70B-Instruct-Turbo"
     );
   } else if (config.openaiApiKey) {
     const openai = createOpenAI({
       apiKey: config.openaiApiKey as string,
     });
-    model = openai((config.llmModel as string) || "gpt-4o");
+    model = openai.chat((config.llmModel as string) || "gpt-4o");
   } else {
     throw createError({
       statusCode: 500,
@@ -64,7 +78,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Helper for server-side FastAPI calls
+  // Helper for server-side FastAPI calls with automatic token rotation retry
   async function apiCall<T>(
     path: string,
     opts: { method?: string; body?: unknown; query?: Record<string, string> } = {}
@@ -72,11 +86,40 @@ export default defineEventHandler(async (event) => {
     const cleanPath = path.replace(/^\//, "");
     const qs = opts.query ? `?${new URLSearchParams(opts.query).toString()}` : "";
     const url = `${backendUrl}/${cleanPath}${qs}`;
-    return await $fetch<T>(url, {
-      method: (opts.method || "GET") as "GET" | "POST" | "PATCH" | "DELETE",
-      headers,
-      body: opts.body,
-    });
+
+    try {
+      return await $fetch<T>(url, {
+        method: (opts.method || "GET") as "GET" | "POST" | "PATCH" | "DELETE",
+        headers,
+        body: opts.body,
+      });
+    } catch (err: any) {
+      const isAuthError =
+        err?.status === 401 ||
+        err?.statusCode === 401 ||
+        err?.data?.detail?.toString().includes("expired") ||
+        err?.data?.detail?.toString().includes("token");
+
+      if (isAuthError && refreshTokenCookie) {
+        try {
+          const refreshRes = await $fetch<{ access_token: string }>(`${backendUrl}/auth/refresh`, {
+            method: "POST",
+            body: { refresh_token: refreshTokenCookie },
+          });
+          if (refreshRes?.access_token) {
+            headers["authorization"] = `Bearer ${refreshRes.access_token}`;
+            return await $fetch<T>(url, {
+              method: (opts.method || "GET") as "GET" | "POST" | "PATCH" | "DELETE",
+              headers,
+              body: opts.body,
+            });
+          }
+        } catch {
+          // Fall through to throw err
+        }
+      }
+      throw err;
+    }
   }
 
   // Server-side tools using native jsonSchema from 'ai'
@@ -97,10 +140,13 @@ export default defineEventHandler(async (event) => {
         },
         required: ["q"],
       }),
-      execute: async ({ q, tipo, limit }) => {
+      execute: async (rawInput: any) => {
         try {
+          const q = rawInput.q || rawInput.query || rawInput.term || rawInput.search || "";
+          const tipo = rawInput.tipo || rawInput.type || "";
+          const limit = Number(rawInput.limit || 10);
           const items = await apiCall<any[]>("/cases/catalog", {
-            query: { q, tipo: tipo || "", limit: String(limit || 10) },
+            query: { q, tipo, limit: String(limit) },
           });
           return { success: true, count: items.length, items: items.slice(0, 10) };
         } catch (err: any) {
@@ -223,8 +269,19 @@ export default defineEventHandler(async (event) => {
         },
         required: ["titulo", "modalidad"],
       }),
-      execute: async ({ titulo, modalidad, queries = [], flags = [], evidence_ids = [] }) => {
+      execute: async (rawInput: any) => {
         try {
+          const titulo = rawInput.titulo || rawInput.title || rawInput.name || "";
+          let modalidad = (rawInput.modalidad || rawInput.modality || rawInput.organization || "tvn").toLowerCase();
+          if (modalidad !== "tvn" && modalidad !== "banca") modalidad = "tvn";
+          const queries = Array.isArray(rawInput.queries) ? rawInput.queries : [];
+          const flags = Array.isArray(rawInput.flags) ? rawInput.flags : [];
+          const evidence_ids = Array.isArray(rawInput.evidence_ids)
+            ? rawInput.evidence_ids
+            : Array.isArray(rawInput.evidence)
+            ? rawInput.evidence
+            : [];
+
           const created = await apiCall<any>("/cases", {
             method: "POST",
             body: { titulo, modalidad, queries, flags, evidence_ids },
@@ -273,8 +330,21 @@ export default defineEventHandler(async (event) => {
         },
         required: ["id"],
       }),
-      execute: async ({ id, ...patchData }) => {
+      execute: async (rawInput: any) => {
         try {
+          const id = Number(rawInput.id || rawInput.lead_id || rawInput.case_id);
+          const patchData: any = {};
+          if (rawInput.titulo || rawInput.title) patchData.titulo = rawInput.titulo || rawInput.title;
+          if (rawInput.modalidad || rawInput.modality) {
+            let m = (rawInput.modalidad || rawInput.modality).toLowerCase();
+            if (m === "tvn" || m === "banca") patchData.modalidad = m;
+          }
+          if (Array.isArray(rawInput.queries)) patchData.queries = rawInput.queries;
+          if (rawInput.estado || rawInput.status || rawInput.state) {
+            patchData.estado = rawInput.estado || rawInput.status || rawInput.state;
+          }
+          if (Array.isArray(rawInput.flags)) patchData.flags = rawInput.flags;
+
           const updated = await apiCall<any>(`/cases/${id}`, {
             method: "PATCH",
             body: patchData,
@@ -582,7 +652,7 @@ export default defineEventHandler(async (event) => {
     system: dynamicSystem,
     messages: modelMessages,
     tools,
-    maxSteps: 8,
+    stopWhen: stepCountIs(8),
   });
 
   return result.toUIMessageStreamResponse();

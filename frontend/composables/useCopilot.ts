@@ -12,6 +12,22 @@ import { useAuth } from "~/composables/useAuth";
 
 const isOpen = ref(false);
 
+function isTokenExpired(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1]));
+    if (payload.exp) {
+      // Treat as expired if less than 30s remaining
+      return Date.now() >= payload.exp * 1000 - 30000;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 export function useCopilot() {
   const auth = useAuth();
   const route = useRoute();
@@ -39,9 +55,13 @@ export function useCopilot() {
   const chat = useChat({
     transport: new DefaultChatTransport({
       api: "/api/copilot",
-      headers: () => ({
-        ...(auth.accessToken.value ? { authorization: `Bearer ${auth.accessToken.value}` } : {}),
-      }),
+      headers: async () => {
+        // Proactively refresh JWT session if access token is missing or expiring
+        if (isTokenExpired(auth.accessToken.value) && auth.refreshToken.value) {
+          await auth.refreshSession();
+        }
+        return auth.accessToken.value ? { authorization: `Bearer ${auth.accessToken.value}` } : {};
+      },
       body: () => ({
         context: currentContext.value,
       }),
