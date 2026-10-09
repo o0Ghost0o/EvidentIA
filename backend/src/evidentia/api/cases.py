@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from evidentia import models
+from evidentia.auth.dependencies import require_role
 from evidentia.db import SessionDep
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -588,7 +590,11 @@ def remove_flag(case_id: int, flag_name: str, session: SessionDep) -> dict:
 
 
 @router.delete("/{case_id}", status_code=204)
-def delete_case(case_id: int, session: SessionDep) -> Response:
+def delete_case(
+    case_id: int,
+    session: SessionDep,
+    current_user: Annotated[models.User, Depends(require_role("Owner"))] = None,
+) -> Response:
     case = _get_case(session, case_id)
     for item in session.exec(
         select(models.EvidenceItem).where(models.EvidenceItem.case_id == case.id)

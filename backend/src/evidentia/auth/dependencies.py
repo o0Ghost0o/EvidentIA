@@ -25,30 +25,96 @@ ROLE_HIERARCHY: dict[str, int] = {
 }
 
 
-def bootstrap_initial_admin(session: Session) -> models.User | None:
-    """Bootstrap or synchronize initial Super Admin user from secrets / environment."""
-    settings = get_settings()
-    admin = session.exec(select(models.User).where(models.User.email == settings.admin_email)).first()
-    if admin is not None:
-        if not verify_password(settings.admin_password, admin.hashed_password):
-            admin.hashed_password = hash_password(settings.admin_password)
-            session.add(admin)
-            session.commit()
-            session.refresh(admin)
-        return admin
+DEFAULT_DEMO_USERS: list[dict[str, str]] = [
+    {
+        "email": "admin@tvn.com",
+        "nombre": "Super Admin / Jurado",
+        "password": "EvidentIA2026!",
+        "role": "Super Admin",
+        "org_id": "TVN Media",
+    },
+    {
+        "email": "editor@tvn.com",
+        "nombre": "Editor Jefe",
+        "password": "EvidentIA2026!",
+        "role": "Owner",
+        "org_id": "TVN Media",
+    },
+    {
+        "email": "periodista@tvn.com",
+        "nombre": "Periodista de Redacción",
+        "password": "EvidentIA2026!",
+        "role": "Member",
+        "org_id": "TVN Media",
+    },
+    {
+        "email": "admin@vertexdc.com",
+        "nombre": "Pedro Carreras",
+        "password": "EvidentIA2026!",
+        "role": "Super Admin",
+        "org_id": "VERTEXdc",
+    },
+]
 
-    admin = models.User(
-        email=settings.admin_email,
-        nombre=settings.admin_initial_name,
-        hashed_password=hash_password(settings.admin_password),
-        role=settings.admin_initial_role,
-        org_id=settings.admin_initial_org,
-        is_active=True,
-    )
-    session.add(admin)
+
+def bootstrap_initial_admin(session: Session) -> models.User | None:
+    """Bootstrap or synchronize initial Super Admin and demo accounts for jury audit."""
+    settings = get_settings()
+
+    # 1. Synchronize all standard demo accounts
+    created_or_updated: dict[str, models.User] = {}
+    for demo in DEFAULT_DEMO_USERS:
+        user = session.exec(select(models.User).where(models.User.email == demo["email"])).first()
+        if user is None:
+            user = models.User(
+                email=demo["email"],
+                nombre=demo["nombre"],
+                hashed_password=hash_password(demo["password"]),
+                role=demo["role"],
+                org_id=demo["org_id"],
+                is_active=True,
+            )
+            session.add(user)
+        else:
+            changed = False
+            if not verify_password(demo["password"], user.hashed_password):
+                user.hashed_password = hash_password(demo["password"])
+                changed = True
+            if user.role != demo["role"]:
+                user.role = demo["role"]
+                changed = True
+            if not user.is_active:
+                user.is_active = True
+                changed = True
+            if changed:
+                session.add(user)
+        created_or_updated[demo["email"]] = user
+
+    # 2. Synchronize additional admin if specified in env/settings (e.g. admin@vertexdc.com)
+    if settings.admin_email and settings.admin_email not in created_or_updated:
+        env_admin = session.exec(select(models.User).where(models.User.email == settings.admin_email)).first()
+        if env_admin is None:
+            env_admin = models.User(
+                email=settings.admin_email,
+                nombre=settings.admin_initial_name,
+                hashed_password=hash_password(settings.admin_password),
+                role=settings.admin_initial_role,
+                org_id=settings.admin_initial_org,
+                is_active=True,
+            )
+            session.add(env_admin)
+        else:
+            if not verify_password(settings.admin_password, env_admin.hashed_password):
+                env_admin.hashed_password = hash_password(settings.admin_password)
+                session.add(env_admin)
+        created_or_updated[settings.admin_email] = env_admin
+
     session.commit()
-    session.refresh(admin)
-    return admin
+    for u in created_or_updated.values():
+        session.refresh(u)
+
+    # Return primary super admin
+    return created_or_updated.get("admin@tvn.com") or created_or_updated.get(settings.admin_email)
 
 
 def get_current_user(

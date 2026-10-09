@@ -18,6 +18,12 @@ const password = ref("");
 const loading = ref(false);
 const error = ref("");
 
+function fillCreds(demoEmail: string, demoPass: string) {
+  email.value = demoEmail;
+  password.value = demoPass;
+  error.value = "";
+}
+
 async function onSubmit() {
   if (!email.value.trim() || !password.value.trim()) {
     error.value = "Por favor ingresa tanto tu correo como tu contraseña.";
@@ -67,7 +73,7 @@ async function onSubmit() {
             <Input
               v-model="email"
               type="email"
-              placeholder="nombre@vertexdc.com"
+              placeholder="admin@tvn.com"
               required
               autocomplete="email"
               class="h-10"
@@ -86,6 +92,45 @@ async function onSubmit() {
               autocomplete="current-password"
               class="h-10"
             />
+          </div>
+
+          <!-- Acceso Rápido para Auditoría de Jurado (RBAC) -->
+          <div class="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                <span>🔑</span> Cuentas Demo Oficiales (Jurado / RBAC)
+              </span>
+              <Badge variant="outline" class="text-[9px]">1-Click</Badge>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button
+                type="button"
+                @click="fillCreds('admin@tvn.com', 'EvidentIA2026!')"
+                class="flex flex-col items-center justify-center p-2 rounded-md border text-center transition-all hover:bg-muted/60 active:scale-95"
+                :class="email === 'admin@tvn.com' ? 'border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary/40' : 'border-border/60 text-muted-foreground'"
+              >
+                <span class="text-[11px] font-semibold leading-tight">Super Admin</span>
+                <span class="text-[9px] opacity-75">Jurado (T01-T10)</span>
+              </button>
+              <button
+                type="button"
+                @click="fillCreds('editor@tvn.com', 'EvidentIA2026!')"
+                class="flex flex-col items-center justify-center p-2 rounded-md border text-center transition-all hover:bg-muted/60 active:scale-95"
+                :class="email === 'editor@tvn.com' ? 'border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary/40' : 'border-border/60 text-muted-foreground'"
+              >
+                <span class="text-[11px] font-semibold leading-tight">Editor Jefe</span>
+                <span class="text-[9px] opacity-75">Owner (Inbox/Aprob.)</span>
+              </button>
+              <button
+                type="button"
+                @click="fillCreds('periodista@tvn.com', 'EvidentIA2026!')"
+                class="flex flex-col items-center justify-center p-2 rounded-md border text-center transition-all hover:bg-muted/60 active:scale-95"
+                :class="email === 'periodista@tvn.com' ? 'border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary/40' : 'border-border/60 text-muted-foreground'"
+              >
+                <span class="text-[11px] font-semibold leading-tight">Periodista</span>
+                <span class="text-[9px] opacity-75">Member (Leads/Grafo)</span>
+              </button>
+            </div>
           </div>
 
           <div v-if="error" class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 
+from evidentia import models
+from evidentia.auth.dependencies import require_role
 from evidentia.jurado.service import (
     correr_pruebas_jurado,
     obtener_metricas_jurado,
@@ -23,7 +25,9 @@ def get_pruebas() -> dict[str, Any]:
 
 
 @router.post("/pruebas", summary="Ejecutar en vivo la suite de aceptación T01–T10")
-def post_correr_pruebas() -> dict[str, Any]:
+def post_correr_pruebas(
+    current_user: Annotated[models.User, Depends(require_role("Super Admin"))],
+) -> dict[str, Any]:
     """Ejecuta en vivo T01–T10 sin dependencias XML y retorna el informe en JSON con Markdown estructurado."""
     return correr_pruebas_jurado()
 

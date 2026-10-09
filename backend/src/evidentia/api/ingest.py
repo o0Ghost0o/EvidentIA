@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+from typing import Annotated
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
 import pydantic
 
+from evidentia import models
+from evidentia.auth.dependencies import require_role
 from evidentia.config import get_settings
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
@@ -17,6 +20,7 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 def run_ingest(
     sync: bool = Query(default=False, description="Run inline instead of queueing"),
     use_seed: bool = Query(default=False, description="Load the frozen seed snapshot"),
+    current_user: Annotated[models.User, Depends(require_role("Admin"))] = None,
 ) -> dict:
     """Trigger an ingestion (queued on Dramatiq by default)."""
     settings = get_settings()
@@ -56,7 +60,10 @@ def get_auto_schedule() -> dict:
 
 
 @router.post("/auto-schedule")
-def set_auto_schedule(body: ScheduleConfigRequest) -> dict:
+def set_auto_schedule(
+    body: ScheduleConfigRequest,
+    current_user: Annotated[models.User, Depends(require_role("Super Admin"))] = None,
+) -> dict:
     """Update scheduler feature flag and interval in runtime."""
     from evidentia.ingestion.scheduler import scheduler
 
@@ -129,6 +136,7 @@ def get_upload_history() -> list[dict]:
 async def upload_file(
     file: UploadFile,
     family: str | None = None,
+    current_user: Annotated[models.User, Depends(require_role("Admin"))] = None,
 ) -> dict:
     """Upload data file, validate schema, detect duplicates, and record upload metadata."""
     import csv
