@@ -31,8 +31,10 @@ const props = withDefaults(
     // Wizard: seed the pick and note so a back-then-forward keeps them.
     initialReview?: string;
     initialNote?: string;
+    // Label for the finish button after a decision is saved (edit vs create).
+    restartLabel?: string;
   }>(),
-  { readonly: false, decision: "", auditNotes: () => [], initialReview: "", initialNote: "" }
+  { readonly: false, decision: "", auditNotes: () => [], initialReview: "", initialNote: "", restartLabel: "Crear otro lead" }
 );
 const emit = defineEmits<{
   (e: "back"): void;
@@ -189,7 +191,7 @@ async function save() {
     <!-- Footer nav -->
     <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
       <Button variant="outline" @click="emit('back')">← Atrás</Button>
-      <Button v-if="saved" variant="outline" @click="emit('restart')">Crear otro lead</Button>
+      <Button v-if="saved" variant="outline" @click="emit('restart')">{{ restartLabel }}</Button>
       <div v-else class="flex items-center gap-3">
         <span v-if="!review" class="text-caption font-medium text-ink-muted">Elige un estado</span>
         <Button :disabled="!review || saving" @click="save">
