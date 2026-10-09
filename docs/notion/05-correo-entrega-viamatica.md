@@ -77,4 +77,6 @@ Agradecemos profundamente a la organización de Viamatica y a TVN Media por el r
 
 Atentamente,  
 **Equipo EvidentIA**  
+* **Alek Rutherford** (`alekissac@gmail.com`)  
+* **Pedro Carreras** (`pcarreras@vertexdc.com`)  
 *hackIAthon Panamá 2026 — 4ta Edición*

@@ -32,7 +32,7 @@
 │   • Reto: TVN Media (Editorial Periodística)                                │
 │   • Extensión: Inteligencia de Entorno y Banca                              │
 │   • Plataforma en Producción: https://evidentia.vertexdc.com                │
-│   • Equipo: EvidentIA Team                                                  │
+│   • Equipo: Alek Rutherford & Pedro Carreras                                │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 

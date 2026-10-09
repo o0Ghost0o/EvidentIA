@@ -74,6 +74,9 @@ Para facilitar una auditoría completa del Role-Based Access Control (RBAC) y to
 ## 👥 Datos del Equipo
 
 * **Nombre del Proyecto:** EvidentIA
+* **Integrantes del Equipo:**
+  * **Alek Rutherford** (`alekissac@gmail.com`)
+  * **Pedro Carreras** (`pcarreras@vertexdc.com`)
 * **Modalidad Principal:** TVN Media (Editorial Periodística)
 * **Modalidad Extensión:** Banca y Finanzas (Boletín de Entorno Económico)
 * **Fecha de Entrega:** Octubre 2026
