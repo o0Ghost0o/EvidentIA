@@ -116,6 +116,10 @@ services:
       NUXT_BACKEND_URL: http://backend:8000
       NITRO_PORT: 3000
       NITRO_HOST: 0.0.0.0
+      TOGETHER_API_KEY: ${TOGETHER_API_KEY:-}
+      TOGETHER_BASE_URL: ${TOGETHER_BASE_URL:-https://api.together.xyz/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-meta-llama/Llama-3.3-70B-Instruct-Turbo}
     depends_on:
       backend:
         condition: service_healthy
