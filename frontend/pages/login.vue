@@ -21,6 +21,7 @@ const demoAccounts = [
   { label: "Admin", email: "admin@tvn.com" },
   { label: "Editor", email: "editor@tvn.com" },
   { label: "Periodista", email: "periodista@tvn.com" },
+  { label: "Vertex", email: "admin@vertexdc.com" },
 ];
 
 function fillCreds(demoEmail: string) {
