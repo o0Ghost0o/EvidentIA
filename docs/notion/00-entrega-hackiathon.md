@@ -51,13 +51,13 @@ Bienvenido al espacio oficial de entrega del proyecto **EvidentIA**. Cumpliendo 
 
 ## 🔑 Credenciales Demo para el Jurado
 
-Para facilitar una auditoría completa del Role-Based Access Control (RBAC) y todas las capacidades editoriales, se han provisto las siguientes cuentas activas:
+Las credenciales de las tres cuentas demo se enviaron de forma privada al jurado por correo electrónico. Por seguridad no se reproducen en este documento. Cada cuenta ejerce un nivel distinto de Role-Based Access Control (RBAC) para que la auditoría cubra todas las capacidades editoriales:
 
-| Rol | Correo Electrónico | Contraseña | Permisos y Capacidades |
-|-----|-------------------|------------|------------------------|
-| **Super Admin / Jurado** | `admin@tvn.com` | `EvidentIA2026!` | Acceso irrestricto, ejecución de suite T01–T10 en vivo, carga masiva en `/ingest`, gestión de tenants y feature flags. |
-| **Editor Jefe (Owner)** | `editor@tvn.com` | `EvidentIA2026!` | Bandeja de entrada, priorización editorial, validación de fichas de evidencia y aprobación de borradores. |
-| **Periodista (Member)** | `periodista@tvn.com` | `EvidentIA2026!` | Creación de leads, exploración del grafo visual, consulta de fuentes y redacción asistida con citas obligatorias. |
+| Rol | Permisos y Capacidades |
+|-----|------------------------|
+| **Super Admin / Jurado** | Acceso irrestricto, ejecución de suite T01–T10 en vivo, carga masiva en `/ingest`, gestión de tenants y feature flags. |
+| **Editor Jefe (Owner)** | Bandeja de entrada, priorización editorial, validación de fichas de evidencia y aprobación de borradores. |
+| **Periodista (Member)** | Creación de leads, exploración del grafo visual, consulta de fuentes y redacción asistida con citas obligatorias. |
 
 ---
 

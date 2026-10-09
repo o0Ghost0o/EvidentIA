@@ -57,13 +57,13 @@ Hemos configurado nuestro espacio de trabajo central en Notion, el cual cuenta c
 
 ### 3. Credenciales de Prueba para Auditoría del Jurado
 
-Para facilitar una revisión inmediata e interactiva de todos los niveles de usuario (RBAC) y de la consola de ejecución en vivo en `/jurado`, ponemos a su disposición las siguientes credenciales de acceso:
+Para facilitar una revisión inmediata e interactiva de todos los niveles de usuario (RBAC) y de la consola de ejecución en vivo en `/jurado`, las credenciales de acceso de las tres cuentas demo se envían por separado en este mismo correo. Cada cuenta corresponde a un nivel de RBAC distinto:
 
-| Rol | Correo Electrónico | Contraseña | Capacidades |
-| :--- | :--- | :--- | :--- |
-| **Super Admin / Jurado** | `admin@tvn.com` | `EvidentIA2026!` | Acceso total, ejecución de suite T01-T10 en vivo en `/jurado`, carga de esquemas en `/ingest`. |
-| **Editor Jefe (Owner)** | `editor@tvn.com` | `EvidentIA2026!` | Bandeja de entrada, priorización editorial y aprobación de fichas. |
-| **Periodista (Member)** | `periodista@tvn.com` | `EvidentIA2026!` | Creación de leads, exploración del grafo visual y redacción con citas. |
+| Rol | Capacidades |
+| :--- | :--- |
+| **Super Admin / Jurado** | Acceso total, ejecución de suite T01-T10 en vivo en `/jurado`, carga de esquemas en `/ingest`. |
+| **Editor Jefe (Owner)** | Bandeja de entrada, priorización editorial y aprobación de fichas. |
+| **Periodista (Member)** | Creación de leads, exploración del grafo visual y redacción con citas. |
 
 ---
 

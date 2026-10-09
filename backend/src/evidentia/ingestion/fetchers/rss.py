@@ -33,7 +33,14 @@ def rss_rows(
         return []
     import feedparser  # lazy: keeps import surface small
 
-    parsed = feedparser.parse(feed_url)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    }
+    parsed = feedparser.parse(feed_url, agent=headers["User-Agent"], request_headers=headers)
     if getattr(parsed, "bozo", False):
         logger.warning("%s feed parse issue: %s", origen, getattr(parsed, "bozo_exception", "?"))
 
