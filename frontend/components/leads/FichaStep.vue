@@ -24,8 +24,9 @@ const props = withDefaults(
     alcance: string;
     readonly?: boolean;
     customCatalog?: CatalogSource[];
+    initialConfirmed?: boolean;
   }>(),
-  { readonly: false, customCatalog: () => [] }
+  { readonly: false, customCatalog: () => [], initialConfirmed: false }
 );
 const emit = defineEmits<{
   (e: "back"): void;
@@ -33,8 +34,15 @@ const emit = defineEmits<{
   (e: "change", payload: { confirmed: boolean }): void;
 }>();
 
-const confirmed = ref(false);
+const confirmed = ref(props.initialConfirmed);
 const stale = ref(false);
+
+watch(
+  () => props.initialConfirmed,
+  (v) => {
+    if (v !== undefined) confirmed.value = v;
+  }
+);
 
 interface CaseEvidence {
   id: number;

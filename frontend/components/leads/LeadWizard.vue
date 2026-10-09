@@ -12,7 +12,7 @@ import Select from "~/components/ui/Select.vue";
 import Textarea from "~/components/ui/Textarea.vue";
 import { api } from "~/composables/useApi";
 import { EVIDENCE_STATES, type EvidenceLevel } from "~/lib/leadEvidence";
-import { deriveProgress } from "~/lib/leadList";
+import { deriveProgress, REVIEW_META, type ReviewState } from "~/lib/leadList";
 import {
   BAND_LABEL,
   evidenceLevelFrom,
@@ -113,10 +113,19 @@ const priority = reactive({
   bandLabel: seed?.score ? (BAND_LABEL[seed.score.band] ?? seed.score.band) : "",
 });
 const priorityScore = ref<ScoreResponse | null>(seed?.score ?? null);
-const ficha = reactive({ confirmed: false });
-const draftState = reactive({ generated: false, abstained: false });
+const ficha = reactive({
+  confirmed: isEdit.value && (seed?.score != null || (seed?.flags ?? []).some((f) => f.startsWith("p:"))) && (seed?.evidenceItems.length ?? 0) > 0,
+});
+const draftState = reactive({
+  generated: isEdit.value && (seed?.estado === "en_revision" || seed?.estado === "aprobado_borrador"),
+  abstained: isEdit.value && seed?.estado === "requiere_evidencia" && (seed?.evidenceItems.length ?? 0) === 0,
+});
 const draftPkg = ref<BriefPackage | null>(null);
-const reviewState = reactive({ saved: false, label: "", estado: seed?.estado ?? "" });
+const reviewState = reactive({
+  saved: isEdit.value && !!seed?.estado && seed.estado !== "nuevo",
+  label: seed?.estado ? (REVIEW_META[seed.estado as ReviewState]?.label ?? "") : "",
+  estado: seed?.estado ?? "",
+});
 const reviewDraft = reactive({ review: seed?.estado ?? "", note: "" });
 
 // Data-driven step completion, shared with the read-only ficha: the furthest step
@@ -124,9 +133,17 @@ const reviewDraft = reactive({ review: seed?.estado ?? "", note: "" });
 // edit mode this lets completed steps be revisited directly; create grows it as
 // the wizard advances.
 const currentEstado = computed(() => reviewState.estado || seed?.estado || "nuevo");
-const doneCount = computed(() =>
-  caseId.value == null ? 0 : deriveProgress(currentEstado.value, evidenceItems.value.length).done,
-);
+const doneCount = computed(() => {
+  if (caseId.value == null) return 0;
+  return deriveProgress(currentEstado.value, {
+    evidenceCount: evidenceItems.value.length,
+    hasScore: priority.scored || !!priorityScore.value || !!seed?.score,
+    hasFicha: ficha.confirmed || (isEdit.value && !!seed?.score && evidenceItems.value.length > 0),
+    hasDraft: draftState.generated || draftState.abstained,
+    hasReview: reviewState.saved || (currentEstado.value !== "nuevo" && currentEstado.value !== "requiere_evidencia"),
+    notesCount: isEdit.value && seed?.estado && seed.estado !== "nuevo" ? 1 : 0,
+  }).done;
+});
 // Furthest step visited this session, so forward progress stays reachable too.
 const visitedMax = ref(1);
 watch(step, (v) => {
@@ -582,6 +599,7 @@ function onFinish() {
             :lead-id="caseId"
             :linked-ids="linkedIds"
             :alcance="form.alc"
+            :initial-confirmed="ficha.confirmed"
             @back="step = 3"
             @continue="continueToDraft"
             @change="onFichaChange"
