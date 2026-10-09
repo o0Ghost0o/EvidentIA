@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from evidentia.ingestion.fetchers.rss import rss_rows
+from evidentia.ingestion.fetchers.rss import REQUEST_TIMEOUT_SECONDS, rss_rows
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ def fetch_panama_news(
     feeds: list[dict[str, str]] | None = None,
     days: int = 90,
     max_records: int = 150,
+    timeout_seconds: float = REQUEST_TIMEOUT_SECONDS,
 ) -> list[dict]:
     """Fetch every configured Panamanian feed, normalised to the news contract.
 
@@ -49,6 +50,7 @@ def fetch_panama_news(
                     origen=feed["origen"],
                     days=days,
                     max_records=max_records,
+                    timeout_seconds=timeout_seconds,
                 )
             )
         except Exception as exc:  # noqa: BLE001 — isolate per-feed failures
