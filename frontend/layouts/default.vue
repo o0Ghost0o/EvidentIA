@@ -2,12 +2,27 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import AuthModal from "~/components/AuthModal.vue";
-import { Lock, Moon, Sun } from "lucide-vue-next";
+import Popover from "~/components/ui/Popover.vue";
+import { Lock, LogOut, Moon, Sun } from "lucide-vue-next";
 import { useAuth } from "~/composables/useAuth";
 
 const route = useRoute();
 const auth = useAuth();
 const showAuthModal = ref(false);
+const sessionMenuOpen = ref(false);
+const loggingOut = ref(false);
+
+async function handleLogout() {
+  if (loggingOut.value) return;
+  loggingOut.value = true;
+  try {
+    await auth.logout();
+  } finally {
+    loggingOut.value = false;
+    sessionMenuOpen.value = false;
+    await navigateTo("/login");
+  }
+}
 
 const nav = [
   { label: "Bandeja", to: "/" },
@@ -103,25 +118,53 @@ onMounted(() => {
             <Moon v-else class="h-4 w-4" aria-hidden="true" />
           </button>
 
-          <!-- Authenticated: session chip (avatar + name · role) -->
-          <button
+          <!-- Authenticated: session chip opens a menu with the logout action -->
+          <Popover
             v-if="auth.isAuthenticated.value && auth.user.value"
-            type="button"
-            class="flex items-center gap-2 rounded-full border border-hairline py-1 pl-1 pr-3 text-body-sm transition-colors hover:bg-surface-sunken"
-            @click="showAuthModal = true"
+            v-model:open="sessionMenuOpen"
+            align="end"
+            content-class="w-64 p-0"
           >
-            <span
-              class="flex h-7 w-7 items-center justify-center rounded-full bg-primary-soft text-caption font-semibold text-primary"
-            >
-              {{ initials }}
-            </span>
-            <span class="whitespace-nowrap text-ink">{{ auth.user.value.email }}</span>
-            <span
-              class="rounded-full border border-hairline px-2 py-px text-[10px] font-semibold uppercase tracking-wide text-ink-muted"
-            >
-              {{ auth.user.value.role }}
-            </span>
-          </button>
+            <template #trigger>
+              <button
+                type="button"
+                class="flex items-center gap-2 rounded-full border border-hairline py-1 pl-1 pr-3 text-body-sm transition-colors hover:bg-surface-sunken"
+                aria-label="Abrir menú de sesión"
+              >
+                <span
+                  class="flex h-7 w-7 items-center justify-center rounded-full bg-primary-soft text-caption font-semibold text-primary"
+                >
+                  {{ initials }}
+                </span>
+                <span class="whitespace-nowrap text-ink">{{ auth.user.value.email }}</span>
+                <span
+                  class="rounded-full border border-hairline px-2 py-px text-[10px] font-semibold uppercase tracking-wide text-ink-muted"
+                >
+                  {{ auth.user.value.role }}
+                </span>
+              </button>
+            </template>
+
+            <div class="flex flex-col gap-0.5 border-b border-hairline px-3 py-2.5">
+              <span class="truncate text-body-sm font-semibold text-ink">
+                {{ auth.user.value.email }}
+              </span>
+              <span class="text-caption uppercase tracking-wide text-ink-muted">
+                {{ auth.user.value.role }}
+              </span>
+            </div>
+            <div class="p-1">
+              <button
+                type="button"
+                :disabled="loggingOut"
+                class="flex w-full items-center gap-2 rounded-sm px-2.5 py-2 text-left text-body-sm text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
+                @click="handleLogout"
+              >
+                <LogOut class="h-4 w-4 text-ink-muted" aria-hidden="true" />
+                <span>{{ loggingOut ? "Cerrando sesión…" : "Cerrar sesión" }}</span>
+              </button>
+            </div>
+          </Popover>
 
           <!-- Unauthenticated: outline login action -->
           <button
