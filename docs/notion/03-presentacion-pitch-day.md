@@ -272,7 +272,41 @@ Para auditar inmediatamente cada rol en [https://evidentia.vertexdc.com](https:/
 </tr>
 </table>
 
-<callout icon="🎯" color="blue_bg">
+---
+
+## 👥 Equipo de Desarrollo & Respaldo Institucional
+
+<callout icon="💼" color="blue_bg">
+**Desarrollado con rigor por el equipo técnico de Vertex para el hackIAthon Panamá 2026:**<br>
+Soluciones de inteligencia artificial, arquitectura de datos y plataformas de alta confiabilidad.
+</callout>
+
+<columns>
+<column ratio="50">
+
+### 👨‍💻 Integrantes del Equipo
+- **Alek Rutherford**  
+  *Full Stack Engineer*  
+  `alekissac@gmail.com`
+
+- **Pedro Carreras**  
+  *Full Stack Engineer*  
+  `pcarreras@vertexdc.com`
+
+</column>
+<column ratio="50">
+
+### 🏢 Respaldado por Vertex
+![Vertex Data Center](assets/vertex-logo.png)
+
+👉 **Sitio Web Oficial:** [vertexdc.com](https://vertexdc.com)
+
+</column>
+</columns>
+
+---
+
+<callout icon="🎯" color="green_bg">
 **¡Muchas gracias, distinguidos miembros del Jurado Calificador!**<br>
-Quedamos a su entera disposición para la sesión de preguntas y respuestas técnicas, así como para la demostración interactiva en vivo.
+Quedamos a su entera disposición para la sesión de preguntas y respuestas técnicas, así como para la demostración interactiva en vivo de EvidentIA.
 </callout>
