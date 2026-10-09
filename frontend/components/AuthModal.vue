@@ -4,7 +4,7 @@ import Badge from "~/components/ui/Badge.vue";
 import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
 import Input from "~/components/ui/Input.vue";
-import { KeyRound, X } from "lucide-vue-next";
+import { X } from "lucide-vue-next";
 import { useAuth } from "~/composables/useAuth";
 
 const props = defineProps<{ modelValue: boolean }>();
@@ -15,13 +15,6 @@ const password = ref("");
 const error = ref("");
 const successMsg = ref("");
 const loading = ref(false);
-
-function fillCreds(demoEmail: string, demoPass: string) {
-  email.value = demoEmail;
-  password.value = demoPass;
-  error.value = "";
-  successMsg.value = "";
-}
 
 async function handleLogin() {
   error.value = "";
@@ -157,45 +150,6 @@ function close() {
                   class="mt-1"
                   @keyup.enter="handleLogin"
                 />
-              </div>
-            </div>
-
-            <!-- Acceso Rápido Demo Jurado / RBAC -->
-            <div class="rounded-md border bg-muted/20 p-2.5 space-y-1.5">
-              <div class="flex items-center justify-between">
-                <span class="text-[10px] font-semibold text-foreground flex items-center gap-1">
-                  <KeyRound class="h-3 w-3" /> Cuentas Demo Jurado (RBAC)
-                </span>
-                <span class="text-[9px] text-muted-foreground">1-Click</span>
-              </div>
-              <div class="grid grid-cols-3 gap-1">
-                <button
-                  type="button"
-                  @click="fillCreds('admin@tvn.com', 'EvidentIA2026!')"
-                  class="flex flex-col items-center justify-center p-1.5 rounded border text-center transition-all hover:bg-muted/50"
-                  :class="email === 'admin@tvn.com' ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-border/60 text-muted-foreground'"
-                >
-                  <span class="text-[10px] font-semibold">Super Admin</span>
-                  <span class="text-[8px] opacity-75">T01-T10</span>
-                </button>
-                <button
-                  type="button"
-                  @click="fillCreds('editor@tvn.com', 'EvidentIA2026!')"
-                  class="flex flex-col items-center justify-center p-1.5 rounded border text-center transition-all hover:bg-muted/50"
-                  :class="email === 'editor@tvn.com' ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-border/60 text-muted-foreground'"
-                >
-                  <span class="text-[10px] font-semibold">Editor Jefe</span>
-                  <span class="text-[8px] opacity-75">Owner</span>
-                </button>
-                <button
-                  type="button"
-                  @click="fillCreds('periodista@tvn.com', 'EvidentIA2026!')"
-                  class="flex flex-col items-center justify-center p-1.5 rounded border text-center transition-all hover:bg-muted/50"
-                  :class="email === 'periodista@tvn.com' ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-border/60 text-muted-foreground'"
-                >
-                  <span class="text-[10px] font-semibold">Periodista</span>
-                  <span class="text-[8px] opacity-75">Member</span>
-                </button>
               </div>
             </div>
 

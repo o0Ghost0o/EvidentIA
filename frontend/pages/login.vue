@@ -17,19 +17,6 @@ const showPassword = ref(false);
 const loading = ref(false);
 const error = ref("");
 
-const demoAccounts = [
-  { label: "Admin", email: "admin@tvn.com" },
-  { label: "Editor", email: "editor@tvn.com" },
-  { label: "Periodista", email: "periodista@tvn.com" },
-  { label: "Vertex", email: "admin@vertexdc.com" },
-];
-
-function fillCreds(demoEmail: string) {
-  email.value = demoEmail;
-  password.value = "EvidentIA2026!";
-  error.value = "";
-}
-
 async function onSubmit() {
   if (!email.value.trim() || !password.value.trim()) {
     error.value = "Por favor ingresa tanto tu correo como tu contraseña.";
@@ -125,27 +112,6 @@ async function onSubmit() {
           </a>
         </div>
       </form>
-
-      <!-- Acceso rápido demo (jurado / RBAC) -->
-      <div
-        class="flex w-full max-w-[440px] flex-wrap items-center gap-2 border-t border-hairline pt-4"
-      >
-        <span class="text-caption text-ink-muted">Demo:</span>
-        <button
-          v-for="acc in demoAccounts"
-          :key="acc.email"
-          type="button"
-          class="h-8 rounded-sm border px-3 text-caption font-medium text-ink transition-colors"
-          :class="
-            email === acc.email
-              ? 'border-primary bg-primary-soft'
-              : 'border-hairline hover:border-primary/40'
-          "
-          @click="fillCreds(acc.email)"
-        >
-          {{ acc.label }}
-        </button>
-      </div>
     </main>
 
     <!-- Banda de marca: tira lateral (desktop) / cabecera (móvil) -->

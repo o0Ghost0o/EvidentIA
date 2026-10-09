@@ -241,33 +241,25 @@ Demostración empírica de cumplimiento del pliego en vivo: **10/10 pruebas en v
 
 ---
 
-## 🔑 Credenciales Demo Oficiales (Auditoría en 1 Clic)
+## 🔑 Credenciales Demo Oficiales
 
-Para auditar inmediatamente cada rol en [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com):
+Las credenciales de las tres cuentas demo se enviaron de forma privada al jurado por correo electrónico y no se reproducen aquí. Cada rol permite auditar un nivel distinto de la plataforma en [https://evidentia.vertexdc.com](https://evidentia.vertexdc.com):
 
 <table fit-page-width="true" header-row="true">
 <tr>
 <td>Rol</td>
-<td>Correo Electrónico</td>
-<td>Contraseña</td>
 <td>Capacidades Asignadas</td>
 </tr>
 <tr>
 <td>**Super Admin / Jurado**</td>
-<td>`admin@tvn.com`</td>
-<td>`EvidentIA2026!`</td>
 <td>Acceso total, suite T01–T10 en vivo en `/jurado`, carga en `/ingest`.</td>
 </tr>
 <tr>
 <td>**Editor Jefe (Owner)**</td>
-<td>`editor@tvn.com`</td>
-<td>`EvidentIA2026!`</td>
 <td>Bandeja inteligente, priorización editorial y aprobación de fichas.</td>
 </tr>
 <tr>
 <td>**Periodista (Member)**</td>
-<td>`periodista@tvn.com`</td>
-<td>`EvidentIA2026!`</td>
 <td>Creación de leads, exploración del grafo a 60 FPS y redacción asistida.</td>
 </tr>
 </table>
