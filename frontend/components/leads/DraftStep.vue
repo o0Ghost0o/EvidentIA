@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { api } from "~/composables/useApi";
@@ -127,6 +127,15 @@ watch(
 );
 
 const draftHead = computed(() => pkg.value?.titulo_propuesto?.trim() || props.title.trim() || "Borrador");
+
+// The lead detail (readonly) has no persisted draft to seed: the brief is
+// deterministic from the linked evidence, so re-derive it on mount instead of
+// showing the "generated elsewhere" placeholder.
+onMounted(() => {
+  if (props.readonly && !pkg.value && props.linkedIds.length) {
+    void generate();
+  }
+});
 </script>
 
 <template>
