@@ -8,9 +8,21 @@ The window defaults to 90 days (challenge §6A: widen coverage and record it).
 
 from __future__ import annotations
 
-from evidentia.ingestion.fetchers.rss import rss_rows
+from evidentia.ingestion.fetchers.rss import REQUEST_TIMEOUT_SECONDS, rss_rows
 
 
-def fetch_tvn_news(feed_url: str = "", max_records: int = 150, days: int = 90) -> list[dict]:
+def fetch_tvn_news(
+    feed_url: str = "",
+    max_records: int = 150,
+    days: int = 90,
+    timeout_seconds: float = REQUEST_TIMEOUT_SECONDS,
+) -> list[dict]:
     """Fetch TVN headlines normalised to the ``noticias.csv`` contract."""
-    return rss_rows(feed_url, medio="TVN", origen="tvn", days=days, max_records=max_records)
+    return rss_rows(
+        feed_url,
+        medio="TVN",
+        origen="tvn",
+        days=days,
+        max_records=max_records,
+        timeout_seconds=timeout_seconds,
+    )
