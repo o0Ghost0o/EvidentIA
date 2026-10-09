@@ -1,12 +1,31 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import AuthModal from "~/components/AuthModal.vue";
+import Popover from "~/components/ui/Popover.vue";
+import CopilotDrawer from "~/components/copilot/CopilotDrawer.vue";
+import { Lock, LogOut, Moon, Sun } from "lucide-vue-next";
 import { useAuth } from "~/composables/useAuth";
+import { useCopilot } from "~/composables/useCopilot";
 
 const route = useRoute();
 const auth = useAuth();
+const copilot = useCopilot();
 const showAuthModal = ref(false);
+const sessionMenuOpen = ref(false);
+const loggingOut = ref(false);
+
+async function handleLogout() {
+  if (loggingOut.value) return;
+  loggingOut.value = true;
+  try {
+    await auth.logout();
+  } finally {
+    loggingOut.value = false;
+    sessionMenuOpen.value = false;
+    await navigateTo("/login");
+  }
+}
 
 const nav = [
   { label: "Bandeja", to: "/" },
@@ -42,6 +61,13 @@ function toggleTheme() {
   applyTheme(!isDark.value);
 }
 
+function handleKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    copilot.toggle();
+  }
+}
+
 onMounted(() => {
   auth.initAuth();
   let stored: string | null = null;
@@ -51,6 +77,11 @@ onMounted(() => {
     /* ignore */
   }
   applyTheme(stored === "dark");
+  window.addEventListener("keydown", handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleKeydown);
 });
 </script>
 
@@ -92,34 +123,75 @@ onMounted(() => {
 
         <!-- Session + theme controls -->
         <div class="ml-auto flex items-center gap-2">
+          <!-- Copilot Drawer Trigger Button -->
+          <button
+            type="button"
+            class="flex h-9 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 text-body-sm font-semibold text-primary transition-all hover:bg-primary/20 hover:border-primary/50 shadow-xs"
+            title="Abrir Copiloto Editorial (⌘K)"
+            @click="copilot.toggle()"
+          >
+            <span class="text-sm" aria-hidden="true">✨</span>
+            <span class="hidden sm:inline">Copiloto</span>
+            <kbd class="hidden md:inline-block rounded bg-primary/20 px-1 py-0.2 font-mono text-[10px] text-primary">⌘K</kbd>
+          </button>
+
           <button
             type="button"
             class="flex h-9 w-9 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
             :aria-label="isDark ? 'Activar modo claro' : 'Activar modo oscuro'"
             @click="toggleTheme"
           >
-            <span aria-hidden="true">{{ isDark ? "☀" : "☾" }}</span>
+            <Sun v-if="isDark" class="h-4 w-4" aria-hidden="true" />
+            <Moon v-else class="h-4 w-4" aria-hidden="true" />
           </button>
 
-          <!-- Authenticated: session chip (avatar + name · role) -->
-          <button
+          <!-- Authenticated: session chip opens a menu with the logout action -->
+          <Popover
             v-if="auth.isAuthenticated.value && auth.user.value"
-            type="button"
-            class="flex items-center gap-2 rounded-full border border-hairline py-1 pl-1 pr-3 text-body-sm transition-colors hover:bg-surface-sunken"
-            @click="showAuthModal = true"
+            v-model:open="sessionMenuOpen"
+            align="end"
+            content-class="w-64 p-0"
           >
-            <span
-              class="flex h-7 w-7 items-center justify-center rounded-full bg-primary-soft text-caption font-semibold text-primary"
-            >
-              {{ initials }}
-            </span>
-            <span class="whitespace-nowrap text-ink">{{ auth.user.value.email }}</span>
-            <span
-              class="rounded-full border border-hairline px-2 py-px text-[10px] font-semibold uppercase tracking-wide text-ink-muted"
-            >
-              {{ auth.user.value.role }}
-            </span>
-          </button>
+            <template #trigger>
+              <button
+                type="button"
+                class="flex items-center gap-2 rounded-full border border-hairline py-1 pl-1 pr-3 text-body-sm transition-colors hover:bg-surface-sunken"
+                aria-label="Abrir menú de sesión"
+              >
+                <span
+                  class="flex h-7 w-7 items-center justify-center rounded-full bg-primary-soft text-caption font-semibold text-primary"
+                >
+                  {{ initials }}
+                </span>
+                <span class="whitespace-nowrap text-ink">{{ auth.user.value.email }}</span>
+                <span
+                  class="rounded-full border border-hairline px-2 py-px text-[10px] font-semibold uppercase tracking-wide text-ink-muted"
+                >
+                  {{ auth.user.value.role }}
+                </span>
+              </button>
+            </template>
+
+            <div class="flex flex-col gap-0.5 border-b border-hairline px-3 py-2.5">
+              <span class="truncate text-body-sm font-semibold text-ink">
+                {{ auth.user.value.email }}
+              </span>
+              <span class="text-caption uppercase tracking-wide text-ink-muted">
+                {{ auth.user.value.role }}
+              </span>
+            </div>
+            <div class="p-1">
+              <button
+                type="button"
+                :disabled="loggingOut"
+                class="flex w-full items-center gap-2 rounded-sm px-2.5 py-2 text-left text-body-sm text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
+                @click="handleLogout"
+              >
+                <LogOut class="h-4 w-4 text-ink-muted" aria-hidden="true" />
+                <span>{{ loggingOut ? "Cerrando sesión…" : "Cerrar sesión" }}</span>
+              </button>
+            </div>
+          </Popover>
 
           <!-- Unauthenticated: outline login action -->
           <button
@@ -128,7 +200,7 @@ onMounted(() => {
             class="flex h-9 items-center gap-1.5 rounded-md border border-hairline bg-transparent px-3 text-body-sm font-semibold text-ink transition-colors hover:bg-surface-sunken"
             @click="showAuthModal = true"
           >
-            <span aria-hidden="true">🔒</span>
+            <Lock class="h-4 w-4" aria-hidden="true" />
             <span>Seguridad &amp; Login</span>
           </button>
         </div>
@@ -140,5 +212,6 @@ onMounted(() => {
     </main>
 
     <AuthModal v-model="showAuthModal" />
+    <CopilotDrawer />
   </div>
 </template>

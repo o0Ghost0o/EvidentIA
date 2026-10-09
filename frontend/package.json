@@ -11,9 +11,12 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.91",
+    "@ai-sdk/vue": "^4.0.136",
     "@lucide/vue": "^1.53.0",
     "@nuxtjs/tailwindcss": "^6.12.0",
     "@vueuse/core": "^15.0.0",
+    "ai": "^7.0.136",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "lucide-vue-next": "^1.0.0",

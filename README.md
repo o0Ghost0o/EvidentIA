@@ -62,3 +62,8 @@ uv run uvicorn evidentia.main:app --reload   # API en http://localhost:8000
 - **Mirror**: Gitea (`VERTEXdc/EvidentIA`)
 - **Hosting**: Coolify (`evidentia.vertexdc.com`)
 
+## Licencia y Derechos de Autor
+
+Este proyecto está protegido bajo una **Licencia Propietaria y Confidencial (Todos los derechos reservados)**. Queda prohibida su reproducción, uso comercial o distribución sin autorización previa y por escrito de los titulares. Consulta el archivo [LICENSE](LICENSE) para conocer los términos completos y la excepción de evaluación para el jurado del hackIAthon Panamá 2026.
+
+

@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import Button from "~/components/ui/Button.vue";
 import Input from "~/components/ui/Input.vue";
+import { Info, Network, Sparkles, Zap } from "lucide-vue-next";
 import { api } from "~/composables/useApi";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "~/components/ui/sheet";
 import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
@@ -610,7 +611,7 @@ onMounted(() => {
           <div class="flex flex-col gap-2 border-b border-border px-5 py-3">
             <Input
               v-model="query"
-              placeholder="🔍 Buscar por semántica RAG, GraphRAG o ID…"
+              placeholder="Buscar por semántica RAG, GraphRAG o ID…"
               class="h-8 w-full font-mono text-caption"
             />
             <div class="flex flex-wrap items-center gap-1.5">
@@ -620,7 +621,7 @@ onMounted(() => {
                 :class="activeCatalogTab === 'suggested' ? 'border-primary bg-primary text-on-primary shadow-sm' : 'border-border bg-surface text-ink hover:bg-surface-sunken'"
                 @click="activeCatalogTab = 'suggested'"
               >
-                <span>✨ Sugerencias IA · {{ suggestions.length }}</span>
+                <span class="inline-flex items-center gap-1"><Sparkles class="h-3.5 w-3.5" /> Sugerencias IA · {{ suggestions.length }}</span>
               </button>
               <button
                 type="button"
@@ -646,7 +647,7 @@ onMounted(() => {
             v-if="activeCatalogTab === 'suggested'"
             class="flex items-center justify-between border-b border-primary/20 bg-primary/5 px-5 py-2 text-[11px] font-medium text-primary"
           >
-            <span>✨ Top 20 evidencias recomendadas mediante RAG semántico y GraphRAG</span>
+            <span class="inline-flex items-center gap-1"><Sparkles class="h-3.5 w-3.5" /> Top 20 evidencias recomendadas mediante RAG semántico y GraphRAG</span>
             <span v-if="suggestionsLoading" class="animate-pulse font-mono">Consultando motor IA…</span>
           </div>
 
@@ -671,13 +672,13 @@ onMounted(() => {
                 v-if="row.is_contradiction"
                 class="inline-flex items-center gap-1 rounded border border-destructive/30 bg-destructive/10 px-1.5 py-0.5 font-sans text-[10px] font-bold tracking-wide text-destructive"
               >
-                ⚡ Versión contraria / Anti-patrón
+                <Zap class="h-3 w-3" /> Versión contraria / Anti-patrón
               </span>
               <span
                 v-if="row.graph_connection"
                 class="inline-flex items-center gap-1 rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-sans text-[10px] font-medium text-primary"
               >
-                🕸️ {{ row.graph_connection }}
+                <Network class="h-3 w-3" /> {{ row.graph_connection }}
               </span>
               <span class="min-w-0 flex-1 basis-[200px] text-body-sm leading-snug">{{ row.titulo }}</span>
               <button
@@ -693,8 +694,8 @@ onMounted(() => {
             </div>
 
             <!-- Razón de anti-patrón de contradicción -->
-            <p v-if="row.contra_reason" class="text-[11px] italic text-destructive/90">
-              ℹ️ {{ row.contra_reason }}
+            <p v-if="row.contra_reason" class="inline-flex items-center gap-1 text-[11px] italic text-destructive/90">
+              <Info class="h-3 w-3 shrink-0" /> {{ row.contra_reason }}
             </p>
 
             <div class="flex flex-wrap items-center gap-2 font-mono text-[11px] text-ink-muted">

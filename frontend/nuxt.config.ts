@@ -22,6 +22,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     // Server-only: the browser talks to the Nuxt BFF, the BFF talks here.
     backendUrl: process.env.NUXT_BACKEND_URL || "http://localhost:8000",
+    togetherApiKey: process.env.TOGETHER_API_KEY || "",
+    togetherBaseUrl: process.env.TOGETHER_BASE_URL || "https://api.together.xyz/v1",
+    openaiApiKey: process.env.OPENAI_API_KEY || "",
+    llmModel: process.env.LLM_MODEL || "meta-llama/Llama-3.3-70B-Instruct-Turbo",
   },
   nitro: {
     preset: "node-server",

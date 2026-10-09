@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import type { Component } from "vue";
-import { SlidersHorizontal, Layers, Newspaper, BarChart3, Globe } from "lucide-vue-next";
+import { SlidersHorizontal, Layers, Newspaper, BarChart3, Globe, Zap } from "lucide-vue-next";
 import Input from "~/components/ui/Input.vue";
 import Select from "~/components/ui/Select.vue";
 import Button from "~/components/ui/Button.vue";
@@ -236,12 +236,12 @@ const rows = computed<Row[]>(() =>
 
     if (tipo === "indicator") {
       tipoLabel = "Indicador BM";
-      tipoBadgeClass = "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30";
+      tipoBadgeClass = "bg-info/10 text-info border-info/30";
       metaText = `${item.group_size} obs. anuales`;
       metaSub = item.latest_value ? `Último: ${item.latest_value}` : "Banco Mundial";
     } else if (tipo === "event") {
       tipoLabel = "Sismo USGS";
-      tipoBadgeClass = "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30";
+      tipoBadgeClass = "bg-warning/10 text-warning border-warning/30";
       metaText = item.magnitude !== undefined ? `Magnitud M${item.magnitude}` : "Evento sísmico";
       metaSub = item.depth !== undefined ? `Profundidad ${item.depth} km` : "Sensor USGS";
     }
@@ -455,10 +455,10 @@ async function openAsLead(item: RankItem) {
                 <!-- Contradiction badge -->
                 <span
                   v-if="r.item.has_contradiction"
-                  class="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-caption font-semibold text-red-600 dark:text-red-400"
+                  class="inline-flex items-center gap-1 rounded-full border border-error/30 bg-error/10 px-2 py-0.5 text-caption font-semibold text-error"
                   :title="r.item.contra_detail || 'Contradicción o versiones opuestas detectadas'"
                 >
-                  ⚡ Versión contrapuesta
+                  <Zap class="h-3 w-3" /> Versión contrapuesta
                 </span>
               </div>
 
@@ -466,9 +466,9 @@ async function openAsLead(item: RankItem) {
 
               <div
                 v-if="r.item.has_contradiction && r.item.contra_detail"
-                class="rounded border border-red-500/20 bg-red-500/5 px-2 py-1 font-mono text-[11px] text-red-600 dark:text-red-400"
+                class="flex items-center gap-1 rounded border border-error/20 bg-error/5 px-2 py-1 font-mono text-[11px] text-error"
               >
-                ⚡ {{ r.item.contra_detail }}
+                <Zap class="h-3 w-3 shrink-0" /> {{ r.item.contra_detail }}
               </div>
 
               <div
@@ -685,7 +685,7 @@ async function openAsLead(item: RankItem) {
           <div class="flex items-center justify-between rounded-md border border-hairline p-3 bg-surface-sunken/40">
             <div class="flex flex-col gap-0.5 pr-2">
               <span class="text-body-sm font-semibold text-ink flex items-center gap-1.5">
-                ⚡ Versiones contrapuestas
+                <Zap class="h-4 w-4" /> Versiones contrapuestas
               </span>
               <span class="text-caption text-ink-muted">
                 Solo notas con contradicciones o cifras divergentes
@@ -696,7 +696,7 @@ async function openAsLead(item: RankItem) {
               role="switch"
               :aria-checked="onlyContradictions"
               class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-              :class="onlyContradictions ? 'bg-red-600' : 'bg-ink-muted/30'"
+              :class="onlyContradictions ? 'bg-error' : 'bg-ink-muted/30'"
               @click="onlyContradictions = !onlyContradictions"
             >
               <span
