@@ -4,6 +4,7 @@ import { marked } from "marked";
 import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
 import StateChip from "~/components/ui/StateChip.vue";
+import { Check, ChevronDown, ChevronUp, Clipboard, Download, Play, X } from "lucide-vue-next";
 import { api } from "~/composables/useApi";
 
 const mdViewMode = ref<"render" | "raw">("render");
@@ -244,11 +245,11 @@ const PREGUNTAS_JURADO = [
               @click="copiarMarkdown"
             >
               <span v-if="copiadoMd" class="text-success flex items-center gap-1.5">
-                <span>✓</span>
+                <Check class="h-4 w-4" />
                 <span>¡Copiado!</span>
               </span>
               <span v-else class="flex items-center gap-1.5">
-                <span>📋</span>
+                <Clipboard class="h-4 w-4" />
                 <span>Copiar MD</span>
               </span>
             </Button>
@@ -260,7 +261,7 @@ const PREGUNTAS_JURADO = [
               @click="descargarReporteMarkdown"
             >
               <span class="flex items-center gap-1.5">
-                <span>⬇</span>
+                <Download class="h-4 w-4" />
                 <span>Descargar (.md)</span>
               </span>
             </Button>
@@ -275,7 +276,7 @@ const PREGUNTAS_JURADO = [
                 Corriendo… {{ timerSeconds }} s
               </span>
               <span v-else class="flex items-center gap-2">
-                <span>▶</span>
+                <Play class="h-4 w-4" />
                 <span>Ejecutar Suite en Vivo</span>
               </span>
             </Button>
@@ -373,7 +374,11 @@ const PREGUNTAS_JURADO = [
                 variant="soft"
                 :dot="true"
               >
-                {{ f.estado === 'verde' ? 'Aprobada ✓' : 'Fallida ✕' }}
+                <span class="inline-flex items-center gap-1">
+                  <Check v-if="f.estado === 'verde'" class="h-3 w-3" />
+                  <X v-else class="h-3 w-3" />
+                  {{ f.estado === 'verde' ? 'Aprobada' : 'Fallida' }}
+                </span>
               </StateChip>
 
               <div>
@@ -395,8 +400,9 @@ const PREGUNTAS_JURADO = [
               <span v-if="f.pruebas?.[0]?.segundos !== undefined" class="font-mono text-caption text-ink-muted tabular-nums hidden sm:inline">
                 {{ f.pruebas[0].segundos }} s
               </span>
-              <span class="text-caption text-ink-muted">
-                {{ openAccordions[f.id] ? '▲' : '▼' }}
+              <span class="text-ink-muted">
+                <ChevronUp v-if="openAccordions[f.id]" class="h-4 w-4" />
+                <ChevronDown v-else class="h-4 w-4" />
               </span>
             </div>
           </button>
@@ -426,8 +432,11 @@ const PREGUNTAS_JURADO = [
                     <span class="font-semibold text-ink">
                       {{ p.prueba }}
                     </span>
-                    <span class="text-ink-muted tabular-nums">
-                      {{ p.segundos }} s · {{ p.ok ? 'PASSED ✓' : 'FAILED ✕' }}
+                    <span class="inline-flex items-center gap-1 tabular-nums" :class="p.ok ? 'text-success' : 'text-error'">
+                      {{ p.segundos }} s ·
+                      <Check v-if="p.ok" class="h-3 w-3" />
+                      <X v-else class="h-3 w-3" />
+                      {{ p.ok ? 'PASSED' : 'FAILED' }}
                     </span>
                   </div>
                   <p class="font-sans text-caption text-ink-muted mt-1">
@@ -462,7 +471,10 @@ const PREGUNTAS_JURADO = [
             class="h-8 px-3 text-caption font-semibold"
             @click="copiarMarkdown"
           >
-            {{ copiadoMd ? '✓ Copiado' : 'Copiar Texto' }}
+            <span class="inline-flex items-center gap-1.5">
+              <Check v-if="copiadoMd" class="h-3.5 w-3.5" />
+              {{ copiadoMd ? 'Copiado' : 'Copiar Texto' }}
+            </span>
           </Button>
           <Button
             class="h-8 px-3 text-caption font-semibold"
@@ -488,7 +500,7 @@ const PREGUNTAS_JURADO = [
               <button
                 type="button"
                 class="px-2.5 py-1 rounded text-caption font-medium transition-colors"
-                :class="mdViewMode === 'render' ? 'bg-primary text-white shadow-xs font-semibold' : 'text-ink-muted hover:text-ink'"
+                :class="mdViewMode === 'render' ? 'bg-primary text-on-primary shadow-xs font-semibold' : 'text-ink-muted hover:text-ink'"
                 @click="mdViewMode = 'render'"
               >
                 Vista Renderizada
@@ -496,7 +508,7 @@ const PREGUNTAS_JURADO = [
               <button
                 type="button"
                 class="px-2.5 py-1 rounded text-caption font-medium transition-colors"
-                :class="mdViewMode === 'raw' ? 'bg-primary text-white shadow-xs font-semibold' : 'text-ink-muted hover:text-ink'"
+                :class="mdViewMode === 'raw' ? 'bg-primary text-on-primary shadow-xs font-semibold' : 'text-ink-muted hover:text-ink'"
                 @click="mdViewMode = 'raw'"
               >
                 Código Markdown (.md)
@@ -568,7 +580,10 @@ const PREGUNTAS_JURADO = [
               </td>
               <td class="py-3 px-4 text-right">
                 <StateChip tone="success" variant="soft">
-                  Supera Meta ✓
+                  <span class="inline-flex items-center gap-1">
+                    <Check class="h-3 w-3" />
+                    Supera Meta
+                  </span>
                 </StateChip>
               </td>
             </tr>
@@ -619,32 +634,32 @@ const PREGUNTAS_JURADO = [
 
 <style scoped>
 .evidentia-markdown-content :deep(h1) {
-  font-family: var(--font-serif, serif);
+  font-family: "Source Serif 4", Lora, Georgia, serif;
   font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-ink, #0f172a);
+  font-weight: 600;
+  color: hsl(var(--ink));
   margin-top: 1rem;
   margin-bottom: 0.75rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  border-bottom: 1px solid hsl(var(--hairline));
 }
 
 .evidentia-markdown-content :deep(h2) {
-  font-family: var(--font-serif, serif);
+  font-family: "Source Serif 4", Lora, Georgia, serif;
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--color-ink, #0f172a);
+  color: hsl(var(--ink));
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
   padding-bottom: 0.25rem;
-  border-bottom: 1px solid var(--color-hairline, #f1f5f9);
+  border-bottom: 1px solid hsl(var(--hairline));
 }
 
 .evidentia-markdown-content :deep(h3) {
-  font-family: var(--font-serif, serif);
+  font-family: "Source Serif 4", Lora, Georgia, serif;
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--color-ink, #0f172a);
+  color: hsl(var(--ink));
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
 }
@@ -652,7 +667,7 @@ const PREGUNTAS_JURADO = [
 .evidentia-markdown-content :deep(h4) {
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--color-ink, #0f172a);
+  color: hsl(var(--ink));
   margin-top: 1rem;
   margin-bottom: 0.25rem;
 }
@@ -661,12 +676,12 @@ const PREGUNTAS_JURADO = [
   margin-bottom: 0.75rem;
   line-height: 1.6;
   font-size: 0.875rem;
-  color: var(--color-ink, #1e293b);
+  color: hsl(var(--ink));
 }
 
 .evidentia-markdown-content :deep(strong) {
   font-weight: 600;
-  color: var(--color-ink, #0f172a);
+  color: hsl(var(--ink));
 }
 
 .evidentia-markdown-content :deep(table) {
@@ -675,28 +690,28 @@ const PREGUNTAS_JURADO = [
   margin-top: 1rem;
   margin-bottom: 1.25rem;
   font-size: 0.8125rem;
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid hsl(var(--hairline));
   border-radius: 0.375rem;
   overflow: hidden;
 }
 
 .evidentia-markdown-content :deep(th) {
-  background-color: var(--color-surface-sunken, #f8fafc);
+  background-color: hsl(var(--surface-sunken));
   padding: 0.625rem 0.75rem;
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid hsl(var(--hairline));
   font-weight: 600;
   text-align: left;
-  color: var(--color-ink, #0f172a);
+  color: hsl(var(--ink));
 }
 
 .evidentia-markdown-content :deep(td) {
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border, #e2e8f0);
-  color: var(--color-ink, #1e293b);
+  border: 1px solid hsl(var(--hairline));
+  color: hsl(var(--ink));
 }
 
 .evidentia-markdown-content :deep(tr:nth-child(even)) {
-  background-color: rgba(248, 250, 252, 0.5);
+  background-color: hsl(var(--surface-sunken) / 0.5);
 }
 
 .evidentia-markdown-content :deep(ul) {
@@ -719,23 +734,23 @@ const PREGUNTAS_JURADO = [
 }
 
 .evidentia-markdown-content :deep(code) {
-  font-family: var(--font-mono, monospace);
+  font-family: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.8125rem;
-  background-color: var(--color-surface-sunken, #f1f5f9);
+  background-color: hsl(var(--surface-sunken));
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
-  border: 1px solid var(--color-border, #e2e8f0);
-  color: var(--color-primary, #0284c7);
+  border: 1px solid hsl(var(--hairline));
+  color: hsl(var(--primary));
 }
 
 .evidentia-markdown-content :deep(pre) {
-  background-color: var(--color-surface-sunken, #f8fafc);
-  border: 1px solid var(--color-border, #e2e8f0);
+  background-color: hsl(var(--surface-sunken));
+  border: 1px solid hsl(var(--hairline));
   padding: 0.75rem 1rem;
   border-radius: 0.375rem;
   overflow-x: auto;
   margin: 0.75rem 0;
-  font-family: var(--font-mono, monospace);
+  font-family: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.8125rem;
 }
 
@@ -747,16 +762,16 @@ const PREGUNTAS_JURADO = [
 }
 
 .evidentia-markdown-content :deep(blockquote) {
-  border-left: 4px solid var(--color-primary, #0284c7);
+  border-left: 4px solid hsl(var(--primary));
   padding-left: 1rem;
   margin: 0.75rem 0;
   font-style: italic;
-  color: var(--color-ink-muted, #64748b);
+  color: hsl(var(--ink-muted));
 }
 
 .evidentia-markdown-content :deep(hr) {
   border: 0;
-  border-top: 1px solid var(--color-border, #e2e8f0);
+  border-top: 1px solid hsl(var(--hairline));
   margin: 1.5rem 0;
 }
 </style>

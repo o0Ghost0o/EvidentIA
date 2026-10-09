@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import AuthModal from "~/components/AuthModal.vue";
+import { Lock, Moon, Sun } from "lucide-vue-next";
 import { useAuth } from "~/composables/useAuth";
 
 const route = useRoute();
@@ -98,7 +99,8 @@ onMounted(() => {
             :aria-label="isDark ? 'Activar modo claro' : 'Activar modo oscuro'"
             @click="toggleTheme"
           >
-            <span aria-hidden="true">{{ isDark ? "☀" : "☾" }}</span>
+            <Sun v-if="isDark" class="h-4 w-4" aria-hidden="true" />
+            <Moon v-else class="h-4 w-4" aria-hidden="true" />
           </button>
 
           <!-- Authenticated: session chip (avatar + name · role) -->
@@ -128,7 +130,7 @@ onMounted(() => {
             class="flex h-9 items-center gap-1.5 rounded-md border border-hairline bg-transparent px-3 text-body-sm font-semibold text-ink transition-colors hover:bg-surface-sunken"
             @click="showAuthModal = true"
           >
-            <span aria-hidden="true">🔒</span>
+            <Lock class="h-4 w-4" aria-hidden="true" />
             <span>Seguridad &amp; Login</span>
           </button>
         </div>

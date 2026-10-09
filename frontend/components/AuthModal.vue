@@ -4,6 +4,7 @@ import Badge from "~/components/ui/Badge.vue";
 import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
 import Input from "~/components/ui/Input.vue";
+import { KeyRound, X } from "lucide-vue-next";
 import { useAuth } from "~/composables/useAuth";
 
 const props = defineProps<{ modelValue: boolean }>();
@@ -80,10 +81,11 @@ function close() {
             </div>
             <button
               type="button"
-              class="text-muted-foreground hover:text-foreground text-sm font-bold"
+              class="text-muted-foreground hover:text-foreground"
+              aria-label="Cerrar"
               @click="close"
             >
-              ✕
+              <X class="h-4 w-4" />
             </button>
           </div>
         </template>
@@ -118,7 +120,7 @@ function close() {
               </div>
             </div>
 
-            <p v-if="successMsg" class="text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded border border-emerald-500/20">
+            <p v-if="successMsg" class="text-xs text-success bg-success/10 p-2 rounded border border-success/20">
               {{ successMsg }}
             </p>
             <p v-if="error" class="text-xs text-destructive bg-destructive/10 p-2 rounded border border-destructive/20">
@@ -162,7 +164,7 @@ function close() {
             <div class="rounded-md border bg-muted/20 p-2.5 space-y-1.5">
               <div class="flex items-center justify-between">
                 <span class="text-[10px] font-semibold text-foreground flex items-center gap-1">
-                  <span>🔑</span> Cuentas Demo Jurado (RBAC)
+                  <KeyRound class="h-3 w-3" /> Cuentas Demo Jurado (RBAC)
                 </span>
                 <span class="text-[9px] text-muted-foreground">1-Click</span>
               </div>
@@ -200,7 +202,7 @@ function close() {
             <p v-if="error" class="text-xs text-destructive bg-destructive/10 p-2 rounded border border-destructive/20">
               {{ error }}
             </p>
-            <p v-if="successMsg" class="text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded border border-emerald-500/20">
+            <p v-if="successMsg" class="text-xs text-success bg-success/10 p-2 rounded border border-success/20">
               {{ successMsg }}
             </p>
 
