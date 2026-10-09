@@ -108,3 +108,91 @@ export interface LinkedItem {
   rol: Rol;
   titulo: string;
 }
+
+// --- Edit seed ------------------------------------------------------------
+// The workflow modalities ("tipo") the lead can carry, stored as a bare word in
+// the case flags. Kept here so both the wizard and the seed mapper agree.
+export const WORKFLOW_MODALITIES = new Set([
+  "investigación",
+  "investigacion",
+  "verificación",
+  "verificacion",
+  "seguimiento",
+]);
+
+// A loaded case detail, in the shape the wizard needs to pre-fill. Mirrors the
+// fields GET /cases/{id} returns that the edit flow reads.
+export interface SeedDetail {
+  id: number;
+  titulo: string;
+  modalidad: string;
+  estado: string;
+  queries: string[];
+  flags: string[];
+  evidence: {
+    id: number;
+    fuente_id: string;
+    fuente_tipo: string;
+    rol: string;
+    nota?: string | null;
+    titulo?: string;
+  }[];
+}
+
+// The wizard's pre-filled state, mapped from a case so LeadWizard can seed its
+// Step 1 form, its linked evidence, its score and its review decision.
+export interface WizardSeed {
+  leadId: number;
+  title: string;
+  /** Workflow "tipo" word (Investigación / Verificación / Seguimiento). */
+  mod: string;
+  /** Scoring lens (tvn / banca). */
+  modalidad: string;
+  alcance: string;
+  pregunta: string;
+  flags: string[];
+  evidenceItems: LinkedItem[];
+  score: ScoreResponse | null;
+  estado: string;
+}
+
+// Map a loaded case (+ its score) onto the wizard seed. The derivation mirrors
+// what the read-only ficha (pages/leads/[id].vue) already computes.
+export function seedFromDetail(detail: SeedDetail, score: ScoreResponse | null): WizardSeed {
+  const flags = detail.flags ?? [];
+  const modFlag = flags.find((f) => WORKFLOW_MODALITIES.has(f.toLowerCase())) ?? "";
+  const alcFlag = flags.find((f) => f.toLowerCase().startsWith("alcance:"));
+  const alcance = alcFlag ? alcFlag.slice(alcFlag.indexOf(":") + 1).trim() : "";
+  const evidenceItems: LinkedItem[] = (detail.evidence ?? []).map((e) => ({
+    rowId: e.id,
+    fuenteId: e.fuente_id,
+    fuenteTipo: e.fuente_tipo,
+    rol: normaliseRol(e.rol),
+    titulo: e.titulo || e.nota || e.fuente_id,
+  }));
+  return {
+    leadId: detail.id,
+    title: detail.titulo,
+    mod: modFlag,
+    modalidad: detail.modalidad,
+    alcance,
+    pregunta: detail.queries?.[0] ?? "",
+    flags,
+    evidenceItems,
+    score,
+    estado: detail.estado,
+  };
+}
+
+// Rebuild a case's flags array for a Step 1 save: preserve every flag except the
+// old workflow-word and Alcance entries, then re-append the current ones. Keeps
+// band:/p:/topic_id:/tipo:<source> metadata intact.
+export function mergeStep1Flags(existing: string[], tipo: string, alcance: string): string[] {
+  const kept = (existing ?? []).filter(
+    (f) => !WORKFLOW_MODALITIES.has(f.toLowerCase()) && !f.toLowerCase().startsWith("alcance:"),
+  );
+  const next = [...kept];
+  if (tipo.trim()) next.push(tipo.trim());
+  if (alcance.trim()) next.push(`Alcance: ${alcance.trim()}`);
+  return next;
+}

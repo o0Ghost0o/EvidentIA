@@ -118,6 +118,40 @@ def test_case_lifecycle_evidence_notes_tree() -> None:
     assert resp.json()["root"] == {"tipo": "news", "id": "g1"}
 
 
+def test_update_case_edits_modalidad_queries_flags() -> None:
+    # The Edit-lead wizard's Step 1 PATCHes título, modalidad, queries and flags.
+    init_db()
+    client = _auth_client()
+    case_id = client.post(
+        "/cases",
+        json={"titulo": "Caso editable", "modalidad": "tvn", "queries": ["pregunta inicial"]},
+    ).json()["id"]
+
+    resp = client.patch(
+        f"/cases/{case_id}",
+        json={
+            "titulo": "Caso editado",
+            "modalidad": "banca",
+            "queries": ["nueva pregunta"],
+            "flags": ["Investigación", "Alcance: Panamá"],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["titulo"] == "Caso editado"
+    assert body["modalidad"] == "banca"
+    assert body["queries"] == ["nueva pregunta"]
+    assert body["flags"] == ["Investigación", "Alcance: Panamá"]
+
+    # A re-fetch reflects the persisted edits.
+    refetched = client.get(f"/cases/{case_id}").json()
+    assert refetched["modalidad"] == "banca"
+    assert refetched["queries"] == ["nueva pregunta"]
+
+    # An invalid modalidad is rejected.
+    assert client.patch(f"/cases/{case_id}", json={"modalidad": "otro"}).status_code == 422
+
+
 def test_evidence_accepts_document_source_type() -> None:
     # Step 2 "Evidencia" links documents (primary sources) alongside news/indicator/event.
     init_db()

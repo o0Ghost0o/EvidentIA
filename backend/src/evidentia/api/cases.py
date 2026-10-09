@@ -44,6 +44,8 @@ def _infer_source_type(ev_id: str) -> str:
 
 class CaseUpdate(BaseModel):
     titulo: str | None = Field(default=None, min_length=1, max_length=300)
+    modalidad: str | None = Field(default=None, pattern="^(tvn|banca)$")
+    queries: list[str] | None = None
     estado: str | None = None
     flags: list[str] | None = None
 
@@ -539,6 +541,10 @@ def update_case(case_id: int, payload: CaseUpdate, session: SessionDep) -> dict:
     case = _get_case(session, case_id)
     if payload.titulo is not None:
         case.titulo = payload.titulo
+    if payload.modalidad is not None:
+        case.modalidad = payload.modalidad
+    if payload.queries is not None:
+        case.queries = payload.queries
     if payload.estado is not None:
         if payload.estado not in REVIEW_STATES:
             raise HTTPException(status_code=422, detail=f"estado must be one of {REVIEW_STATES}")

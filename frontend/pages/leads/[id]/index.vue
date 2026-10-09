@@ -5,11 +5,12 @@ import DraftStep from "~/components/leads/DraftStep.vue";
 import EvidenceStep from "~/components/leads/EvidenceStep.vue";
 import FichaStep from "~/components/leads/FichaStep.vue";
 import ReviewStep from "~/components/leads/ReviewStep.vue";
+import Button from "~/components/ui/Button.vue";
 import StateChip from "~/components/ui/StateChip.vue";
 import { api } from "~/composables/useApi";
 import { EVIDENCE_STATES, type EvidenceLevel } from "~/lib/leadEvidence";
 import { BAND_LABEL, type ScoreResponse, evidenceLevelFrom } from "~/lib/leadWizard";
-import { modalidadLabel, reviewMeta } from "~/lib/leadList";
+import { deriveProgress, modalidadLabel, reviewMeta } from "~/lib/leadList";
 
 // Lead detail — the read-only ficha. It renders the finished artifact the New-lead
 // workspace produces, in the same design language, by reusing the wizard step
@@ -135,6 +136,12 @@ const STEPS = [
   { title: "Revisión", desc: "La decisión editorial registrada y su bitácora de trazabilidad." },
 ];
 
+// How many steps the lead's real data supports — the same projection the Leads
+// table and the edit wizard use, so a step is only checked when it is complete.
+const stepsDone = computed(() =>
+  deriveProgress(detail.value?.estado ?? "nuevo", linkedIds.value.length).done,
+);
+
 function scrollToStep(i: number) {
   document.getElementById(`step-${i + 1}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -178,7 +185,12 @@ function scrollToStep(i: number) {
           </span>
         </div>
       </div>
-      <div class="font-mono text-caption text-ink-muted">Ficha completa · 6/6 pasos</div>
+      <div class="flex flex-col items-end gap-2">
+        <NuxtLink :to="`/leads/${detail.id}/edit`">
+          <Button variant="outline">Editar</Button>
+        </NuxtLink>
+        <span class="font-mono text-caption text-ink-muted">{{ stepsDone }}/6 pasos con datos</span>
+      </div>
     </div>
 
     <div class="flex flex-wrap items-start gap-6">
@@ -201,16 +213,28 @@ function scrollToStep(i: number) {
             v-for="(s, i) in STEPS"
             :key="s.title"
             type="button"
-            class="flex min-h-11 items-start gap-3 rounded-md border-l-[3px] border-success bg-surface px-3 py-2.5 text-left transition-colors hover:bg-primary-soft/40"
+            class="flex min-h-11 items-start gap-3 rounded-md border-l-[3px] bg-surface px-3 py-2.5 text-left transition-colors hover:bg-primary-soft/40"
+            :class="i < stepsDone ? 'border-success' : 'border-hairline'"
             @click="scrollToStep(i)"
           >
             <span
-              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] border-success bg-success font-mono text-caption text-white"
+              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] font-mono text-caption"
+              :class="
+                i < stepsDone
+                  ? 'border-success bg-success text-white'
+                  : 'border-dashed border-ink-muted text-ink-muted'
+              "
             >
-              ✓
+              <span v-if="i < stepsDone">✓</span>
+              <span v-else>{{ i + 1 }}</span>
             </span>
             <div class="flex min-w-0 flex-col gap-0.5">
-              <span class="text-body-sm font-semibold leading-tight text-ink">{{ s.title }}</span>
+              <span
+                class="text-body-sm font-semibold leading-tight"
+                :class="i < stepsDone ? 'text-ink' : 'text-ink-muted'"
+              >
+                {{ s.title }}
+              </span>
             </div>
           </button>
         </nav>
