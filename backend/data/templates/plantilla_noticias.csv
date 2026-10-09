@@ -1,0 +1,3 @@
+id_noticia,titulo,url,medio,idioma,fecha_publicacion,fecha_deteccion,fecha_extraccion,tema,origen,alcance_texto
+manual-noticia-01,Canal de Panamá aumenta calado máximo a 50 pies tras lluvias de octubre,https://www.tvn-2.com/nacionales/canal-panama-aumenta-calado_12345.html,TVN Noticias,es,2026-10-08T12:00:00+00:00,2026-10-08T12:05:00+00:00,2026-10-08T12:10:00+00:00,Economía,manual,extracto
+manual-noticia-02,ACP reporta incremento del 15% en tránsitos de buques Neopanamax,https://www.prensa.com/economia/acp-reporta-incremento-transitos_67890.html,La Prensa,es,2026-10-08T14:30:00+00:00,2026-10-08T14:35:00+00:00,2026-10-08T14:40:00+00:00,Economía,manual,titular

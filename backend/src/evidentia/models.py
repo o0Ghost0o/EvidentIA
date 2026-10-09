@@ -136,7 +136,7 @@ class EvidenceItem(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     case_id: int = Field(foreign_key="cases.id", index=True)
-    fuente_tipo: str = Field(max_length=16)  # news | indicator | event
+    fuente_tipo: str = Field(max_length=16)  # news | indicator | event | document
     fuente_id: str = Field(max_length=128)
     rol: str = Field(default="respaldo", max_length=32)  # respaldo | contradiccion | contexto
     nota: Optional[str] = None

@@ -2,29 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * EvidentIA design tokens — see DESIGN.md (names map 1:1 to these custom properties).
+ * Values are HSL triplets so Tailwind can compose them via hsl(var(--token) / <alpha>).
+ * serif = voice · sans = interface · mono = evidence.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
+    /* Brand & accent */
+    --primary: 213 67% 32%;        /* #1B4D89 editorial ink-blue */
+    --primary-deep: 214 69% 25%;   /* #143A6B pressed/hover */
+    --primary-soft: 213 56% 93%;   /* #E3ECF7 selected fills */
+    --on-primary: 214 64% 98%;     /* #F6F9FD text on ink-blue */
+    --accent: 26 90% 37%;          /* #B45309 signal amber — decorative, never a button */
+
+    /* Surface */
+    --canvas: 216 38% 97%;         /* #F6F8FB cool paper page background */
+    --surface: 0 0% 100%;          /* #FFFFFF cards/panels */
+    --surface-sunken: 213 33% 95%; /* #EDF1F6 recessed zones, zebra, mono pills */
+    --hairline: 214 27% 88%;       /* #D9E0E9 borders/dividers */
+
+    /* Text */
+    --ink: 217 35% 16%;            /* #1B2638 near-black navy body text */
+    --ink-muted: 216 13% 41%;      /* #5B6676 secondary text, labels */
+
+    /* Semantic / state */
+    --success: 163 94% 24%;        /* #047857 suficiente / aprobado */
+    --warning: 26 90% 37%;         /* #B45309 parcial / banda media */
+    --error: 4 76% 40%;            /* #B42318 insuficiente / contradicción / banda alta */
+    --info: 201 96% 32%;           /* #0369A1 neutral informational, news links */
+
     --radius: 0.5rem;
+
+    /* shadcn-compat aliases (existing components reference these names) */
+    --background: var(--canvas);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --primary-foreground: var(--on-primary);
+    --secondary: var(--surface-sunken);
+    --secondary-foreground: var(--ink);
+    --muted: var(--surface-sunken);
+    --muted-foreground: var(--ink-muted);
+    --accent-foreground: var(--ink);
+    --destructive: var(--error);
+    --destructive-foreground: var(--on-primary);
+    --border: var(--hairline);
   }
+
+  .dark {
+    --primary: 213 64% 56%;
+    --primary-deep: 214 64% 46%;
+    --primary-soft: 212 48% 17%;   /* #16293F */
+    --on-primary: 214 64% 98%;
+    --accent: 26 80% 55%;
+
+    --canvas: 219 45% 9%;          /* #0C1320 */
+    --surface: 218 41% 12%;        /* #121B2B */
+    --surface-sunken: 220 46% 10%; /* #0E1626 */
+    --hairline: 218 34% 22%;       /* #24324A */
+
+    --ink: 216 43% 93%;            /* #E6ECF5 */
+    --ink-muted: 215 19% 64%;      /* #93A1B5 */
+
+    --success: 163 60% 45%;
+    --warning: 26 80% 55%;
+    --error: 4 70% 58%;
+    --info: 201 80% 55%;
+  }
+
   * {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Focus ring — 2px primary, per DESIGN inputs/forms spec */
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.25);
   }
 }

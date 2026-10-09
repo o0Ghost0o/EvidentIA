@@ -15,6 +15,55 @@ ISO 8601 (UTC), autor, descripción y archivos afectados.
 
 ## Entradas
 
+### [2026-10-07T22:35:00Z] [CPS-93] [T-24] Habilitación de auto-deploy en entorno dev sincronizado con Gitea y GitHub Actions
+
+- **Autor:** Pedro Carreras / AI
+- **Roadmap:** Fase 7, tarea 7.7 (Infraestructura y CI/CD continuo)
+- **Descripción:** Se configuró el auto-deploy continuo para la rama `dev` en Coolify. Se
+  actualizó el webhook #27 en Gitea ampliando `branch_filter` de `main` a `*` para que
+  cada push a `dev` notifique a Coolify de inmediato. Adicionalmente, se actualizó el flujo
+  `.github/workflows/sync-to-gitea.yml` para dispararse en push/PR de `main` y `dev`,
+  sincronizando automáticamente cualquier cambio hacia Gitea.
+- **Archivos:**
+  - `.github/workflows/sync-to-gitea.yml`
+  - `docs/CHANGELOG.md`
+
+### [2026-10-07T22:28:00Z] [CPS-92] [T-23] Ingesta automática periódica con feature flag y actualización en vivo para pitch
+
+- **Autor:** Pedro Carreras / AI
+- **Roadmap:** Fase 2, tarea 2.8 (Auto-Ingest Scheduler & Pitch Mode)
+- **Descripción:** Se incorporó un `AutoIngestScheduler` asíncrono no bloqueante en FastAPI
+  que escanea periódicamente los feeds RSS de TVN-2 y medios panameños en vivo. El sistema
+  está controlado por un feature flag dinámico (`auto_ingest_enabled`, `auto_ingest_interval_minutes`)
+  conmutable por variables de entorno y vía API (`GET/POST /ingest/auto-schedule`), respetando
+  el modo offline T10 cuando está inactivo. En el frontend se integró un panel interactivo con
+  toggle, selector de intervalo y botón de acción inmediata (`POST /ingest/live-now`) para
+  refrescar titulares de hoy minutos antes de presentar el pitch ante el jurado.
+- **Archivos:**
+  - `backend/src/evidentia/config.py`
+  - `backend/src/evidentia/ingestion/scheduler.py`
+  - `backend/src/evidentia/api/ingest.py`
+  - `backend/src/evidentia/main.py`
+  - `backend/tests/test_ingestion.py`
+  - `frontend/pages/ingest.vue`
+  - `docs/CHANGELOG.md`
+
+### [2026-10-07T22:08:00Z] [CPS-91] [T-22] Migración total de Docker frontend y toolchain a Bun
+
+- **Autor:** Pedro Carreras / AI
+- **Roadmap:** Fase 5, tarea 5.6 (Estandarización de Toolchain y Optimización de Builds)
+- **Descripción:** Se migró el frontend Dockerfile a multi-stage con `oven/bun:1-alpine`
+  utilizando `bun install --frozen-lockfile` con `bun.lock`, eliminando de raíz `npm ci`
+  y reduciendo los tiempos de compilación de varios minutos a ~5 segundos. Se eliminó
+  `package-lock.json` (425 KB) del repositorio, se agregó a `.gitignore` y se actualizaron
+  las instrucciones de `Makefile` para invocar exclusivamente `bun install` y `bun run dev`.
+- **Archivos:**
+  - `frontend/Dockerfile`
+  - `frontend/package-lock.json` (eliminado)
+  - `Makefile`
+  - `.gitignore`
+  - `docs/CHANGELOG.md`
+
 ### [2026-10-07T00:00:00Z] Snapshot seed real + casos + métricas (2.7, 6.3–6.4, 7.5–7.6)
 
 - **Autor:** AI

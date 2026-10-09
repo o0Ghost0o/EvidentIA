@@ -5,6 +5,8 @@ import Button from "~/components/ui/Button.vue";
 import Card from "~/components/ui/Card.vue";
 import Input from "~/components/ui/Input.vue";
 import TreeBranch, { type Branch } from "~/components/TreeBranch.vue";
+import EvidenceDetailModal from "~/components/EvidenceDetailModal.vue";
+import ForceGraph, { type GraphNode, type GraphLink } from "~/components/ForceGraph.vue";
 
 export interface TreeNode {
   tipo: string;
@@ -29,22 +31,43 @@ const props = withDefaults(
     tree: EvidenceTreeData | null;
     depth?: number;
     loading?: boolean;
+    initialMode?: "tree" | "graph";
   }>(),
   {
     depth: 5,
     loading: false,
+    initialMode: "tree",
   }
 );
 
 const emit = defineEmits<{
   (e: "changeDepth", newDepth: number): void;
+  (e: "inspectNode", node: TreeNode): void;
 }>();
+
+// Visual mode: 'tree' (hierarchical list) vs 'graph' (interactive force-directed GraphRAG)
+const viewMode = ref<"tree" | "graph">(props.initialMode || "tree");
 
 // Depth level state (default 5 levels per specification)
 const selectedDepth = ref(props.depth || 5);
 const searchQuery = ref("");
 const expandAllKey = ref(0);
 const allExpanded = ref(true);
+
+// Modal state for viewing evidence node content on click
+const modalOpen = ref(false);
+const inspectedNode = ref<{ tipo: string; id: string } | null>(null);
+
+function handleInspect(node: { tipo: string; id: string }) {
+  inspectedNode.value = { tipo: node.tipo, id: node.id };
+  modalOpen.value = true;
+  emit("inspectNode", node as TreeNode);
+}
+
+function handleModalNavigate(tipo: string, id: string) {
+  inspectedNode.value = { tipo, id };
+  modalOpen.value = true;
+}
 
 watch(
   () => props.depth,
@@ -80,6 +103,32 @@ function toggleExpandAll() {
 
 const PRESET_DEPTHS = [1, 2, 3, 4, 5, 6, 7, 8, 10];
 
+// Transform tree into GraphRAG nodes and links for ForceGraph
+const graphNodes = computed<GraphNode[]>(() => {
+  if (!props.tree) return [];
+  return props.tree.nodes.map((n) => ({
+    id: `${n.tipo}:${n.id}`,
+    label: n.label,
+    tipo: n.tipo,
+    ref: n.id,
+  }));
+});
+
+const graphLinks = computed<GraphLink[]>(() => {
+  if (!props.tree) return [];
+  return props.tree.edges.map((e) => ({
+    source: `${e.origen_tipo}:${e.origen_id}`,
+    target: `${e.destino_tipo}:${e.destino_id}`,
+    tipo: e.tipo,
+  }));
+});
+
+function handleGraphNodeClick(node: GraphNode) {
+  const [tipo, ...rest] = node.id.split(":");
+  const idVal = node.ref || rest.join(":");
+  handleInspect({ tipo, id: idVal });
+}
+
 const branches = computed<Branch[]>(() => {
   if (!props.tree) return [];
   const byKey = new Map(props.tree.nodes.map((n) => [`${n.tipo}:${n.id}`, n]));
@@ -104,141 +153,203 @@ const branches = computed<Branch[]>(() => {
   }
 
   const rootKey = `${props.tree.root.tipo}:${props.tree.root.id}`;
-  const root = byKey.get(rootKey);
-  if (!root) return [];
-
-  const visited = new Set<string>([rootKey]);
-
-  const build = (node: TreeNode, via: string | null, level: number): Branch => {
-    const key = `${node.tipo}:${node.id}`;
-    const kids: Branch[] = [];
-
-    // Traverse down up to selectedDepth
-    if (level < selectedDepth.value) {
-      const neighbors = adjacency.get(key) || [];
-      for (const { other, via: edgeVia } of neighbors) {
-        const ck = `${other.tipo}:${other.id}`;
-        if (visited.has(ck)) continue;
-        visited.add(ck);
-        kids.push(build(other, edgeVia, level + 1));
-      }
-    }
-    return { node, via, level, children: kids };
+  const rootNode = byKey.get(rootKey) || {
+    tipo: props.tree.root.tipo,
+    id: props.tree.root.id,
+    label: `Lead ${props.tree.root.id}`,
   };
 
-  return [build(root, null, 0)];
+  // Build tree using DFS with cycle prevention
+  function buildSubtree(
+    currNode: TreeNode,
+    currentLevel: number,
+    via: string | null,
+    visited: Set<string>
+  ): Branch {
+    const currKey = `${currNode.tipo}:${currNode.id}`;
+    const nextVisited = new Set(visited);
+    nextVisited.add(currKey);
+
+    const children: Branch[] = [];
+    if (currentLevel < selectedDepth.value) {
+      const neighbors = adjacency.get(currKey) || [];
+      for (const n of neighbors) {
+        const neighborKey = `${n.other.tipo}:${n.other.id}`;
+        if (!visited.has(neighborKey)) {
+          children.push(
+            buildSubtree(n.other, currentLevel + 1, n.via, nextVisited)
+          );
+        }
+      }
+    }
+
+    return {
+      node: currNode,
+      via,
+      level: currentLevel,
+      children,
+    };
+  }
+
+  const rootBranch = buildSubtree(rootNode, 0, null, new Set());
+  return [rootBranch];
 });
 
-// Count total nodes in graph
-const totalNodesCount = computed(() => props.tree?.nodes?.length || 0);
-const totalEdgesCount = computed(() => props.tree?.edges?.length || 0);
+const totalNodesCount = computed(() => props.tree?.nodes.length || 0);
+const totalEdgesCount = computed(() => props.tree?.edges.length || 0);
 </script>
 
 <template>
   <Card>
     <template #header>
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="space-y-0.5">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
           <div class="flex items-center gap-2">
-            <h2 class="text-base font-semibold">Árbol Jerárquico de Evidencia</h2>
-            <Badge variant="outline" class="font-mono text-xs">
-              {{ selectedDepth }} niveles {{ selectedDepth === 5 ? '(por defecto)' : '' }}
-            </Badge>
+            <h3 class="font-serif text-heading-md font-semibold text-ink">Árbol de Evidencias y Trazabilidad</h3>
+            <Badge variant="outline" class="text-caption font-medium">GraphRAG</Badge>
           </div>
-          <p class="text-xs text-muted-foreground">
-            Despliegue multi-nivel de fuentes, entidades y correlaciones (hasta 5 niveles por defecto).
+          <p class="text-caption text-ink-muted mt-0.5 font-sans">
+            Explora las cadenas de respaldo causal. Haz clic en cualquier nodo para inspeccionar su contenido original.
           </p>
         </div>
 
-        <!-- Level Controls -->
-        <div class="flex flex-wrap items-center gap-1.5">
-          <span class="text-xs text-muted-foreground mr-1">Niveles:</span>
-          <Button
-            size="sm"
-            variant="outline"
-            class="h-7 w-7 p-0 text-sm font-bold"
-            :disabled="selectedDepth <= 1"
-            title="Reducir nivel de profundidad"
-            @click="decreaseDepth"
-          >
-            −
-          </Button>
-
-          <!-- Level Presets -->
-          <div class="flex items-center gap-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- View mode toggle: Tree vs Graph -->
+          <div class="flex items-center rounded-md bg-surface-sunken p-0.5 border border-hairline text-caption font-sans">
             <button
-              v-for="d in PRESET_DEPTHS"
-              :key="d"
               type="button"
-              :class="[
-                'h-7 px-2 text-xs rounded border transition-colors',
-                selectedDepth === d
-                  ? 'bg-primary text-primary-foreground font-semibold border-primary shadow-xs'
-                  : 'bg-background hover:bg-muted text-muted-foreground border-border'
-              ]"
-              :title="`Ver hasta ${d} nivel(es)`"
-              @click="setDepth(d)"
+              class="px-2.5 py-1 rounded-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+              :class="viewMode === 'tree' ? 'bg-surface text-ink font-semibold shadow-ev-1' : 'text-ink-muted hover:text-ink font-medium'"
+              @click="viewMode = 'tree'"
             >
-              {{ d }}{{ d === 5 ? '*' : '' }}
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h6" />
+              </svg>
+              <span>Árbol</span>
+            </button>
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+              :class="viewMode === 'graph' ? 'bg-surface text-ink font-semibold shadow-ev-1' : 'text-ink-muted hover:text-ink font-medium'"
+              @click="viewMode = 'graph'"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span>Grafo Dinámico</span>
             </button>
           </div>
 
-          <Button
-            size="sm"
-            variant="outline"
-            class="h-7 w-7 p-0 text-sm font-bold"
-            :disabled="selectedDepth >= 10"
-            title="Aumentar nivel de profundidad"
-            @click="increaseDepth"
-          >
-            +
-          </Button>
+          <!-- Level Controls (visible in tree view) -->
+          <div v-if="viewMode === 'tree'" class="flex flex-wrap items-center gap-1.5 border-l border-hairline pl-2">
+            <span class="text-caption text-ink-muted mr-1">Niveles:</span>
+            <Button
+              size="sm"
+              variant="outline"
+              class="h-7 w-7 p-0 text-body-sm font-semibold"
+              :disabled="selectedDepth <= 1"
+              title="Reducir nivel de profundidad"
+              @click="decreaseDepth"
+            >
+              −
+            </Button>
 
-          <!-- Expand / Collapse All Toggle -->
-          <Button
-            size="sm"
-            variant="outline"
-            class="h-7 px-2.5 text-xs ml-2"
-            @click="toggleExpandAll"
-          >
-            {{ allExpanded ? 'Colapsar todo' : 'Expandir todo' }}
-          </Button>
+            <!-- Level Presets -->
+            <div class="flex items-center gap-1">
+              <button
+                v-for="d in PRESET_DEPTHS"
+                :key="d"
+                type="button"
+                :class="[
+                  'h-7 px-2 text-caption font-mono tabular-nums rounded border transition-colors cursor-pointer',
+                  selectedDepth === d
+                    ? 'bg-primary text-primary-foreground font-semibold border-primary shadow-ev-1'
+                    : 'bg-surface hover:bg-surface-sunken text-ink-muted hover:text-ink border-hairline'
+                ]"
+                :title="`Ver hasta ${d} nivel(es)`"
+                @click="setDepth(d)"
+              >
+                {{ d }}{{ d === 5 ? '*' : '' }}
+              </button>
+            </div>
+
+            <Button
+              size="sm"
+              variant="outline"
+              class="h-7 w-7 p-0 text-body-sm font-semibold"
+              :disabled="selectedDepth >= 10"
+              title="Aumentar nivel de profundidad"
+              @click="increaseDepth"
+            >
+              +
+            </Button>
+
+            <!-- Expand / Collapse All Toggle -->
+            <Button
+              size="sm"
+              variant="outline"
+              class="h-7 px-2.5 text-caption ml-1"
+              @click="toggleExpandAll"
+            >
+              {{ allExpanded ? 'Colapsar' : 'Expandir' }}
+            </Button>
+          </div>
         </div>
       </div>
     </template>
 
     <!-- Content / Tree presentation -->
-    <div v-if="loading" class="py-6 text-center text-sm text-muted-foreground">
-      Cargando árbol de evidencias…
+    <div v-if="loading" class="py-6 text-center text-body-sm text-ink-muted">
+      Cargando grafo de evidencias…
     </div>
-    <div v-else-if="!tree || !branches.length" class="py-4 text-sm text-muted-foreground">
+    <div v-else-if="!tree || !branches.length" class="py-4 text-body-sm text-ink-muted">
       Sin árbol de evidencias para mostrar. Vincula fuentes o fichas de evidencia para comenzar el grafo.
     </div>
     <div v-else class="space-y-3">
       <!-- Quick Info Bar -->
-      <div class="flex flex-wrap items-center justify-between text-xs text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-md border border-border/50">
+      <div class="flex flex-wrap items-center justify-between text-caption text-ink-muted bg-surface-sunken/60 px-3 py-1.5 rounded-md border border-hairline font-sans">
         <div class="flex items-center gap-3">
-          <span>Grafo: <strong>{{ totalNodesCount }}</strong> nodo(s)</span>
-          <span><strong>{{ totalEdgesCount }}</strong> relación(es)</span>
-          <span>Profundidad visual: <strong>1 a {{ selectedDepth }} niveles</strong></span>
+          <span>Grafo: <strong class="font-mono tabular-nums text-ink font-semibold">{{ totalNodesCount }}</strong> nodo(s)</span>
+          <span><strong class="font-mono tabular-nums text-ink font-semibold">{{ totalEdgesCount }}</strong> relación(es)</span>
+          <span v-if="viewMode === 'tree'">Profundidad visual: <strong class="font-mono tabular-nums text-ink font-semibold">1 a {{ selectedDepth }} niveles</strong></span>
+          <span v-else>Modo: <strong class="text-ink font-semibold">Fuerza dirigida SVG interactiva</strong></span>
         </div>
         <span class="text-[11px] italic">
-          * Nivel 5 es el estándar por defecto. Usa los botones superiores para ajustar.
+          * Haz clic en cualquier nodo para inspeccionar titular, enlace o valor oficial.
         </span>
       </div>
 
-      <!-- Tree list -->
-      <div class="rounded-md border bg-card/50 p-3 overflow-x-auto">
-        <ul :key="expandAllKey" class="text-sm space-y-1">
+      <!-- Mode 1: EvidentIA Native Force-Directed GraphRAG -->
+      <div v-if="viewMode === 'graph'" class="w-full">
+        <ForceGraph
+          :nodes="graphNodes"
+          :links="graphLinks"
+          :initial-height="520"
+          @node-click="handleGraphNodeClick"
+        />
+      </div>
+
+      <!-- Mode 2: Hierarchical Tree List -->
+      <div v-else class="rounded-md border border-hairline bg-surface p-3 overflow-x-auto">
+        <ul :key="expandAllKey" class="text-body-sm space-y-1">
           <TreeBranch
             v-for="(b, i) in branches"
             :key="`${b.node.tipo}-${b.node.id}-${i}`"
             :branch="b"
             :max-level="selectedDepth"
             :default-expanded="allExpanded"
+            @inspect="handleInspect"
           />
         </ul>
       </div>
     </div>
+
+    <!-- Interactive Evidence Content Modal -->
+    <EvidenceDetailModal
+      v-model:open="modalOpen"
+      :tipo="inspectedNode?.tipo"
+      :id="inspectedNode?.id"
+      @navigate="handleModalNavigate"
+    />
   </Card>
 </template>

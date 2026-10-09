@@ -27,39 +27,74 @@ from datetime import datetime, timezone
 
 from evidentia.config import get_settings
 
-RULES_VERSION = "v1"
+RULES_VERSION = "v1.2"
 
 PANAMA_RE = re.compile(r"panam|coclé|colón|chiriquí|bocas|darién|veraguas|herrera|santos|azuerro", re.IGNORECASE)
+
+PANAMA_MEDIA_TOKENS = {
+    "tvn", "tvn-2", "tvn noticias", "la prensa", "crítica", "critica",
+    "panamá américa", "panama america", "mi diario", "metro libre",
+    "radio panamá", "rpc", "telemetro", "anpanama", "sertv", "en segundos",
+}
 
 TVN_THEMES = {
     "economía", "economia", "canal", "logística", "logistica", "turismo",
     "servicios", "públicos", "publicos", "naturales", "sismo", "inundación",
-    "regulación", "regulacion", "educación", "salud", "transporte",
+    "regulación", "regulacion", "educación", "salud", "transporte", "presupuesto",
 }
 BANCA_THEMES = {
     "economía", "economia", "pib", "inflación", "inflacion", "desempleo",
     "exportaciones", "logística", "logistica", "canal", "turismo", "regulación",
-    "regulacion", "bancos", "crédito", "tasa",
+    "regulacion", "bancos", "crédito", "tasa", "presupuesto",
 }
 
-BAND_LOW = (0.0, 40.0)
-BAND_MEDIUM = (40.0, 70.0)
-BAND_HIGH = (70.0, 100.0)
+# Bands v1.2: recalibrated with expanded corpus (150+ news) for balanced distribution
+BAND_LOW_V12 = (0.0, 55.0)
+BAND_MEDIUM_V12 = (55.0, 75.0)
+BAND_HIGH_V12 = (75.0, 100.0)
+
+# Legacy Bands v1
+BAND_LOW_V1 = (0.0, 40.0)
+BAND_MEDIUM_V1 = (40.0, 70.0)
+BAND_HIGH_V1 = (70.0, 100.0)
+
+
+def is_panama_outlet(medio: str = "", origen: str = "") -> bool:
+    """Check if outlet or source origin is recognized as Panamanian."""
+    m = (medio or "").lower()
+    o = (origen or "").lower()
+    return any(tok in m or tok in o for tok in PANAMA_MEDIA_TOKENS) or bool(PANAMA_RE.search(m) or PANAMA_RE.search(o))
 
 
 def _themes_for(modalidad: str) -> set[str]:
     return BANCA_THEMES if modalidad == "banca" else TVN_THEMES
 
 
-def relevance(title: str, modalidad: str = "tvn") -> float:
+def relevance(
+    title: str,
+    modalidad: str = "tvn",
+    medio: str = "",
+    origen: str = "",
+    rules_version: str = RULES_VERSION,
+) -> float:
     hay = (title or "").lower()
     panama = bool(PANAMA_RE.search(hay))
     theme = any(t in hay for t in _themes_for(modalidad))
-    if panama and theme:
-        return 1.0
-    if panama or theme:
-        return 0.7
-    return 0.3
+    is_local = is_panama_outlet(medio, origen) if rules_version >= "v1.2" else False
+
+    if is_local:
+        # Rules v1.2: local Panamanian outlets have implicit national context
+        if panama and theme:
+            return 1.0
+        if panama or theme:
+            return 0.85
+        return 0.6  # baseline national relevance instead of collapsing to 0.3
+    else:
+        if panama and theme:
+            return 1.0
+        if panama or theme:
+            return 0.7
+        return 0.3
 
 
 def impact(group_size: int, has_indicator: bool = False) -> float:
@@ -99,10 +134,15 @@ def evidence_state(
     return "insuficiente"
 
 
-def band(score: float) -> str:
-    if score < BAND_MEDIUM[0]:
+def band(score: float, rules_version: str = RULES_VERSION) -> str:
+    threshold_low, threshold_high = (
+        (BAND_MEDIUM_V1[0], BAND_HIGH_V1[0])
+        if rules_version == "v1"
+        else (BAND_MEDIUM_V12[0], BAND_HIGH_V12[0])
+    )
+    if score < threshold_low:
         return "bajo"
-    if score < BAND_HIGH[0]:
+    if score < threshold_high:
         return "medio"
     return "alto"
 
@@ -115,11 +155,14 @@ def score_topic(
     modalidad: str = "tvn",
     has_indicator: bool = False,
     titular_only: bool = True,
+    medio: str = "",
+    origen: str = "",
+    rules_version: str = RULES_VERSION,
 ) -> dict:
     """Score one topic/group; returns P, components, band and evidence state."""
     settings = get_settings()
     components = {
-        "R": relevance(title, modalidad),
+        "R": relevance(title, modalidad, medio=medio, origen=origen, rules_version=rules_version),
         "I": impact(group_size, has_indicator),
         "U": urgency(published_at),
         "N": novelty(group_size),
@@ -137,7 +180,7 @@ def score_topic(
         "P": total,
         "components": {k: round(v, 4) for k, v in components.items()},
         "weights": weights,
-        "rules_version": RULES_VERSION,
-        "band": band(total),
+        "rules_version": rules_version,
+        "band": band(total, rules_version=rules_version),
         "evidence_state": evidence_state(primary_sources, has_indicator, titular_only),
     }

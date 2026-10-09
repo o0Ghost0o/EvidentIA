@@ -7,10 +7,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        outline: "border border-border bg-background hover:bg-accent",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        default: "bg-primary text-on-primary hover:bg-primary-deep font-semibold shadow-ev-1",
+        secondary: "bg-surface-sunken text-ink hover:bg-hairline",
+        outline: "border border-hairline bg-transparent hover:bg-surface-sunken text-ink",
+        ghost: "hover:bg-surface-sunken text-ink-muted hover:text-ink",
+        destructive: "bg-error text-on-primary hover:bg-error/90 font-semibold shadow-ev-1",
       },
     },
     defaultVariants: { variant: "default" },
@@ -19,7 +20,7 @@ const buttonVariants = cva(
 
 withDefaults(
   defineProps<{
-    variant?: "default" | "secondary" | "outline" | "destructive";
+    variant?: "default" | "secondary" | "outline" | "destructive" | "ghost";
     disabled?: boolean;
   }>(),
   { variant: "default" }

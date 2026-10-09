@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from evidentia import models
 from evidentia.auth.security import create_access_token, decode_token, hash_password
+from evidentia.config import get_settings
 from evidentia.db import get_engine, init_db
 from evidentia.main import create_app
 
@@ -31,7 +32,7 @@ def test_auth_bootstrap_and_login_dual_jwt():
     # 1. Login triggers bootstrap of initial admin from secrets/env
     resp = client.post("/auth/login", json={
         "email": "admin@vertexdc.com",
-        "password": "EvidentIA2026!",
+        "password": get_settings().admin_password,
     })
     assert resp.status_code == 200, resp.text
     data = resp.json()
@@ -76,7 +77,7 @@ def test_token_refresh_rotation_and_revocation():
     # Login
     login_resp = client.post("/auth/login", json={
         "email": "admin@vertexdc.com",
-        "password": "EvidentIA2026!",
+        "password": get_settings().admin_password,
     })
     assert login_resp.status_code == 200
     first_refresh = login_resp.json()["refresh_token"]
@@ -105,7 +106,7 @@ def test_auth_me_endpoint():
 
     login_resp = client.post("/auth/login", json={
         "email": "admin@vertexdc.com",
-        "password": "EvidentIA2026!",
+        "password": get_settings().admin_password,
     })
     token = login_resp.json()["access_token"]
 
@@ -127,7 +128,7 @@ def test_logout_revokes_refresh_token():
 
     login_resp = client.post("/auth/login", json={
         "email": "admin@vertexdc.com",
-        "password": "EvidentIA2026!",
+        "password": get_settings().admin_password,
     })
     refresh_tok = login_resp.json()["refresh_token"]
 

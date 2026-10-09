@@ -1,5 +1,5 @@
 {
-  "project": "EvidentIA — hackIAthon TVN Media",
+  "project": "EvidentIA \u2014 hackIAthon TVN Media",
   "team": "Checkpoint Studio",
   "tickets": [
     "CPS-70",
@@ -17,6 +17,9 @@
     "CPS-85",
     "CPS-86",
     "CPS-87",
-    "CPS-88"
+    "CPS-88",
+    "CPS-108",
+    "CPS-109",
+    "CPS-110"
   ]
 }

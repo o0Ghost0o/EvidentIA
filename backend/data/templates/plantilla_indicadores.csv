@@ -1,0 +1,4 @@
+pais_iso3,indicador_id,anio,valor,unidad,fuente_url,licencia,fecha_extraccion
+PAN,NY.GDP.MKTP.KD.ZG,2024,2.74,% anual,https://api.worldbank.org/v2/country/PAN/indicator/NY.GDP.MKTP.KD.ZG,CC BY 4.0,2026-10-08T00:00:00+00:00
+PAN,FP.CPI.TOTL.ZG,2024,1.45,% anual,https://api.worldbank.org/v2/country/PAN/indicator/FP.CPI.TOTL.ZG,CC BY 4.0,2026-10-08T00:00:00+00:00
+PAN,SL.UEM.TOTL.ZS,2024,7.40,% fuerza laboral,https://api.worldbank.org/v2/country/PAN/indicator/SL.UEM.TOTL.ZS,CC BY 4.0,2026-10-08T00:00:00+00:00

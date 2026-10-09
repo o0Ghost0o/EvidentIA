@@ -15,6 +15,8 @@ __pycache__/
 data/raw/
 data/processed/
 data/outputs/
+backend/data/raw/
+backend/data/processed/
 qdrant_storage/
 
 # Frontend
@@ -22,6 +24,10 @@ frontend/node_modules/
 frontend/.nuxt/
 frontend/.output/
 frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+package-lock.json
+yarn.lock
 
 # OS / editors
 .DS_Store

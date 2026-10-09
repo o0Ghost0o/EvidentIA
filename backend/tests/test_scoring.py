@@ -21,18 +21,38 @@ def test_score_formula_matches_manual_calc() -> None:
     c = res["components"]
     expected = round(30 * c["R"] + 25 * c["I"] + 20 * c["U"] + 15 * c["N"] + 10 * c["E"], 2)
     assert res["P"] == expected
-    assert res["rules_version"] == "v1"
+    assert res["rules_version"] == "v1.2"
     assert res["evidence_state"] == "suficiente"
     assert all(0.0 <= v <= 1.0 for v in c.values())
 
 
 def test_bands_have_no_overlap() -> None:
+    # v1.2 recalibrated bands
     assert scoring.band(0.0) == "bajo"
-    assert scoring.band(39.99) == "bajo"
-    assert scoring.band(40.0) == "medio"
-    assert scoring.band(69.99) == "medio"
-    assert scoring.band(70.0) == "alto"
+    assert scoring.band(54.99) == "bajo"
+    assert scoring.band(55.0) == "medio"
+    assert scoring.band(74.99) == "medio"
+    assert scoring.band(75.0) == "alto"
     assert scoring.band(100.0) == "alto"
+    # v1 legacy bands
+    assert scoring.band(39.99, rules_version="v1") == "bajo"
+    assert scoring.band(40.0, rules_version="v1") == "medio"
+    assert scoring.band(70.0, rules_version="v1") == "alto"
+
+
+def test_relevance_panama_media_boost_v12() -> None:
+    # Local outlet with theme does not collapse
+    r_tvn_theme = scoring.relevance("Comisión de presupuesto analiza traslados", medio="TVN")
+    assert r_tvn_theme == 0.85
+
+    # Local outlet without specific theme gets baseline 0.6 instead of 0.3
+    r_tvn_notheme = scoring.relevance("Conferencia de prensa convocada", medio="TVN")
+    assert r_tvn_notheme == 0.6
+
+    # Non-local outlet without panama token collapses to 0.3
+    r_foreign_notheme = scoring.relevance("Conferencia de prensa convocada", medio="Reuters")
+    assert r_foreign_notheme == 0.3
+
 
 
 def test_urgency_decay_and_unknown() -> None:

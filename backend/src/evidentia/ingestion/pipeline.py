@@ -181,11 +181,11 @@ def run_ingestion(
     tvn_rss_url: str = "",
 ) -> dict[str, Any]:
     """Run the full ingestion; returns the quality report (also persisted)."""
-    from evidentia.config import get_settings
+    from evidentia.config import get_settings, resolve_data_path
 
     settings = get_settings()
-    data_dir = Path(data_dir or settings.data_dir)
-    seed_dir = Path(seed_dir or settings.seed_dir)
+    data_dir = resolve_data_path(data_dir or settings.data_dir)
+    seed_dir = resolve_data_path(seed_dir or settings.seed_dir)
     processed = data_dir / "processed"
     processed.mkdir(parents=True, exist_ok=True)
 
@@ -199,8 +199,19 @@ def run_ingestion(
     queries: dict[str, object] = {}
 
     if use_seed:
-        for name in ("noticias.csv", "indicadores.csv", "eventos.geojson"):
+        from evidentia.config import ensure_seed_files
+
+        ensure_seed_files(seed_dir)
+        for name in ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl"):
             src = seed_dir / name
+            if not src.exists():
+                alt = resolve_data_path(Path("data/seed") / name)
+                if alt.exists():
+                    src = alt
+            if not src.exists():
+                alt2 = Path("/app/seed_frozen") / name
+                if alt2.exists():
+                    src = alt2
             if not src.exists():
                 report["warnings"].append(f"seed file missing: {name}")
                 continue
@@ -270,11 +281,30 @@ def run_ingestion(
             "error_count": len(res.errors),
         }
 
+    if (processed / "fichas.jsonl").exists():
+        fichas_raw = [
+            json.loads(line)
+            for line in (processed / "fichas.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        fichas_res = validators.validate_fichas(fichas_raw)
+        report["families"]["fichas.jsonl"] = {
+            "raw": len(fichas_raw),
+            "valid": len(fichas_res.valid),
+            "dropped": fichas_res.dropped,
+            "error_sample": fichas_res.errors[:10],
+            "error_count": len(fichas_res.errors),
+        }
+
     counts = {
         "noticias.csv": len(news.valid),
         "indicadores.csv": len(indicators.valid),
         "eventos.geojson": len(events.valid),
     }
+    if (processed / "fichas.jsonl").exists():
+        counts["fichas.jsonl"] = sum(
+            1 for line in (processed / "fichas.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()
+        )
     manifest = manifest_mod.build_manifest(processed, counts, queries, report["source"])
     manifest_mod.write_manifest(processed, manifest)
     report["manifest"] = manifest
@@ -310,10 +340,29 @@ def run_ingestion(
 
         enriched, relations = rel_mod.build_article_relations(news.valid)
         with Session(get_engine()) as session:
-            report["graph"] = persist_graph(session, enriched, relations)
+            report["graph"] = persist_graph(
+                session,
+                enriched,
+                relations,
+                indicators=indicators.valid,
+                events=events.valid,
+            )
     except Exception as exc:
         report["warnings"].append(f"graph skipped: {exc}")
         logger.warning("Graph build skipped: %s", exc)
+
+    # Post-ingest: auto-generate and persist prioritised ranking inbox.
+    try:
+        from sqlmodel import Session
+
+        from evidentia.db import get_engine
+        from evidentia.scoring.ranking_service import generate_and_persist_inbox
+
+        with Session(get_engine()) as session:
+            report["ranking_inbox"] = generate_and_persist_inbox(session)
+    except Exception as exc:
+        report["warnings"].append(f"ranking inbox generation skipped: {exc}")
+        logger.warning("Ranking inbox generation skipped: %s", exc)
 
     report["finished_at"] = datetime.now(timezone.utc).isoformat()
     (processed / "quality_report.json").write_text(

@@ -7,6 +7,8 @@ without any mandatory secrets. No secrets are hard-coded here.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,7 +24,7 @@ class Settings(BaseSettings):
     # the rest of the system keeps working on the local snapshot.
     together_api_key: str = ""
     together_base_url: str = "https://api.together.xyz/v1"
-    llm_model: str = "zai-org/GLM-5.3"
+    llm_model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
     # Local embedding model (fastembed/ONNX, no API key required)
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dimensions: int = 768
@@ -55,6 +57,9 @@ class Settings(BaseSettings):
     # When true (or when fetchers have no connectivity), ingestion uses the
     # frozen snapshot under seed_dir instead of live APIs.
     use_seed_snapshot: bool = False
+    # Auto-ingestion background scheduler (Pitch mode)
+    auto_ingest_enabled: bool = False
+    auto_ingest_interval_minutes: int = 15
 
     # ── Ingestion chunking ───────────────────────────────────────────────────
     ingestion_chunk_size: int = 1000  # chars for child text chunks
@@ -78,11 +83,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15  # 15 minutes
     refresh_token_expire_days: int = 7     # 7 days
-    admin_email: str = "admin@vertexdc.com"
+    admin_email: str = "admin@tvn.com"
     admin_password: str = "EvidentIA2026!"
-    admin_initial_name: str = "Pedro Carreras"
+    admin_initial_name: str = "Super Admin / Jurado"
     admin_initial_role: str = "Super Admin"
-    admin_initial_org: str = "VERTEXdc"
+    admin_initial_org: str = "TVN Media"
 
 
 _settings: Settings | None = None
@@ -100,3 +105,64 @@ def reset_settings() -> None:
     """Drop the cached Settings (tests only)."""
     global _settings
     _settings = None
+
+
+def ensure_seed_files(target_dir: Path | None = None) -> list[str]:
+    """Ensure all 4 seed snapshot files exist in target_dir, auto-copying from frozen backup if missing."""
+    import shutil
+
+    settings = get_settings()
+    dest = target_dir or resolve_data_path(settings.seed_dir)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    required_files = ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl")
+    copied = []
+
+    # Potential source directories in order of preference
+    source_candidates = [
+        Path("/app/seed_frozen"),
+        Path("/app/data/seed"),
+        Path(__file__).resolve().parents[3] / "data/seed",
+        Path(__file__).resolve().parents[3] / "backend/data/seed",
+        Path.cwd() / "data/seed",
+        Path.cwd() / "backend/data/seed",
+    ]
+
+    for filename in required_files:
+        target_file = dest / filename
+        if not target_file.exists() or target_file.stat().st_size == 0:
+            for cand in source_candidates:
+                src_file = cand / filename
+                if src_file.exists() and src_file.stat().st_size > 0 and src_file.resolve() != target_file.resolve():
+                    shutil.copy(src_file, target_file)
+                    copied.append(filename)
+                    break
+
+    return copied
+
+
+def resolve_data_path(rel_path: str | Path = "data") -> Path:
+    """Resolve a data or seed path reliably whether run from repo root, backend/, or container."""
+    p = Path(rel_path)
+    if p.is_absolute() and p.exists():
+        return p
+    if p.exists():
+        return p.resolve()
+    # Check relative to repo root (parents[3] of this file)
+    repo_root = Path(__file__).resolve().parents[3]
+    candidate = repo_root / p
+    if candidate.exists():
+        return candidate.resolve()
+    # Check parent of current working directory
+    curr = Path.cwd()
+    if (curr / p).exists():
+        return (curr / p).resolve()
+    if (curr.parent / p).exists():
+        return (curr.parent / p).resolve()
+    # Check container frozen seeds
+    frozen = Path("/app/seed_frozen") / (p.name if p.name in ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl") else p)
+    if frozen.exists():
+        return frozen.resolve()
+    return candidate
+
+

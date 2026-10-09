@@ -1,10 +1,10 @@
-# Nuxt build + node runtime. npm is the verified toolchain (see CHANGELOG Fase 5).
-FROM node:22-slim AS build
+# Nuxt build con Bun + runtime Node optimizado
+FROM oven/bun:1-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN bun run build
 
 FROM node:22-slim AS run
 WORKDIR /app

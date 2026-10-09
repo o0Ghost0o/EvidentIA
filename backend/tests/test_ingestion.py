@@ -170,8 +170,16 @@ def test_api_ingest_sync_and_quality_report(tmp_path: Path, monkeypatch) -> None
     from evidentia.db import reset_engine
 
     reset_settings()
-    reset_engine()
-    client = TestClient(create_app(), raise_server_exceptions=False)
+    from evidentia import models
+    from evidentia.auth.dependencies import get_current_user
+    app = create_app()
+    admin = models.User(id=1, email="admin@vertexdc.com", nombre="Admin", role="Super Admin", org_id="VERTEXdc", is_active=True, hashed_password="")
+    app.dependency_overrides[get_current_user] = lambda: admin
+    client = TestClient(app, raise_server_exceptions=False)
+
+    # Verify unauthenticated call is rejected
+    unauth_client = TestClient(create_app(), raise_server_exceptions=False)
+    assert unauth_client.post("/ingest/run").status_code == 401
 
     resp = client.post("/ingest/run", params={"sync": True, "use_seed": True})
     assert resp.status_code == 200, resp.text
@@ -181,3 +189,132 @@ def test_api_ingest_sync_and_quality_report(tmp_path: Path, monkeypatch) -> None
     resp = client.get("/ingest/quality-report")
     assert resp.status_code == 200
     assert resp.json()["source"] == "seed"
+
+
+def test_seed_snapshot_manifest_and_fichas_complete() -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "data" / "seed"
+    manifest_path = seed_dir / "manifest.json"
+    assert manifest_path.exists(), "manifest.json missing in data/seed"
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["version"] == "v1"
+    assert manifest["fecha_corte_UTC"]
+
+    required_files = ["noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl"]
+    for fname in required_files:
+        assert fname in manifest["archivos"], f"missing {fname} in manifest archivos"
+        fpath = seed_dir / fname
+        assert fpath.exists(), f"missing file {fname} in data/seed"
+        real_sha = manifest_mod.sha256_file(fpath)
+        assert manifest["archivos"][fname]["sha256"] == real_sha, f"sha256 mismatch for {fname}"
+        assert manifest["archivos"][fname]["rows"] > 0, f"empty row count for {fname}"
+
+    # Verify fichas.jsonl contract
+    fichas_path = seed_dir / "fichas.jsonl"
+    fichas = [json.loads(line) for line in fichas_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(fichas) >= 5, "at least 5 cases required in fichas.jsonl"
+    required_ficha_keys = {
+        "id_caso", "modalidad", "ids_fuente", "afirmaciones", "citas",
+        "puntaje", "componentes", "estado_evidencia", "borrador", "estado_revision"
+    }
+    for f in fichas:
+        assert required_ficha_keys.issubset(f.keys()), f"missing contract keys in ficha: {f}"
+        assert f["modalidad"] in {"tvn", "banca"}
+        assert f["estado_revision"] in {"nuevo", "en_revision", "requiere_evidencia", "aprobado_borrador", "descartado"}
+
+
+def test_quality_report_on_full_seed_corpus(tmp_path: Path, monkeypatch) -> None:
+    seed_dir = Path(__file__).resolve().parents[2] / "data" / "seed"
+    data_dir = tmp_path / "data"
+
+    report = run_ingestion(use_seed=True, data_dir=data_dir, seed_dir=seed_dir)
+    assert report["source"] == "seed"
+
+    # All 4 families present in quality report with valid > 0
+    for family in ("noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl"):
+        assert family in report["families"]
+        stats = report["families"][family]
+        assert stats["valid"] > 0
+        assert stats["raw"] >= stats["valid"]
+        # Numerator/denominator format: valid / raw
+        assert "error_count" in stats
+
+    assert report["families"]["noticias.csv"]["valid"] >= 100
+    assert report["families"]["indicadores.csv"]["valid"] >= 500
+    assert report["families"]["fichas.jsonl"]["valid"] >= 5
+
+    # Check that quality_report.json was persisted
+    report_file = data_dir / "processed" / "quality_report.json"
+    assert report_file.exists()
+    persisted = json.loads(report_file.read_text(encoding="utf-8"))
+    assert persisted["source"] == "seed"
+
+
+def test_auto_ingest_scheduler_configuration_and_status() -> None:
+    from evidentia.ingestion.scheduler import AutoIngestScheduler
+
+    sched = AutoIngestScheduler()
+    assert sched.is_running is False
+    status = sched.get_status()
+    assert "enabled" in status
+    assert "interval_minutes" in status
+    assert "last_status" in status
+
+    # Configure enabled
+    updated = sched.configure(enabled=True, interval_minutes=25)
+    assert updated["enabled"] is True
+    assert updated["interval_minutes"] == 25
+    assert updated["next_run"] is not None
+
+    # Disable
+    disabled = sched.configure(enabled=False)
+    assert disabled["enabled"] is False
+    assert disabled["next_run"] is None
+
+
+def test_auto_ingest_endpoints() -> None:
+    from starlette.testclient import TestClient
+
+    from evidentia import models
+    from evidentia.auth.dependencies import get_current_user
+    from evidentia.main import create_app
+
+    app = create_app()
+    admin = models.User(
+        id=1,
+        email="admin@vertexdc.com",
+        nombre="Admin",
+        role="Super Admin",
+        org_id="VERTEXdc",
+        is_active=True,
+        hashed_password="",
+    )
+    app.dependency_overrides[get_current_user] = lambda: admin
+    client = TestClient(app, raise_server_exceptions=False)
+
+    # Get schedule status
+    resp = client.get("/ingest/auto-schedule")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "enabled" in data
+    assert "interval_minutes" in data
+
+    # Update schedule status
+    update_resp = client.post(
+        "/ingest/auto-schedule",
+        json={"enabled": True, "interval_minutes": 10},
+    )
+    assert update_resp.status_code == 200
+    updated_data = update_resp.json()
+    assert updated_data["enabled"] is True
+    assert updated_data["interval_minutes"] == 10
+
+    # Reset
+    reset_resp = client.post(
+        "/ingest/auto-schedule",
+        json={"enabled": False, "interval_minutes": 15},
+    )
+    assert reset_resp.status_code == 200
+    assert reset_resp.json()["enabled"] is False
+
+

@@ -57,12 +57,23 @@ def add_relation(
 
 
 def persist_graph(
-    session: Session, articles: list[dict], relations: list[dict]
+    session: Session,
+    articles: list[dict],
+    relations: list[dict],
+    indicators: list[dict] | None = None,
+    events: list[dict] | None = None,
 ) -> dict[str, int]:
-    """Persist enriched articles + relations; returns counts."""
+    """Persist enriched articles + relations, indicators and events; returns counts."""
     from evidentia.graph import entities as ent
 
     counts = {"entities": 0, "relations": 0}
+
+    # Central entities for Panama context
+    panama_ent = upsert_entity(session, "Panamá", "LOC", "panamá")
+    econ_ent = upsert_entity(session, "Economía", "TOPIC", "economía")
+    counts["entities"] += 2
+
+    # 1. News articles & mentions
     for article in articles:
         obj = session.exec(
             select(models.NewsArticle).where(
@@ -93,9 +104,61 @@ def persist_graph(
                 "entity", str(entity.id), "mentions", 0.7,
             )
             counts["relations"] += 1
+
     for rel in relations:
         add_relation(session, **rel)
         counts["relations"] += 1
+
+    # 2. Indicators: link to Panama and Economy entities, plus economic news
+    ind_rows = indicators or []
+    if not ind_rows:
+        # Fallback to existing Indicator records in DB if not passed
+        db_inds = session.exec(
+            select(models.Indicator).where(models.Indicator.pais_iso3 == "PAN").limit(60)
+        ).all()
+        ind_rows = [
+            {"pais_iso3": i.pais_iso3, "indicador_id": i.indicador_id, "anio": i.anio}
+            for i in db_inds
+        ]
+
+    for ind in ind_rows:
+        iso = ind.get("pais_iso3", "PAN")
+        iid = ind.get("indicador_id", "")
+        yr = ind.get("anio", 2024)
+        ind_key = f"{iso}:{iid}:{yr}"
+
+        # Indicator measures Panama and Economy
+        add_relation(session, "indicator", ind_key, "entity", str(panama_ent.id), "measures", 0.9)
+        add_relation(session, "indicator", ind_key, "entity", str(econ_ent.id), "measures", 0.85)
+        counts["relations"] += 2
+
+        # Link economic news mentioning indicators
+        for article in articles[:40]:
+            title_lower = (article.get("titulo") or "").lower()
+            if any(k in title_lower for k in ("pib", "crecimiento", "inflación", "economía", "desempleo", "banco mundial", "canal")):
+                add_relation(session, "news", article["id_noticia"], "indicator", ind_key, "contextualizes", 0.8)
+                counts["relations"] += 1
+
+    # 3. Geophysical Events: link to Panama entity and seismic news
+    evt_rows = events or []
+    if not evt_rows:
+        db_evts = session.exec(select(models.GeoEvent).limit(35)).all()
+        evt_rows = [{"id": e.event_id, "place": e.place, "magnitude": e.magnitude} for e in db_evts]
+
+    for ev in evt_rows:
+        eid = str(ev.get("id") or ev.get("event_id") or "")
+        if not eid:
+            continue
+        add_relation(session, "event", eid, "entity", str(panama_ent.id), "geolocated_in", 0.9)
+        counts["relations"] += 1
+
+        # Link seismic news mentioning tremors/earthquakes
+        for article in articles:
+            title_lower = (article.get("titulo") or "").lower()
+            if any(k in title_lower for k in ("sismo", "temblor", "terremoto", "magnitud", "sacudida", "chiriquí")):
+                add_relation(session, "news", article["id_noticia"], "event", eid, "corroborates", 0.85)
+                counts["relations"] += 1
+
     session.commit()
     return counts
 
@@ -112,12 +175,29 @@ def _node_label(tipo: str, ref: str, session: Session) -> str:
         except (TypeError, ValueError):
             obj = None
         return (obj.nombre if obj else ref) or ref
+    if tipo == "case":
+        try:
+            case_obj = session.get(models.Case, int(ref))
+            return (case_obj.titulo if case_obj else f"Lead #{ref}")
+        except (TypeError, ValueError):
+            return f"Lead #{ref}"
     if tipo == "indicator":
-        return ref
+        from evidentia.retrieval.chunking import COUNTRY_NAMES, INDICATOR_NAMES
+        if ":" in ref:
+            parts = ref.split(":")
+            if len(parts) == 3:
+                p, ind, yr = parts
+                p_name = COUNTRY_NAMES.get(p, p)
+                ind_name = INDICATOR_NAMES.get(ind, ind)
+                return f"{p_name} · {ind_name} ({yr})"
+        from evidentia.retrieval.chunking import INDICATOR_NAMES
+        return INDICATOR_NAMES.get(ref, ref)
     if tipo == "event":
         obj = session.exec(
             select(models.GeoEvent).where(models.GeoEvent.event_id == ref)
         ).first()
+        if obj and obj.magnitude:
+            return f"M {obj.magnitude} — {obj.place or ref}"
         return (obj.place if obj and obj.place else ref) or ref
     return ref
 

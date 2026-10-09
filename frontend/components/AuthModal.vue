@@ -9,12 +9,18 @@ import { useAuth } from "~/composables/useAuth";
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ (e: "update:modelValue", val: boolean): void }>();
 
-const auth = useAuth();
-const email = ref("admin@vertexdc.com");
-const password = ref("EvidentIA2026!");
+const email = ref("");
+const password = ref("");
 const error = ref("");
 const successMsg = ref("");
 const loading = ref(false);
+
+function fillCreds(demoEmail: string, demoPass: string) {
+  email.value = demoEmail;
+  password.value = demoPass;
+  error.value = "";
+  successMsg.value = "";
+}
 
 async function handleLogin() {
   error.value = "";
@@ -51,11 +57,6 @@ async function handleRefresh() {
 async function handleLogout() {
   await auth.logout();
   successMsg.value = "Sesión cerrada.";
-}
-
-function fillSecretsAdmin() {
-  email.value = "admin@vertexdc.com";
-  password.value = "EvidentIA2026!";
 }
 
 function close() {
@@ -143,7 +144,7 @@ function close() {
             <div class="space-y-2">
               <div>
                 <label class="text-xs font-medium text-muted-foreground">Correo electrónico</label>
-                <Input v-model="email" placeholder="admin@vertexdc.com" class="mt-1" />
+                <Input v-model="email" placeholder="admin@tvn.com" class="mt-1" />
               </div>
               <div>
                 <label class="text-xs font-medium text-muted-foreground">Contraseña</label>
@@ -157,6 +158,45 @@ function close() {
               </div>
             </div>
 
+            <!-- Acceso Rápido Demo Jurado / RBAC -->
+            <div class="rounded-md border bg-muted/20 p-2.5 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-semibold text-foreground flex items-center gap-1">
+                  <span>🔑</span> Cuentas Demo Jurado (RBAC)
+                </span>
+                <span class="text-[9px] text-muted-foreground">1-Click</span>
+              </div>
+              <div class="grid grid-cols-3 gap-1">
+                <button
+                  type="button"
+                  @click="fillCreds('admin@tvn.com', 'EvidentIA2026!')"
+                  class="flex flex-col items-center justify-center p-1.5 rounded border text-center transition-all hover:bg-muted/50"
+                  :class="email === 'admin@tvn.com' ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-border/60 text-muted-foreground'"
+                >
+                  <span class="text-[10px] font-semibold">Super Admin</span>
+                  <span class="text-[8px] opacity-75">T01-T10</span>
+                </button>
+                <button
+                  type="button"
+                  @click="fillCreds('editor@tvn.com', 'EvidentIA2026!')"
+                  class="flex flex-col items-center justify-center p-1.5 rounded border text-center transition-all hover:bg-muted/50"
+                  :class="email === 'editor@tvn.com' ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-border/60 text-muted-foreground'"
+                >
+                  <span class="text-[10px] font-semibold">Editor Jefe</span>
+                  <span class="text-[8px] opacity-75">Owner</span>
+                </button>
+                <button
+                  type="button"
+                  @click="fillCreds('periodista@tvn.com', 'EvidentIA2026!')"
+                  class="flex flex-col items-center justify-center p-1.5 rounded border text-center transition-all hover:bg-muted/50"
+                  :class="email === 'periodista@tvn.com' ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-border/60 text-muted-foreground'"
+                >
+                  <span class="text-[10px] font-semibold">Periodista</span>
+                  <span class="text-[8px] opacity-75">Member</span>
+                </button>
+              </div>
+            </div>
+
             <p v-if="error" class="text-xs text-destructive bg-destructive/10 p-2 rounded border border-destructive/20">
               {{ error }}
             </p>
@@ -164,18 +204,10 @@ function close() {
               {{ successMsg }}
             </p>
 
-            <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+            <div class="flex items-center justify-end gap-2 pt-2">
               <Button size="sm" :disabled="loading" @click="handleLogin">
                 {{ loading ? "Ingresando…" : "Iniciar Sesión" }}
               </Button>
-
-              <button
-                type="button"
-                class="text-[11px] text-muted-foreground hover:text-foreground underline"
-                @click="fillSecretsAdmin"
-              >
-                Cargar secretos por defecto
-              </button>
             </div>
           </div>
         </div>

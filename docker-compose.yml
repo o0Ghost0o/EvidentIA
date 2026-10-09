@@ -60,9 +60,9 @@ services:
       TOGETHER_API_KEY: ${TOGETHER_API_KEY:-}
       TVN_RSS_URL: ${TVN_RSS_URL:-https://www.tvn-2.com/rss}
       TOGETHER_BASE_URL: ${TOGETHER_BASE_URL:-https://api.together.xyz/v1}
-      LLM_MODEL: ${LLM_MODEL:-zai-org/GLM-5.3}
+      LLM_MODEL: ${LLM_MODEL:-meta-llama/Llama-3.3-70B-Instruct-Turbo}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-base-en-v1.5}
-      USE_SEED_SNAPSHOT: ${USE_SEED_SNAPSHOT:-false}
+      USE_SEED_SNAPSHOT: ${USE_SEED_SNAPSHOT:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,7 +94,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       TOGETHER_API_KEY: ${TOGETHER_API_KEY:-}
       TVN_RSS_URL: ${TVN_RSS_URL:-https://www.tvn-2.com/rss}
-      USE_SEED_SNAPSHOT: ${USE_SEED_SNAPSHOT:-false}
+      USE_SEED_SNAPSHOT: ${USE_SEED_SNAPSHOT:-true}
     depends_on:
       postgres:
         condition: service_healthy

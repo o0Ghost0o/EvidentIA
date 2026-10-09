@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-MANIFEST_FILES = ["noticias.csv", "indicadores.csv", "eventos.geojson"]
+MANIFEST_FILES = ["noticias.csv", "indicadores.csv", "eventos.geojson", "fichas.jsonl"]
 
 
 def sha256_file(path: Path) -> str:
@@ -29,10 +29,11 @@ def build_manifest(
     files: dict[str, dict[str, object]] = {}
     for name in MANIFEST_FILES:
         path = processed_dir / name
-        files[name] = {
-            "sha256": sha256_file(path) if path.exists() else None,
-            "rows": counts.get(name, 0),
-        }
+        if path.exists():
+            files[name] = {
+                "sha256": sha256_file(path),
+                "rows": counts.get(name, 0),
+            }
     return {
         "version": version,
         "fecha_corte_UTC": datetime.now(timezone.utc).isoformat(),
@@ -44,6 +45,7 @@ def build_manifest(
             "noticias.csv": "Titulares/enlaces; sin republicación de contenidos de terceros.",
             "indicadores.csv": "Banco Mundial CC BY 4.0 (salvo excepciones en metadatos).",
             "eventos.geojson": "USGS; solo hechos sísmicos.",
+            "fichas.jsonl": "Casos de evaluación trazables de EvidentIA.",
         },
         "transformaciones": [
             "normalizacion fechas a ISO 8601 UTC",

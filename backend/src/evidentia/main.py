@@ -15,7 +15,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from evidentia.api.auth import router as auth_router
@@ -23,7 +23,9 @@ from evidentia.api.cases import router as cases_router
 from evidentia.api.evidence import router as evidence_router
 from evidentia.api.health import router as health_router
 from evidentia.api.ingest import router as ingest_router
+from evidentia.api.jurado import router as jurado_router
 from evidentia.api.ranking import router as ranking_router
+from evidentia.auth.dependencies import get_current_user
 from evidentia.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -53,12 +55,49 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         qdrant = get_qdrant_client(settings)
         init_collections(qdrant, settings)
         app.state.qdrant_client = qdrant
-        logger.info("Qdrant collections initialised.")
     except Exception as exc:
         app.state.qdrant_client = None
         logger.error("Qdrant initialisation failed (degraded mode): %s", exc)
 
+    # Ensure persistent storage volume has seed files (auto-copied from /app/seed_frozen if fresh volume)
+    try:
+        from evidentia.config import ensure_seed_files
+
+        copied_seeds = ensure_seed_files()
+        if copied_seeds:
+            logger.info("Auto-provisioned missing seed snapshot files to persistent storage: %s", copied_seeds)
+    except Exception as exc:
+        logger.warning("Could not ensure seed files on persistent storage: %s", exc)
+
+    # Auto-bootstrap offline seed snapshot if USE_SEED_SNAPSHOT is true and database is empty
+    if settings.use_seed_snapshot:
+        try:
+            from sqlmodel import Session, select
+            from evidentia import models
+            from evidentia.db import get_engine
+
+            with Session(get_engine()) as session:
+                has_news = session.exec(select(models.NewsArticle)).first() is not None
+
+            if not has_news:
+                logger.info("USE_SEED_SNAPSHOT=true and database empty: auto-bootstrapping seed snapshot...")
+                from evidentia.ingestion.pipeline import run_ingestion
+
+
+                run_ingestion(use_seed=True)
+                logger.info("Seed snapshot auto-bootstrapped successfully.")
+        except Exception as exc:
+            logger.warning("Seed auto-bootstrap failed (skipping): %s", exc)
+
+    # Start auto-ingest background scheduler
+    from evidentia.ingestion.scheduler import scheduler
+
+    scheduler.start()
+
     yield
+
+    # Clean shutdown
+    await scheduler.stop()
 
 
 def create_app() -> FastAPI:
@@ -77,10 +116,11 @@ def create_app() -> FastAPI:
     )
     app.include_router(health_router)
     app.include_router(auth_router)
-    app.include_router(ingest_router)
-    app.include_router(ranking_router)
-    app.include_router(cases_router)
-    app.include_router(evidence_router)
+    app.include_router(ingest_router, dependencies=[Depends(get_current_user)])
+    app.include_router(ranking_router, dependencies=[Depends(get_current_user)])
+    app.include_router(cases_router, dependencies=[Depends(get_current_user)])
+    app.include_router(evidence_router, dependencies=[Depends(get_current_user)])
+    app.include_router(jurado_router, dependencies=[Depends(get_current_user)])
     return app
 
 
