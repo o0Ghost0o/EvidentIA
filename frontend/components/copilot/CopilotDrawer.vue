@@ -283,15 +283,16 @@ function getTextContent(message: any): string {
               <div
                 v-if="getTextContent(msg)"
                 class="rounded-lg border border-hairline bg-surface px-3.5 py-2.5 text-xs text-ink shadow-xs prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5"
+                :class="{ 'mt-2.5': getToolParts(msg).length > 0 }"
                 v-html="renderMarkdown(getTextContent(msg))"
               />
             </div>
           </div>
         </div>
 
-        <!-- Thinking indicator -->
+        <!-- Thinking / Generation indicator -->
         <div
-          v-if="isBusy && messages[messages.length - 1]?.role === 'user'"
+          v-if="isBusy && (!messages.length || !getTextContent(messages[messages.length - 1]))"
           class="flex items-center gap-2 text-ink-muted text-xs pl-8"
         >
           <div class="flex gap-1">
@@ -299,7 +300,9 @@ function getTextContent(message: any): string {
             <span class="h-1.5 w-1.5 rounded-full bg-primary animate-pulse delay-150" />
             <span class="h-1.5 w-1.5 rounded-full bg-primary animate-pulse delay-300" />
           </div>
-          <span class="font-mono text-[11px]">Procesando herramientas del servidor...</span>
+          <span class="font-mono text-[11px]">
+            {{ getToolParts(messages[messages.length - 1] || {}).length > 0 ? 'Analizando datos y redactando respuesta...' : 'Procesando consulta...' }}
+          </span>
         </div>
 
         <!-- Error banner -->

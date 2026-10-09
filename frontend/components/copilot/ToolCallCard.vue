@@ -147,6 +147,34 @@ const linkedLeadId = computed(() => {
   return null;
 });
 
+const toolSummary = computed(() => {
+  const out = props.part?.output;
+  if (!out) return null;
+  if (toolName.value === "get_ingestion_status" && out.report?.families) {
+    const f = out.report.families;
+    const n = f["noticias.csv"]?.valid ?? 0;
+    const i = f["indicadores.csv"]?.valid ?? 0;
+    const e = f["eventos.geojson"]?.valid ?? 0;
+    return `${n} noticias · ${i} indicadores · ${e} eventos procesados`;
+  }
+  if (toolName.value === "create_lead" && out.lead?.id) {
+    return `Lead #${out.lead.id} creado (${out.lead.modalidad?.toUpperCase() || "TVN"})`;
+  }
+  if (toolName.value === "update_lead" && out.lead?.id) {
+    return `Lead #${out.lead.id} actualizado`;
+  }
+  if (toolName.value === "search_leads" && typeof out.total === "number") {
+    return `${out.total} leads encontrados`;
+  }
+  if (toolName.value === "search_evidence" && typeof out.count === "number") {
+    return `${out.count} evidencias encontradas`;
+  }
+  if (toolName.value === "rerun_ingestion") {
+    return "Ingesta ejecutada correctamente";
+  }
+  return null;
+});
+
 function navigateToLead(id: number) {
   router.push(`/leads/${id}`);
 }
@@ -208,6 +236,15 @@ function navigateToIngest() {
           <ChevronDown v-else class="h-3.5 w-3.5" />
         </button>
       </div>
+    </div>
+
+    <!-- Summary snippet when completed and collapsed -->
+    <div
+      v-if="toolSummary && !expanded"
+      class="flex items-center justify-between border-t border-hairline/60 bg-surface/40 px-3 py-1 font-mono text-[11px] text-ink"
+    >
+      <span class="font-medium text-ink-muted">{{ toolSummary }}</span>
+      <span class="text-[10px] text-ink-muted/60">Detalles ▾</span>
     </div>
 
     <!-- Quick action buttons -->

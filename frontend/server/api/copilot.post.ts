@@ -6,7 +6,7 @@
  * Executes multi-step tool calls directly against FastAPI, forwarding the user's JWT bearer token.
  */
 import { defineEventHandler, getHeader, readBody, createError } from "h3";
-import { streamText, tool, jsonSchema, convertToModelMessages } from "ai";
+import { streamText, tool, jsonSchema, convertToModelMessages, stepCountIs } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 
 const SYSTEM_PROMPT = `Eres el Copiloto Editorial e Inteligente de EvidentIA, la plataforma de verificación y periodismo de investigación de TVN Media y Vertex DC.
@@ -18,9 +18,13 @@ Tus responsabilidades principales:
 4. Generar borradores investigativos (briefs) con trazabilidad estricta y citas en formato [id:campo].
 
 Reglas inquebrantables de comportamiento:
-- Comunícate de forma precisa, concisa y profesional en español.
-- Si el usuario te pide crear, buscar, editar o reejecutar algo, utiliza las herramientas disponibles en el servidor directamente.
-- Cuando crees o actualices un lead, menciona su ID claramente (ej: Lead #12) y resume qué cambios se realizaron.
+- Comunícate siempre de forma fluida, clara, precisa y profesional en español utilizando lenguaje natural.
+- REGLA CRÍTICA TRAS EJECUTAR HERRAMIENTAS: Después de llamar a cualquier herramienta (consultar ingesta, buscar evidencias, crear o actualizar leads, etc.), NUNCA te quedes en silencio ni dejes la respuesta vacía o únicamente con el bloque técnico. DEBES redactar inmediatamente a continuación una respuesta explicativa y completa en lenguaje natural en español:
+  * Si consultaste la ingesta: resume detalladamente cuántos registros válidos se procesaron, cuántas noticias, indicadores o eventos hay y si hubo errores o duplicados descartados.
+  * Si creaste un lead: felicita/confirma la creación, resalta su ID claramente (ej: Lead #12), título y modalidad, y sugiere próximos pasos editoriales.
+  * Si buscaste evidencias o leads: resume los hallazgos principales con viñetas claras antes de sugerir acciones.
+  * Si editaste o vinculaste fuentes: confirma claramente la acción realizada y su impacto.
+- Para 'create_lead', utiliza obligatoriamente los parámetros 'titulo' (título descriptivo en español) y 'modalidad' ('tvn' o 'banca').
 - Jamás inventes datos ni afirmes hechos que no estén respaldados por el catálogo o por las fuentes vinculadas.
 - Si no encuentras evidencia suficiente para una afirmación, indícalo de manera transparente.`;
 
@@ -97,10 +101,13 @@ export default defineEventHandler(async (event) => {
         },
         required: ["q"],
       }),
-      execute: async ({ q, tipo, limit }) => {
+      execute: async (rawInput: any) => {
         try {
+          const q = rawInput.q || rawInput.query || rawInput.term || rawInput.search || "";
+          const tipo = rawInput.tipo || rawInput.type || "";
+          const limit = Number(rawInput.limit || 10);
           const items = await apiCall<any[]>("/cases/catalog", {
-            query: { q, tipo: tipo || "", limit: String(limit || 10) },
+            query: { q, tipo, limit: String(limit) },
           });
           return { success: true, count: items.length, items: items.slice(0, 10) };
         } catch (err: any) {
@@ -223,8 +230,19 @@ export default defineEventHandler(async (event) => {
         },
         required: ["titulo", "modalidad"],
       }),
-      execute: async ({ titulo, modalidad, queries = [], flags = [], evidence_ids = [] }) => {
+      execute: async (rawInput: any) => {
         try {
+          const titulo = rawInput.titulo || rawInput.title || rawInput.name || "";
+          let modalidad = (rawInput.modalidad || rawInput.modality || rawInput.organization || "tvn").toLowerCase();
+          if (modalidad !== "tvn" && modalidad !== "banca") modalidad = "tvn";
+          const queries = Array.isArray(rawInput.queries) ? rawInput.queries : [];
+          const flags = Array.isArray(rawInput.flags) ? rawInput.flags : [];
+          const evidence_ids = Array.isArray(rawInput.evidence_ids)
+            ? rawInput.evidence_ids
+            : Array.isArray(rawInput.evidence)
+            ? rawInput.evidence
+            : [];
+
           const created = await apiCall<any>("/cases", {
             method: "POST",
             body: { titulo, modalidad, queries, flags, evidence_ids },
@@ -273,8 +291,21 @@ export default defineEventHandler(async (event) => {
         },
         required: ["id"],
       }),
-      execute: async ({ id, ...patchData }) => {
+      execute: async (rawInput: any) => {
         try {
+          const id = Number(rawInput.id || rawInput.lead_id || rawInput.case_id);
+          const patchData: any = {};
+          if (rawInput.titulo || rawInput.title) patchData.titulo = rawInput.titulo || rawInput.title;
+          if (rawInput.modalidad || rawInput.modality) {
+            let m = (rawInput.modalidad || rawInput.modality).toLowerCase();
+            if (m === "tvn" || m === "banca") patchData.modalidad = m;
+          }
+          if (Array.isArray(rawInput.queries)) patchData.queries = rawInput.queries;
+          if (rawInput.estado || rawInput.status || rawInput.state) {
+            patchData.estado = rawInput.estado || rawInput.status || rawInput.state;
+          }
+          if (Array.isArray(rawInput.flags)) patchData.flags = rawInput.flags;
+
           const updated = await apiCall<any>(`/cases/${id}`, {
             method: "PATCH",
             body: patchData,
@@ -582,7 +613,7 @@ export default defineEventHandler(async (event) => {
     system: dynamicSystem,
     messages: modelMessages,
     tools,
-    maxSteps: 8,
+    stopWhen: stepCountIs(8),
   });
 
   return result.toUIMessageStreamResponse();
