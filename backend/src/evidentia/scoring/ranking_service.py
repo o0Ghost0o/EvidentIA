@@ -21,7 +21,8 @@ from sqlmodel import Session, select
 from evidentia import models
 from evidentia.config import get_settings, resolve_data_path
 from evidentia.scoring import score as scoring
-from evidentia.scoring.deduplication import label_group
+from evidentia.scoring.deduplication import find_numeric_contradictions, label_group
+from evidentia.retrieval.evidence_suggester import detect_contradiction_signal
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +87,27 @@ def _score_news_groups(
         title = members_sorted[0].titulo or ""
         published = members_sorted[0].fecha_publicacion
         member_dicts = [
-            {"id_noticia": m.id_noticia, "agencia_primaria": m.agencia_primaria}
+            {"id_noticia": m.id_noticia, "agencia_primaria": m.agencia_primaria, "titulo": m.titulo}
             for m in members
         ]
         label = label_group(member_dicts)
         member_ids = [m.id_noticia for m in members]
         has_ind = _has_indicator_relation(session, member_ids)
         titular_only = all((m.alcance_texto or "titular") == "titular" for m in members)
+
+        # Contradiction anti-patterns and numeric discrepancy check
+        num_contras = find_numeric_contradictions(member_dicts)
+        has_contra = len(num_contras) > 0
+        contra_detail = num_contras[0].get("detail") if num_contras else None
+
+        if not has_contra and len(members) >= 2:
+            lead_t = members_sorted[0].titulo or ""
+            for m in members_sorted[1:]:
+                is_c, reason = detect_contradiction_signal(m.titulo or "", lead_t)
+                if is_c:
+                    has_contra = True
+                    contra_detail = reason
+                    break
 
         result = scoring.score_topic(
             title=title,
@@ -116,6 +131,8 @@ def _score_news_groups(
             "dedup": label,
             "fecha": published.isoformat() if published else None,
             "medio": members_sorted[0].medio or "",
+            "has_contradiction": has_contra,
+            "contra_detail": contra_detail,
             **result,
         })
 
@@ -327,6 +344,7 @@ def generate_inbox_topics(
         "tipo": tipo_norm,
         "count": len(all_items),
         "total": len(all_items),
+        "contradictions_count": sum(1 for it in all_items if it.get("has_contradiction")),
         "counts_by_type": {
             "total": total_news + total_ind + total_evt,
             "news": total_news,

@@ -78,13 +78,27 @@ const persistError = ref("");
 const score = ref<ScoreResponse | null>(null);
 const scoreLoading = ref(false);
 
-// Catalog drawer (ranking).
+interface CatalogItem extends RankItem {
+  tipo?: string;
+  similarity_score?: number;
+  suggested_role?: Rol;
+  is_contradiction?: boolean;
+  contra_reason?: string | null;
+  graph_connection?: string | null;
+}
+
+// Catalog drawer with RAG & GraphRAG suggestions
 const catOpen = ref(false);
-const catalog = ref<RankItem[]>([]);
+const catalog = ref<CatalogItem[]>([]);
 const catalogLoading = ref(false);
 const catalogError = ref("");
 const query = ref("");
-const onlyLinked = ref(false);
+
+const activeCatalogTab = ref<"suggested" | "all" | "linked">("suggested");
+const suggestions = ref<CatalogItem[]>([]);
+const suggestionsLoading = ref(false);
+const suggestionsError = ref("");
+
 // Role chosen for the next link, per catalog row.
 const pendingRol = reactive<Record<string, Rol>>({});
 
@@ -162,14 +176,15 @@ async function persistUnlink(item: LinkedItem) {
   await refreshScore();
 }
 
-function linkRow(row: RankItem) {
-  if (isLinked(row.id)) return;
+function linkRow(row: CatalogItem) {
   const fuenteId = row.ids_fuente[0] ?? row.id;
+  if (isLinked(fuenteId)) return;
+  const assignedRole = pendingRol[row.id] ?? row.suggested_role ?? "respaldo";
   const item: LinkedItem = {
     rowId: null,
     fuenteId,
-    fuenteTipo: "news",
-    rol: pendingRol[row.id] ?? "respaldo",
+    fuenteTipo: row.tipo || (fuenteId.startsWith("geo:") || fuenteId.startsWith("evt:") ? "event" : (fuenteId.includes(":") && !fuenteId.startsWith("http")) ? "indicator" : "news"),
+    rol: assignedRole,
     titulo: row.titulo,
   };
   // Key the linked item by the ranking id so toggles line up with the drawer.
@@ -185,11 +200,11 @@ function unlinkByFuente(fuenteId: string) {
   persistError.value = "";
   void persistUnlink(item);
 }
-function toggleRow(row: RankItem) {
+function toggleRow(row: CatalogItem) {
   const fuenteId = row.ids_fuente[0] ?? row.id;
   isLinked(fuenteId) ? unlinkByFuente(fuenteId) : linkRow(row);
 }
-function rowLinked(row: RankItem) {
+function rowLinked(row: CatalogItem) {
   return isLinked(row.ids_fuente[0] ?? row.id);
 }
 
@@ -206,7 +221,36 @@ function setRol(item: LinkedItem, rol: Rol) {
   }
 }
 
-// --- Catalog --------------------------------------------------------------
+// --- Catalog & AI Suggestions (RAG + GraphRAG) -----------------------------
+async function loadSuggestions(searchQuery?: string) {
+  suggestionsLoading.value = true;
+  suggestionsError.value = "";
+  try {
+    const qParam = searchQuery !== undefined ? searchQuery : query.value.trim();
+    let res: CatalogItem[] = [];
+    if (props.leadId != null) {
+      res = await api<CatalogItem[]>(`cases/${props.leadId}/suggested-evidence`, {
+        query: { q: qParam || undefined, limit: "20" },
+      });
+    } else {
+      res = await api<CatalogItem[]>("cases/suggested-evidence", {
+        query: { q: qParam || undefined, modalidad: props.modalidad, limit: "20" },
+      });
+    }
+    suggestions.value = res;
+    // Pre-assign suggested role if provided (e.g. "contradiccion")
+    for (const item of res) {
+      if (item.suggested_role && !pendingRol[item.id]) {
+        pendingRol[item.id] = item.suggested_role;
+      }
+    }
+  } catch (err: any) {
+    suggestionsError.value = "No se pudieron cargar sugerencias de IA.";
+  } finally {
+    suggestionsLoading.value = false;
+  }
+}
+
 async function loadCatalog() {
   if (catalog.value.length || catalogLoading.value) return;
   catalogLoading.value = true;
@@ -220,15 +264,43 @@ async function loadCatalog() {
     catalogLoading.value = false;
   }
 }
+
 function openCatalog() {
   catOpen.value = true;
+  activeCatalogTab.value = "suggested";
+  void loadSuggestions();
   void loadCatalog();
 }
 
-const catalogFiltered = computed(() => {
+let searchTimer: any = null;
+watch(query, (val) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    if (activeCatalogTab.value === "suggested" || val.trim().length >= 2) {
+      void loadSuggestions(val.trim());
+    }
+  }, 300);
+});
+
+const catalogFiltered = computed<CatalogItem[]>(() => {
+  if (activeCatalogTab.value === "linked") {
+    const allKnown = [...suggestions.value, ...catalog.value];
+    const seen = new Set<string>();
+    return allKnown.filter((row) => {
+      const fid = row.ids_fuente[0] ?? row.id;
+      if (seen.has(fid)) return false;
+      seen.add(fid);
+      return isLinked(fid);
+    });
+  }
+
+  if (activeCatalogTab.value === "suggested") {
+    return suggestions.value;
+  }
+
+  // "all" tab
   const q = query.value.trim().toLowerCase();
   return catalog.value.filter((row) => {
-    if (onlyLinked.value && !rowLinked(row)) return false;
     if (!q) return true;
     return row.titulo.toLowerCase().includes(q) || row.id.toLowerCase().includes(q);
   });
@@ -535,40 +607,77 @@ onMounted(() => {
           </SheetDescription>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto">
-          <div class="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
-            <Input v-model="query" placeholder="Buscar por título o ID" class="h-8 flex-1 font-mono text-caption" />
-            <div class="flex gap-1.5">
+          <div class="flex flex-col gap-2 border-b border-border px-5 py-3">
+            <Input
+              v-model="query"
+              placeholder="🔍 Buscar por semántica RAG, GraphRAG o ID…"
+              class="h-8 w-full font-mono text-caption"
+            />
+            <div class="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
-                class="h-8 rounded-full border px-3 text-caption font-semibold transition-colors"
-                :class="!onlyLinked ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface text-ink'"
-                @click="onlyLinked = false"
+                class="flex h-7 items-center gap-1 rounded-full border px-2.5 text-caption font-semibold transition-colors"
+                :class="activeCatalogTab === 'suggested' ? 'border-primary bg-primary text-on-primary shadow-sm' : 'border-border bg-surface text-ink hover:bg-surface-sunken'"
+                @click="activeCatalogTab = 'suggested'"
+              >
+                <span>✨ Sugerencias IA · {{ suggestions.length }}</span>
+              </button>
+              <button
+                type="button"
+                class="h-7 rounded-full border px-2.5 text-caption font-semibold transition-colors"
+                :class="activeCatalogTab === 'all' ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface text-ink hover:bg-surface-sunken'"
+                @click="activeCatalogTab = 'all'"
               >
                 Todas · {{ catalog.length }}
               </button>
               <button
                 type="button"
-                class="h-8 rounded-full border px-3 text-caption font-semibold transition-colors"
-                :class="onlyLinked ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface text-ink'"
-                @click="onlyLinked = true"
+                class="h-7 rounded-full border px-2.5 text-caption font-semibold transition-colors"
+                :class="activeCatalogTab === 'linked' ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface text-ink hover:bg-surface-sunken'"
+                @click="activeCatalogTab = 'linked'"
               >
                 Vinculadas · {{ linked.length }}
               </button>
             </div>
           </div>
 
-          <p v-if="catalogLoading" class="px-5 py-4 text-body-sm text-ink-muted">Cargando catálogo…</p>
-          <p v-else-if="catalogError" class="px-5 py-4 text-body-sm text-destructive">{{ catalogError }}</p>
+          <!-- Banner de estado para Sugerencias IA -->
+          <div
+            v-if="activeCatalogTab === 'suggested'"
+            class="flex items-center justify-between border-b border-primary/20 bg-primary/5 px-5 py-2 text-[11px] font-medium text-primary"
+          >
+            <span>✨ Top 20 evidencias recomendadas mediante RAG semántico y GraphRAG</span>
+            <span v-if="suggestionsLoading" class="animate-pulse font-mono">Consultando motor IA…</span>
+          </div>
+
+          <p v-if="catalogLoading || suggestionsLoading" class="px-5 py-4 text-body-sm text-ink-muted">
+            {{ suggestionsLoading ? "Analizando semántica y causalidad en el grafo…" : "Cargando catálogo…" }}
+          </p>
+          <p v-else-if="catalogError || suggestionsError" class="px-5 py-4 text-body-sm text-destructive">
+            {{ catalogError || suggestionsError }}
+          </p>
 
           <div
             v-for="row in catalogFiltered"
             :key="row.id"
             class="flex flex-col gap-2 border-b border-border px-5 py-3 transition-colors"
-            :class="rowLinked(row) ? 'bg-primary-soft/40' : ''"
+            :class="rowLinked(row) ? 'bg-primary-soft/40' : row.is_contradiction ? 'bg-destructive/5' : ''"
           >
             <div class="flex flex-wrap items-center gap-2">
               <span class="shrink-0 rounded-sm bg-surface-sunken px-1 font-mono text-caption text-ink-muted">
                 P {{ row.P }}
+              </span>
+              <span
+                v-if="row.is_contradiction"
+                class="inline-flex items-center gap-1 rounded border border-destructive/30 bg-destructive/10 px-1.5 py-0.5 font-sans text-[10px] font-bold tracking-wide text-destructive"
+              >
+                ⚡ Versión contraria / Anti-patrón
+              </span>
+              <span
+                v-if="row.graph_connection"
+                class="inline-flex items-center gap-1 rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-sans text-[10px] font-medium text-primary"
+              >
+                🕸️ {{ row.graph_connection }}
               </span>
               <span class="min-w-0 flex-1 basis-[200px] text-body-sm leading-snug">{{ row.titulo }}</span>
               <button
@@ -582,10 +691,17 @@ onMounted(() => {
                 {{ rowLinked(row) ? "Quitar" : "Vincular" }}
               </button>
             </div>
+
+            <!-- Razón de anti-patrón de contradicción -->
+            <p v-if="row.contra_reason" class="text-[11px] italic text-destructive/90">
+              ℹ️ {{ row.contra_reason }}
+            </p>
+
             <div class="flex flex-wrap items-center gap-2 font-mono text-[11px] text-ink-muted">
               <span>{{ row.group_size }} {{ row.group_size === 1 ? "nota" : "notas" }}</span>
-              <span>· {{ row.dedup.primary_sources }} primaria(s)</span>
+              <span>· {{ row.dedup?.primary_sources ?? 1 }} primaria(s)</span>
               <span>· evidencia {{ row.evidence_state }}</span>
+              <span v-if="row.similarity_score != null">· afinidad {{ Math.round(row.similarity_score * 100) }}%</span>
               <template v-if="!rowLinked(row)">
                 <span class="ml-auto">papel:</span>
                 <button
@@ -593,7 +709,9 @@ onMounted(() => {
                   :key="rol"
                   type="button"
                   class="rounded-full border px-2 py-0.5 font-semibold transition-colors"
-                  :class="(pendingRol[row.id] ?? 'respaldo') === rol ? 'border-ink bg-ink text-on-primary' : 'border-border bg-surface'"
+                  :class="(pendingRol[row.id] ?? row.suggested_role ?? 'respaldo') === rol
+                    ? (rol === 'contradiccion' ? 'border-destructive bg-destructive text-white' : 'border-ink bg-ink text-on-primary')
+                    : 'border-border bg-surface'"
                   @click="pendingRol[row.id] = rol"
                 >
                   {{ ROL_META[rol].label }}
@@ -602,8 +720,8 @@ onMounted(() => {
             </div>
           </div>
 
-          <p v-if="!catalogLoading && !catalogError && !catalogFiltered.length" class="px-5 py-4 text-body-sm text-ink-muted">
-            Sin resultados.
+          <p v-if="!catalogLoading && !suggestionsLoading && !catalogFiltered.length" class="px-5 py-4 text-body-sm text-ink-muted">
+            Sin resultados para la búsqueda.
           </p>
         </div>
 
