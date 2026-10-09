@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import Badge from "~/components/ui/Badge.vue";
 import Button from "~/components/ui/Button.vue";
-import Card from "~/components/ui/Card.vue";
 import Input from "~/components/ui/Input.vue";
 import { useAuth } from "~/composables/useAuth";
 
 definePageMeta({
-  layout: "default",
+  layout: "auth",
 });
 
 const route = useRoute();
@@ -15,12 +13,19 @@ const auth = useAuth();
 
 const email = ref("");
 const password = ref("");
+const showPassword = ref(false);
 const loading = ref(false);
 const error = ref("");
 
-function fillCreds(demoEmail: string, demoPass: string) {
+const demoAccounts = [
+  { label: "Admin", email: "admin@tvn.com" },
+  { label: "Editor", email: "editor@tvn.com" },
+  { label: "Periodista", email: "periodista@tvn.com" },
+];
+
+function fillCreds(demoEmail: string) {
   email.value = demoEmail;
-  password.value = demoPass;
+  password.value = "EvidentIA2026!";
   error.value = "";
 }
 
@@ -46,107 +51,128 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="flex min-h-[75vh] items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-    <div class="w-full max-w-md space-y-8 animate-in fade-in zoom-in-95 duration-200">
-      <div class="text-center space-y-2">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border bg-muted/30 text-xs font-medium">
-          <span>🛡️</span>
-          <span>Acceso Restringido</span>
-          <Badge variant="outline" class="text-[10px]">Dual JWT</Badge>
-        </div>
-        <h1 class="text-3xl font-extrabold tracking-tight">EvidentIA</h1>
-        <p class="text-sm text-muted-foreground">
-          Plataforma de inteligencia informativa y verificación trazable. Inicia sesión con tus credenciales institucionales.
+  <div class="flex min-h-screen flex-col-reverse lg:flex-row">
+    <!-- Columna principal: formulario -->
+    <main
+      class="flex flex-1 flex-col items-center justify-center gap-7 bg-surface px-5 py-10 sm:px-12 lg:px-24 lg:py-16"
+    >
+      <!-- Encabezado -->
+      <div class="flex w-full max-w-[440px] flex-col gap-2.5">
+        <span class="text-label uppercase tracking-wider text-primary">
+          Consola editorial
+        </span>
+        <h1
+          class="font-serif text-[32px] font-semibold leading-tight tracking-tight text-ink sm:text-[40px]"
+        >
+          Hola de nuevo
+        </h1>
+        <p class="text-body-md text-ink-muted">
+          Verificación de fuentes, citación estructurada y priorización explicable
+          — en una sola consola.
         </p>
       </div>
 
-      <Card class="shadow-lg border-border/80">
-        <template #header>
-          <div class="text-sm font-semibold text-center text-foreground">
-            Iniciar Sesión
-          </div>
-        </template>
+      <!-- Formulario -->
+      <form class="flex w-full max-w-[440px] flex-col gap-4" @submit.prevent="onSubmit">
+        <label class="flex flex-col gap-1.5">
+          <span class="text-label uppercase tracking-wider text-ink-muted">
+            Correo electrónico
+          </span>
+          <Input
+            v-model="email"
+            type="email"
+            placeholder="admin@tvn.com"
+            autocomplete="username"
+            class="h-11 border-hairline text-body-sm"
+          />
+        </label>
 
-        <form class="space-y-4" @submit.prevent="onSubmit">
-          <div class="space-y-1">
-            <label class="text-xs font-semibold text-foreground/90">Correo Electrónico</label>
-            <Input
-              v-model="email"
-              type="email"
-              placeholder="admin@tvn.com"
-              required
-              autocomplete="email"
-              class="h-10"
-            />
-          </div>
-
-          <div class="space-y-1">
-            <div class="flex items-center justify-between">
-              <label class="text-xs font-semibold text-foreground/90">Contraseña</label>
-            </div>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-label uppercase tracking-wider text-ink-muted">
+            Contraseña
+          </span>
+          <div class="relative flex">
             <Input
               v-model="password"
-              type="password"
+              :type="showPassword ? 'text' : 'password'"
               placeholder="••••••••••••"
-              required
               autocomplete="current-password"
-              class="h-10"
+              class="h-11 min-w-0 flex-1 border-hairline pr-20 text-body-sm"
             />
+            <button
+              type="button"
+              class="absolute right-1.5 top-1.5 h-8 rounded-sm px-2 text-caption font-semibold text-primary transition-colors hover:bg-primary-soft"
+              @click="showPassword = !showPassword"
+            >
+              {{ showPassword ? "Ocultar" : "Mostrar" }}
+            </button>
           </div>
+        </label>
 
-          <!-- Acceso Rápido para Auditoría de Jurado (RBAC) -->
-          <div class="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                <span>🔑</span> Cuentas Demo Oficiales (Jurado / RBAC)
-              </span>
-              <Badge variant="outline" class="text-[9px]">1-Click</Badge>
-            </div>
-            <div class="grid grid-cols-3 gap-1.5">
-              <button
-                type="button"
-                @click="fillCreds('admin@tvn.com', 'EvidentIA2026!')"
-                class="flex flex-col items-center justify-center p-2 rounded-md border text-center transition-all hover:bg-muted/60 active:scale-95"
-                :class="email === 'admin@tvn.com' ? 'border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary/40' : 'border-border/60 text-muted-foreground'"
-              >
-                <span class="text-[11px] font-semibold leading-tight">Super Admin</span>
-                <span class="text-[9px] opacity-75">Jurado (T01-T10)</span>
-              </button>
-              <button
-                type="button"
-                @click="fillCreds('editor@tvn.com', 'EvidentIA2026!')"
-                class="flex flex-col items-center justify-center p-2 rounded-md border text-center transition-all hover:bg-muted/60 active:scale-95"
-                :class="email === 'editor@tvn.com' ? 'border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary/40' : 'border-border/60 text-muted-foreground'"
-              >
-                <span class="text-[11px] font-semibold leading-tight">Editor Jefe</span>
-                <span class="text-[9px] opacity-75">Owner (Inbox/Aprob.)</span>
-              </button>
-              <button
-                type="button"
-                @click="fillCreds('periodista@tvn.com', 'EvidentIA2026!')"
-                class="flex flex-col items-center justify-center p-2 rounded-md border text-center transition-all hover:bg-muted/60 active:scale-95"
-                :class="email === 'periodista@tvn.com' ? 'border-primary bg-primary/10 text-primary font-medium ring-1 ring-primary/40' : 'border-border/60 text-muted-foreground'"
-              >
-                <span class="text-[11px] font-semibold leading-tight">Periodista</span>
-                <span class="text-[9px] opacity-75">Member (Leads/Grafo)</span>
-              </button>
-            </div>
-          </div>
+        <span v-if="error" class="text-body-sm text-error">{{ error }}</span>
 
-          <div v-if="error" class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">
-            <span>⚠️</span>
-            <span>{{ error }}</span>
-          </div>
-
-          <Button type="submit" class="w-full h-10 font-semibold" :disabled="loading">
-            {{ loading ? "Verificando credenciales…" : "Acceder a EvidentIA" }}
+        <div class="flex flex-wrap items-center gap-4">
+          <Button
+            type="submit"
+            class="h-11 min-w-[120px] flex-1 px-7 font-semibold sm:flex-none"
+            :disabled="loading"
+          >
+            {{ loading ? "Accediendo…" : "Acceder" }}
           </Button>
+          <a href="#" class="text-caption font-medium text-primary hover:underline">
+            ¿Olvidaste tu contraseña?
+          </a>
+        </div>
+      </form>
 
-          <p class="text-[11px] text-center text-muted-foreground pt-2">
-            Sesión segura protegida con tokens criptográficos de rotación anti-replay.
-          </p>
-        </form>
-      </Card>
-    </div>
+      <!-- Acceso rápido demo (jurado / RBAC) -->
+      <div
+        class="flex w-full max-w-[440px] flex-wrap items-center gap-2 border-t border-hairline pt-4"
+      >
+        <span class="text-caption text-ink-muted">Demo:</span>
+        <button
+          v-for="acc in demoAccounts"
+          :key="acc.email"
+          type="button"
+          class="h-8 rounded-sm border px-3 text-caption font-medium text-ink transition-colors"
+          :class="
+            email === acc.email
+              ? 'border-primary bg-primary-soft'
+              : 'border-hairline hover:border-primary/40'
+          "
+          @click="fillCreds(acc.email)"
+        >
+          {{ acc.label }}
+        </button>
+      </div>
+    </main>
+
+    <!-- Banda de marca: tira lateral (desktop) / cabecera (móvil) -->
+    <aside
+      class="relative flex flex-col justify-end overflow-hidden bg-primary p-8 lg:w-[520px] lg:flex-shrink-0 lg:p-10"
+    >
+      <!-- Wordmark vertical gigante (solo desktop) -->
+      <div
+        aria-label="EvidentIA"
+        class="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 -rotate-90 whitespace-nowrap font-serif text-[226px] font-semibold leading-none tracking-tight text-on-primary lg:block"
+      >
+        Evident<span class="text-on-primary/70">IA</span>
+      </div>
+
+      <!-- Wordmark horizontal (móvil / tablet) -->
+      <div
+        aria-label="EvidentIA"
+        class="whitespace-nowrap font-serif font-semibold leading-none tracking-tight text-on-primary lg:hidden"
+        style="font-size: clamp(70px, 20vw, 174px)"
+      >
+        Evident<span class="text-on-primary/70">IA</span>
+      </div>
+
+      <p
+        class="relative z-10 mt-3 max-w-[32ch] font-serif text-body-sm font-medium leading-snug text-on-primary lg:mt-0 lg:max-w-[16ch] lg:self-end lg:text-right"
+      >
+        Inteligencia periodística con trazabilidad auditable.
+      </p>
+    </aside>
   </div>
 </template>
