@@ -253,7 +253,7 @@ function getTextContent(message: any): string {
             v-if="msg.role === 'user'"
             class="flex items-start justify-end gap-2"
           >
-            <div class="max-w-[85%] rounded-lg bg-primary px-3.5 py-2.5 text-xs text-white shadow-xs">
+            <div class="max-w-[85%] rounded-lg bg-primary px-3.5 py-2.5 text-xs text-on-primary shadow-xs">
               <p class="whitespace-pre-wrap leading-relaxed">{{ getTextContent(msg) }}</p>
             </div>
             <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary border border-primary/30 mt-0.5">
@@ -339,7 +339,7 @@ function getTextContent(message: any): string {
             <button
               v-else
               type="button"
-              class="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white hover:bg-primary-deep disabled:opacity-40 transition-colors shadow-xs"
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-on-primary hover:bg-primary-deep disabled:opacity-40 transition-colors shadow-xs"
               :disabled="!inputText.trim()"
               title="Enviar mensaje (Enter)"
               @click="handleSend"

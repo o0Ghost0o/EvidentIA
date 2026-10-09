@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import AuthModal from "~/components/AuthModal.vue";
 import Popover from "~/components/ui/Popover.vue";
 import CopilotDrawer from "~/components/copilot/CopilotDrawer.vue";
+import CopilotFab from "~/components/copilot/CopilotFab.vue";
 import { Lock, LogOut, Moon, Sun } from "lucide-vue-next";
 import { useAuth } from "~/composables/useAuth";
 import { useCopilot } from "~/composables/useCopilot";
@@ -123,18 +124,6 @@ onUnmounted(() => {
 
         <!-- Session + theme controls -->
         <div class="ml-auto flex items-center gap-2">
-          <!-- Copilot Drawer Trigger Button -->
-          <button
-            type="button"
-            class="flex h-9 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 text-body-sm font-semibold text-primary transition-all hover:bg-primary/20 hover:border-primary/50 shadow-xs"
-            title="Abrir Copiloto Editorial (⌘K)"
-            @click="copilot.toggle()"
-          >
-            <span class="text-sm" aria-hidden="true">✨</span>
-            <span class="hidden sm:inline">Copiloto</span>
-            <kbd class="hidden md:inline-block rounded bg-primary/20 px-1 py-0.2 font-mono text-[10px] text-primary">⌘K</kbd>
-          </button>
-
           <button
             type="button"
             class="flex h-9 w-9 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
@@ -213,5 +202,6 @@ onUnmounted(() => {
 
     <AuthModal v-model="showAuthModal" />
     <CopilotDrawer />
+    <CopilotFab />
   </div>
 </template>
