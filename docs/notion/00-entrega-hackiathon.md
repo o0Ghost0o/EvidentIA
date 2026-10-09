@@ -81,3 +81,4 @@ Para facilitar una auditoría completa del Role-Based Access Control (RBAC) y to
 * **Modalidad Extensión:** Banca y Finanzas (Boletín de Entorno Económico)
 * **Fecha de Entrega:** Octubre 2026
 * **Institución Organizadora:** Viamatica & TVN Media — Panamá
+* **Licencia:** Propietaria y Confidencial (Todos los derechos reservados © 2026 Vertex / Alek Rutherford & Pedro Carreras)
