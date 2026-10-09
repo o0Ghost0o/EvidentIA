@@ -137,6 +137,7 @@ export interface SeedDetail {
     nota?: string | null;
     titulo?: string;
   }[];
+  score?: ScoreResponse | null;
 }
 
 // The wizard's pre-filled state, mapped from a case so LeadWizard can seed its
@@ -179,7 +180,7 @@ export function seedFromDetail(detail: SeedDetail, score: ScoreResponse | null):
     pregunta: detail.queries?.[0] ?? "",
     flags,
     evidenceItems,
-    score,
+    score: score ?? detail.score ?? null,
     estado: detail.estado,
   };
 }

@@ -105,21 +105,100 @@ export interface Progress {
   closed: boolean;
 }
 
-export function deriveProgress(estado: string, evidenceCount: number): Progress {
-  switch (estado) {
-    case "aprobado_borrador":
-      return { done: 6, label: "Borrador aprobado", tone: "success", closed: false };
-    case "en_revision":
-      return { done: 5, label: "En revisión", tone: "warning", closed: false };
-    case "requiere_evidencia":
-      return { done: evidenceCount > 0 ? 2 : 1, label: "Requiere evidencia", tone: "error", closed: false };
-    case "descartado":
-      return { done: 0, label: "Descartado", tone: "neutral", closed: true };
-    default: // nuevo
-      return evidenceCount > 0
-        ? { done: 2, label: "Evidencia vinculada", tone: "info", closed: false }
-        : { done: 1, label: "Ficha creada", tone: "neutral", closed: false };
+export interface ProgressOptions {
+  evidenceCount?: number;
+  hasScore?: boolean;
+  hasFicha?: boolean;
+  hasDraft?: boolean;
+  hasReview?: boolean;
+  notesCount?: number;
+}
+
+export function deriveProgress(
+  estado: string,
+  evidenceOrOptions?: number | ProgressOptions,
+  extraOptions?: ProgressOptions,
+): Progress {
+  const opts: ProgressOptions =
+    typeof evidenceOrOptions === "number"
+      ? { evidenceCount: evidenceOrOptions, ...(extraOptions || {}) }
+      : { ...(evidenceOrOptions || {}) };
+
+  const evidenceCount = opts.evidenceCount ?? 0;
+  const hasScore = opts.hasScore ?? false;
+  const hasFicha = opts.hasFicha ?? false;
+  const hasDraft = opts.hasDraft ?? false;
+  const hasReview = opts.hasReview ?? (opts.notesCount ? opts.notesCount > 0 : false);
+
+  if (estado === "descartado") {
+    return { done: 0, label: "Descartado", tone: "neutral", closed: true };
   }
+
+  if (estado === "aprobado_borrador") {
+    return { done: 6, label: "Borrador aprobado", tone: "success", closed: false };
+  }
+
+  // Calculate sequential steps reached based on real data:
+  // Step 1: Lead exists (Definido)
+  let done = 1;
+  // Step 2: Linked sources
+  if (evidenceCount > 0) {
+    done = 2;
+    // Step 3: Priority calculated / scored
+    if (hasScore) {
+      done = 3;
+      // Step 4: Ficha composed / confirmed
+      if (hasFicha) {
+        done = 4;
+        // Step 5: Draft generated / abstained
+        if (hasDraft) {
+          done = 5;
+          // Step 6: Review saved / decision filed
+          if (hasReview) {
+            done = 6;
+          }
+        }
+      }
+    }
+  }
+
+  if (estado === "en_revision") {
+    const finalDone = Math.max(done, hasReview ? 6 : 5);
+    return { done: finalDone, label: "En revisión", tone: "warning", closed: false };
+  }
+
+  if (estado === "requiere_evidencia") {
+    return {
+      done: Math.max(done, evidenceCount > 0 ? 2 : 1),
+      label: "Requiere evidencia",
+      tone: "error",
+      closed: false,
+    };
+  }
+
+  const LABELS: Record<number, string> = {
+    1: "Ficha creada",
+    2: "Evidencia vinculada",
+    3: "Prioridad calculada",
+    4: "Ficha compuesta",
+    5: "Borrador listo",
+    6: "Revisión lista",
+  };
+  const TONES: Record<number, StateTone> = {
+    1: "neutral",
+    2: "info",
+    3: "info",
+    4: "info",
+    5: "warning",
+    6: "success",
+  };
+
+  return {
+    done,
+    label: LABELS[done] ?? "Ficha creada",
+    tone: TONES[done] ?? "neutral",
+    closed: false,
+  };
 }
 
 // --- Reviewer -------------------------------------------------------------

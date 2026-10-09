@@ -15,11 +15,13 @@ const seed = ref<WizardSeed | null>(null);
 
 onMounted(async () => {
   const detail = await api<SeedDetail>(`cases/${id}`);
-  let score: ScoreResponse | null = null;
-  try {
-    score = await api<ScoreResponse>(`cases/${id}/score`);
-  } catch {
-    score = null;
+  let score: ScoreResponse | null = detail.score ?? null;
+  if (!score) {
+    try {
+      score = await api<ScoreResponse>(`cases/${id}/score`);
+    } catch {
+      score = null;
+    }
   }
   seed.value = seedFromDetail(detail, score);
 });

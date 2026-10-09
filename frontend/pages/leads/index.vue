@@ -38,6 +38,7 @@ interface CaseItem {
   flags: string[];
   evidence: EvidenceRef[];
   notes: NoteRef[];
+  score?: any;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -95,11 +96,24 @@ interface LeadRow {
 
 function toRow(c: CaseItem): LeadRow {
   const sources = c.evidence?.length ?? 0;
+  const hasScore = sources > 0 && (c.score != null || c.flags?.some((f) => f.startsWith("p:") || f.startsWith("band:")));
+  const hasFicha = sources > 0 && hasScore;
+  const hasDraft = (c.notes?.length ?? 0) > 0 || c.estado === "aprobado_borrador" || c.estado === "en_revision";
+  const hasReview = (c.notes?.length ?? 0) > 0 || (c.estado !== "nuevo" && c.estado !== "requiere_evidencia");
+  const progress = deriveProgress(c.estado, {
+    evidenceCount: sources,
+    hasScore,
+    hasFicha,
+    hasDraft,
+    hasReview,
+    notesCount: c.notes?.length ?? 0,
+  });
+
   return {
     raw: c,
     review: reviewMeta(c.estado),
     evidence: deriveEvidenceState(c.evidence ?? []),
-    progress: deriveProgress(c.estado, sources),
+    progress,
     reviewer: deriveReviewer(c.notes ?? []),
     sources,
     updated: formatUpdated(c.updated_at),

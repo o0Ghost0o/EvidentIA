@@ -52,6 +52,7 @@ interface CaseDetail {
   flags: string[];
   evidence: EvidenceItem[];
   notes: NoteItem[];
+  score?: ScoreResponse | null;
 }
 
 const detail = ref<CaseDetail | null>(null);
@@ -59,10 +60,14 @@ const score = ref<ScoreResponse | null>(null);
 
 onMounted(async () => {
   detail.value = await api<CaseDetail>(`cases/${id}`);
+  if (detail.value?.score) {
+    score.value = detail.value.score;
+  }
   try {
-    score.value = await api<ScoreResponse>(`cases/${id}/score`);
+    const s = await api<ScoreResponse>(`cases/${id}/score`);
+    if (s) score.value = s;
   } catch {
-    score.value = null;
+    if (!score.value) score.value = null;
   }
 });
 
@@ -136,10 +141,29 @@ const STEPS = [
   { title: "Revisión", desc: "La decisión editorial registrada y su bitácora de trazabilidad." },
 ];
 
+const hasScore = computed(() => score.value != null || scoreFromFlag.value != null);
+const hasFicha = computed(() => linkedIds.value.length > 0 && hasScore.value);
+const hasDraft = computed(() =>
+  (detail.value?.notes?.length ?? 0) > 0 ||
+  detail.value?.estado === "aprobado_borrador" ||
+  detail.value?.estado === "en_revision"
+);
+const hasReview = computed(() =>
+  (detail.value?.notes?.length ?? 0) > 0 ||
+  (detail.value?.estado !== "nuevo" && detail.value?.estado !== "requiere_evidencia")
+);
+
 // How many steps the lead's real data supports — the same projection the Leads
 // table and the edit wizard use, so a step is only checked when it is complete.
 const stepsDone = computed(() =>
-  deriveProgress(detail.value?.estado ?? "nuevo", linkedIds.value.length).done,
+  deriveProgress(detail.value?.estado ?? "nuevo", {
+    evidenceCount: linkedIds.value.length,
+    hasScore: hasScore.value,
+    hasFicha: hasFicha.value,
+    hasDraft: hasDraft.value,
+    hasReview: hasReview.value,
+    notesCount: detail.value?.notes?.length ?? 0,
+  }).done,
 );
 
 function scrollToStep(i: number) {

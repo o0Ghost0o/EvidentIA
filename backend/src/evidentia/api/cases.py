@@ -352,6 +352,14 @@ def _case_detail(session: Session, case: models.Case) -> dict:
             pass
         enriched_evidence.append(edata)
 
+    score = None
+    if evidence:
+        try:
+            from evidentia.scoring import score as scoring
+            score = scoring.score_topic(**_score_inputs(session, case))
+        except Exception:
+            score = None
+
     return {
         "id": case.id, "titulo": case.titulo, "modalidad": case.modalidad,
         "queries": case.queries, "estado": case.estado,
@@ -359,6 +367,7 @@ def _case_detail(session: Session, case: models.Case) -> dict:
         "activity_flags": activity_flags,
         "created_at": case.created_at, "updated_at": case.updated_at,
         "evidence": enriched_evidence,
+        "score": score,
         "notes": [
             {"id": n.id, "autor": n.autor, "estado_revision": n.estado_revision,
              "texto": n.texto, "created_at": n.created_at}

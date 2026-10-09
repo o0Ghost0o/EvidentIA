@@ -73,6 +73,7 @@ def test_case_lifecycle_evidence_notes_tree() -> None:
     resp = client.post("/cases", json={"titulo": "Caso Canal", "modalidad": "tvn"})
     assert resp.status_code == 201, resp.text
     case_id = resp.json()["id"]
+    assert resp.json()["score"] is None
 
     resp = client.post(f"/cases/{case_id}/evidence", json={
         "fuente_tipo": "news", "fuente_id": "g1", "nota": "respaldo principal",
@@ -81,6 +82,8 @@ def test_case_lifecycle_evidence_notes_tree() -> None:
 
     resp = client.get(f"/cases/{case_id}")
     assert len(resp.json()["evidence"]) == 1
+    assert resp.json()["score"] is not None
+    assert "P" in resp.json()["score"]
 
     resp = client.patch(f"/cases/{case_id}", json={"estado": "bogus"})
     assert resp.status_code == 422
