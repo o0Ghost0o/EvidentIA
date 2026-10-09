@@ -27,6 +27,7 @@ Bienvenido al espacio oficial de entrega del proyecto **EvidentIA**. Cumpliendo 
 | **1** | [📘 **Documentación Técnica**](01-documentacion-tecnica.md) | Arquitectura completa (FastAPI + Qdrant + GraphRAG + PostgreSQL), scoring determinista, validación de esquemas, suite de pruebas T01–T10 en vivo, seguridad Dual JWT y despliegue continuo. |
 | **2** | [📗 **Documentación Funcional**](02-documentacion-funcional.md) | Enfoque de negocio y redacción para TVN Media: "Repetir no es corroborar", flujos de trabajo editorial, gestión de leads, generación de borradores con tags `[HECHO]`, `[DECLARACIÓN]`, `[INFERENCIA]` y casos de uso prácticos. |
 | **3** | [🖥️ **Presentación para el Pitch Day**](03-presentacion-pitch-day.md) | Diapositivas nativas para proyectar durante la sustentación en vivo (Notion Presentation), estructuradas visualmente para 5 minutos de impacto más 5 minutos de defensa. |
+| **4** | [📊 **Análisis y Ejecución**](06-analisis-y-ejecucion.md) | Compendio de arquitectura, justificación del stack tecnológico, fortalezas competitivas y trazabilidad integral de las 42 tareas ejecutadas en Linear (`P-CPS-6`). |
 
 ---
 
