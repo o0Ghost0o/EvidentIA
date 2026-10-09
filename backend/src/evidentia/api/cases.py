@@ -450,6 +450,44 @@ def get_catalog(
     return results[:limit]
 
 
+@router.get("/suggested-evidence")
+def get_global_suggested_evidence(
+    session: SessionDep,
+    q: str = Query(default="", description="Consulta semántica o título de investigación"),
+    modalidad: str = Query(default="tvn", pattern="^(tvn|banca)$"),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[dict]:
+    """Retorna Top-20 evidencias sugeridas mediante RAG semántico + GraphRAG y detección de contradicciones."""
+    from evidentia.retrieval.evidence_suggester import get_suggested_evidence
+    return get_suggested_evidence(
+        session=session,
+        query_text=q,
+        case_id=None,
+        modalidad=modalidad,
+        limit=limit,
+    )
+
+
+@router.get("/{case_id}/suggested-evidence")
+def get_case_suggested_evidence(
+    case_id: int,
+    session: SessionDep,
+    q: str | None = Query(default=None, description="Consulta opcional para refinar sugerencias"),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[dict]:
+    """Retorna Top-20 evidencias sugeridas para un Lead específico con RAG + GraphRAG y detección de contradicciones."""
+    case = _get_case(session, case_id)
+    from evidentia.retrieval.evidence_suggester import get_suggested_evidence
+    query_text = q if q and q.strip() else f"{case.titulo} {' '.join(case.queries or [])}".strip()
+    return get_suggested_evidence(
+        session=session,
+        query_text=query_text,
+        case_id=case.id,
+        modalidad=case.modalidad,
+        limit=limit,
+    )
+
+
 @router.post("", status_code=201)
 def create_case(payload: CaseCreate, session: SessionDep) -> dict:
     case = models.Case(

@@ -52,6 +52,8 @@ interface RankItem {
   place?: string;
   medio?: string;
   fecha?: string;
+  has_contradiction?: boolean;
+  contra_detail?: string | null;
 }
 
 const BAND_TONE: Record<Band, "error" | "warning" | "neutral"> = {
@@ -87,6 +89,7 @@ const fTipo = ref<TopicTipo>("all");
 const q = ref("");
 const fBand = ref<"all" | Band>("all");
 const fEv = ref<"all" | Evidence>("all");
+const onlyContradictions = ref(false);
 const sort = ref<"p" | "u" | "n">("p");
 const filtersOpen = ref(false);
 
@@ -157,7 +160,7 @@ const tipoPills = computed<{ value: TopicTipo; label: string; count: number; ico
 ]);
 
 const hasFilters = computed(
-  () => !!q.value.trim() || fBand.value !== "all" || fEv.value !== "all" || fTipo.value !== "all"
+  () => !!q.value.trim() || fBand.value !== "all" || fEv.value !== "all" || fTipo.value !== "all" || onlyContradictions.value
 );
 // Count of active facets, shown as a badge on the Filtros trigger. Search is a
 // separate inline control, so it is not counted here.
@@ -165,13 +168,15 @@ const activeFilterCount = computed(
   () =>
     (fTipo.value !== "all" ? 1 : 0) +
     (fBand.value !== "all" ? 1 : 0) +
-    (fEv.value !== "all" ? 1 : 0)
+    (fEv.value !== "all" ? 1 : 0) +
+    (onlyContradictions.value ? 1 : 0)
 );
 function clearFilters() {
   q.value = "";
   fBand.value = "all";
   fEv.value = "all";
   fTipo.value = "all";
+  onlyContradictions.value = false;
 }
 
 const sortKey: Record<"p" | "u" | "n", (t: RankItem) => number> = {
@@ -189,6 +194,7 @@ const filtered = computed(() => {
     (t) =>
       (fBand.value === "all" || t.band === fBand.value) &&
       (fEv.value === "all" || t.evidence_state === fEv.value) &&
+      (!onlyContradictions.value || t.has_contradiction) &&
       (!term || t.titulo.toLowerCase().includes(term) || t.id.toLowerCase().includes(term))
   );
   const key = sortKey[sort.value];
@@ -446,9 +452,24 @@ async function openAsLead(item: RankItem) {
                 >
                   {{ r.tipoLabel }}
                 </span>
+                <!-- Contradiction badge -->
+                <span
+                  v-if="r.item.has_contradiction"
+                  class="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-caption font-semibold text-red-600 dark:text-red-400"
+                  :title="r.item.contra_detail || 'Contradicción o versiones opuestas detectadas'"
+                >
+                  ⚡ Versión contrapuesta
+                </span>
               </div>
 
               <span class="font-serif text-heading-md text-ink leading-snug">{{ r.item.titulo }}</span>
+
+              <div
+                v-if="r.item.has_contradiction && r.item.contra_detail"
+                class="rounded border border-red-500/20 bg-red-500/5 px-2 py-1 font-mono text-[11px] text-red-600 dark:text-red-400"
+              >
+                ⚡ {{ r.item.contra_detail }}
+              </div>
 
               <div
                 class="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-caption tabular-nums text-ink-muted"
@@ -658,6 +679,31 @@ async function openAsLead(item: RankItem) {
           <div class="flex flex-col gap-2">
             <span class="text-label uppercase text-ink-muted">Estado de evidencia</span>
             <Select v-model="fEv" :options="evOptions" class="w-full" />
+          </div>
+
+          <!-- Versiones contrapuestas toggle -->
+          <div class="flex items-center justify-between rounded-md border border-hairline p-3 bg-surface-sunken/40">
+            <div class="flex flex-col gap-0.5 pr-2">
+              <span class="text-body-sm font-semibold text-ink flex items-center gap-1.5">
+                ⚡ Versiones contrapuestas
+              </span>
+              <span class="text-caption text-ink-muted">
+                Solo notas con contradicciones o cifras divergentes
+              </span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              :aria-checked="onlyContradictions"
+              class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="onlyContradictions ? 'bg-red-600' : 'bg-ink-muted/30'"
+              @click="onlyContradictions = !onlyContradictions"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="onlyContradictions ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
           </div>
 
           <!-- Orden -->
