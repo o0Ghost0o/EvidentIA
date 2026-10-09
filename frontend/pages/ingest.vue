@@ -109,7 +109,7 @@ async function runLiveNow() {
   error.value = "";
   liveSuccessMsg.value = "";
   try {
-    const res = await api<{ status: string; report?: Record<string, unknown>; error?: string }>(
+    const res = await api<{ status: string; report?: Record<string, unknown>; error?: string; message?: string }>(
       "ingest/live-now",
       { method: "POST" }
     );
@@ -118,11 +118,14 @@ async function runLiveNow() {
       if (res.report) report.value = res.report;
       else await loadReport();
       await loadScheduleStatus();
+    } else if (res.status === "already_running") {
+      liveSuccessMsg.value = res.message || "La sincronización ya se está ejecutando en segundo plano.";
+      await loadScheduleStatus();
     } else {
-      error.value = res.error || "Error al sincronizar noticias en vivo.";
+      error.value = res.error || res.message || "Error al sincronizar noticias en vivo.";
     }
-  } catch (e) {
-    error.value = "Falló la ingesta en vivo. Verifica conectividad a los feeds RSS de TVN y Panamá.";
+  } catch (e: any) {
+    error.value = e?.data?.error || e?.data?.detail || e?.message || "Falló la ingesta en vivo. Verifica conectividad a los feeds RSS de TVN y Panamá.";
   } finally {
     runningLive.value = false;
   }

@@ -221,47 +221,87 @@ def run_ingestion(
         evt_raw = _read_geojson(processed / "eventos.geojson") if (processed / "eventos.geojson").exists() else []
         queries = {"seed_dir": str(seed_dir)}
     else:
+        from concurrent.futures import ThreadPoolExecutor
         from evidentia.ingestion import fetchers
 
         news_raw: list[dict] = []
-        try:
-            gdelt_rows = fetchers.fetch_gdelt_news()
-            news_raw.extend(gdelt_rows)
-            queries["gdelt"] = {"queries": fetchers.gdelt.GDELT_QUERIES, "hits": len(gdelt_rows)}
-        except Exception as exc:
-            report["warnings"].append(f"gdelt failed: {exc}")
-            logger.exception("GDELT fetch failed")
-        try:
-            tvn_rows = fetchers.fetch_tvn_news(tvn_rss_url or settings.tvn_rss_url)
-            news_raw.extend(tvn_rows)
-            queries["tvn"] = {"hits": len(tvn_rows)}
-        except Exception as exc:
-            report["warnings"].append(f"tvn failed: {exc}")
-            logger.exception("TVN fetch failed")
-        try:
-            panama_rows = fetchers.fetch_panama_news()
-            news_raw.extend(panama_rows)
-            queries["panama"] = {
-                "feeds": [f["medio"] for f in fetchers.PANAMA_FEEDS],
-                "hits": len(panama_rows),
-            }
-        except Exception as exc:
-            report["warnings"].append(f"panama failed: {exc}")
-            logger.exception("Panama feeds fetch failed")
-        try:
-            ind_raw = fetchers.fetch_worldbank_indicators()
-            queries["worldbank"] = {"rows": len(ind_raw)}
-        except Exception as exc:
-            ind_raw = []
-            report["warnings"].append(f"worldbank failed: {exc}")
-            logger.exception("World Bank fetch failed")
-        try:
-            evt_raw = fetchers.fetch_usgs_events()
-            queries["usgs"] = {"rows": len(evt_raw)}
-        except Exception as exc:
-            evt_raw = []
-            report["warnings"].append(f"usgs failed: {exc}")
-            logger.exception("USGS fetch failed")
+        ind_raw: list[dict] = []
+        evt_raw: list[dict] = []
+
+        def _get_tvn():
+            return fetchers.fetch_tvn_news(tvn_rss_url or settings.tvn_rss_url)
+
+        def _get_panama():
+            return fetchers.fetch_panama_news()
+
+        def _get_gdelt():
+            return fetchers.fetch_gdelt_news()
+
+        def _get_indicators():
+            return fetchers.fetch_worldbank_indicators()
+
+        def _get_events():
+            return fetchers.fetch_usgs_events()
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            fut_tvn = executor.submit(_get_tvn)
+            fut_panama = executor.submit(_get_panama)
+            fut_gdelt = executor.submit(_get_gdelt)
+            fut_ind = executor.submit(_get_indicators)
+            fut_evt = executor.submit(_get_events)
+
+            try:
+                tvn_rows = fut_tvn.result()
+                news_raw.extend(tvn_rows)
+                queries["tvn"] = {"hits": len(tvn_rows)}
+            except Exception as exc:
+                report["warnings"].append(f"tvn failed: {exc}")
+                logger.exception("TVN fetch failed")
+
+            try:
+                panama_rows = fut_panama.result()
+                news_raw.extend(panama_rows)
+                queries["panama"] = {
+                    "feeds": [f["medio"] for f in fetchers.PANAMA_FEEDS],
+                    "hits": len(panama_rows),
+                }
+            except Exception as exc:
+                report["warnings"].append(f"panama failed: {exc}")
+                logger.exception("Panama feeds fetch failed")
+
+            try:
+                gdelt_rows = fut_gdelt.result()
+                news_raw.extend(gdelt_rows)
+                queries["gdelt"] = {"queries": fetchers.gdelt.GDELT_QUERIES, "hits": len(gdelt_rows)}
+            except Exception as exc:
+                report["warnings"].append(f"gdelt failed: {exc}")
+                logger.exception("GDELT fetch failed")
+
+            try:
+                ind_raw = fut_ind.result()
+                queries["worldbank"] = {"rows": len(ind_raw)}
+            except Exception as exc:
+                ind_raw = []
+                report["warnings"].append(f"worldbank failed: {exc}")
+                logger.exception("World Bank fetch failed")
+
+            try:
+                evt_raw = fut_evt.result()
+                queries["usgs"] = {"rows": len(evt_raw)}
+            except Exception as exc:
+                evt_raw = []
+                report["warnings"].append(f"usgs failed: {exc}")
+                logger.exception("USGS fetch failed")
+
+        # If all live news sources failed or were unreachable, fallback to seed news
+        if not news_raw:
+            fallback_seed = seed_dir / "noticias.csv"
+            if not fallback_seed.exists():
+                fallback_seed = resolve_data_path(Path("data/seed") / "noticias.csv")
+            if fallback_seed.exists():
+                news_raw = _read_csv(fallback_seed)
+                report["warnings"].append("live news returned 0 items; used seed fallback")
+
 
     news = validators.validate_news(news_raw)
     indicators = validators.validate_indicators(ind_raw)
