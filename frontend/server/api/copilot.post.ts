@@ -5,7 +5,7 @@
  * Uses native jsonSchema validation (zero extra dependencies).
  * Executes multi-step tool calls directly against FastAPI, forwarding the user's JWT bearer token.
  */
-import { defineEventHandler, getHeader, readBody, createError } from "h3";
+import { defineEventHandler, getHeader, getCookie, readBody, createError } from "h3";
 import { streamText, tool, jsonSchema, convertToModelMessages, stepCountIs } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 
@@ -17,13 +17,22 @@ Tus responsabilidades principales:
 3. Monitorear y controlar la ingesta de datos (RSS en vivo de TVN o snapshots de datos semilla) y reportes de calidad.
 4. Generar borradores investigativos (briefs) con trazabilidad estricta y citas en formato [id:campo].
 
-Reglas inquebrantables de comportamiento:
-- Comunícate siempre de forma fluida, clara, precisa y profesional en español utilizando lenguaje natural.
-- REGLA CRÍTICA TRAS EJECUTAR HERRAMIENTAS: Después de llamar a cualquier herramienta (consultar ingesta, buscar evidencias, crear o actualizar leads, etc.), NUNCA te quedes en silencio ni dejes la respuesta vacía o únicamente con el bloque técnico. DEBES redactar inmediatamente a continuación una respuesta explicativa y completa en lenguaje natural en español:
-  * Si consultaste la ingesta: resume detalladamente cuántos registros válidos se procesaron, cuántas noticias, indicadores o eventos hay y si hubo errores o duplicados descartados.
-  * Si creaste un lead: felicita/confirma la creación, resalta su ID claramente (ej: Lead #12), título y modalidad, y sugiere próximos pasos editoriales.
-  * Si buscaste evidencias o leads: resume los hallazgos principales con viñetas claras antes de sugerir acciones.
-  * Si editaste o vinculaste fuentes: confirma claramente la acción realizada y su impacto.
+Reglas inquebrantables de comportamiento y formato Markdown:
+- Comunícate siempre de forma fluida, clara, precisa y profesional en español utilizando Markdown enriquecido y estructurado.
+- FORMATO VISUAL EN MARKDOWN:
+  * Utiliza encabezados jerárquicos (### para secciones principales) para organizar las respuestas de forma limpia y legible.
+  * Emplea listas con viñetas (-) para enumerar puntos clave, usando negrita para resaltar métricas y entidades (ej: - **Noticias válidas:** 177).
+  * Cuando presentes desgloses de ingesta, comparativas o balances, usa tablas Markdown (| Columna 1 | Columna 2 |) concisas y claras.
+  * Cuando hagas referencia a un lead, incluye SIEMPRE su enlace markdown navegable: [Lead #ID](/leads/ID) (por ejemplo: [Lead #12](/leads/12)), para que el periodista pueda hacer click y abrir el lead de inmediato.
+  * Si te refieres a la bandeja de ingesta, enlaza a [Bandeja de Ingesta](/ingest).
+  * Si te refieres al catálogo de evidencias, enlaza a [Catálogo](/evidence).
+  * Usa bloques de cita (>) para destacar advertencias, observaciones metodológicas o notas de verificación.
+  * Emplea código inline (\`query\`) para filtros, queries o identificadores técnicos.
+- REGLA CRÍTICA TRAS EJECUTAR HERRAMIENTAS: Después de llamar a cualquier herramienta (consultar ingesta, buscar evidencias, crear o actualizar leads, etc.), NUNCA te quedes en silencio ni dejes la respuesta vacía o únicamente con el bloque técnico. DEBES redactar inmediatamente a continuación una respuesta explicativa y completa en lenguaje natural en español utilizando Markdown:
+  * Si consultaste la ingesta: presenta un desglose visual con tabla o viñetas de registros válidos y procesados por familia (noticias, indicadores, eventos), y resume si hubo duplicados o advertencias.
+  * Si creaste un lead: confirma la creación resaltando [Lead #ID](/leads/ID), su título y modalidad en negrita, y sugiere 2-3 próximos pasos recomendados con viñetas.
+  * Si buscaste evidencias o leads: presenta los hallazgos principales en una lista con viñetas o tabla compacta con título, fecha/estado y fuente antes de sugerir acciones.
+  * Si editaste o vinculaste fuentes: confirma claramente la acción realizada y su impacto en el lead.
 - Para 'create_lead', utiliza obligatoriamente los parámetros 'titulo' (título descriptivo en español) y 'modalidad' ('tvn' o 'banca').
 - Jamás inventes datos ni afirmes hechos que no estén respaldados por el catálogo o por las fuentes vinculadas.
 - Si no encuentras evidencia suficiente para una afirmación, indícalo de manera transparente.`;
@@ -34,6 +43,7 @@ export default defineEventHandler(async (event) => {
 
   // Extract auth header to forward to FastAPI backend
   const authHeader = getHeader(event, "authorization");
+  const refreshTokenCookie = getCookie(event, "evidentia_refresh_token");
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
@@ -68,7 +78,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Helper for server-side FastAPI calls
+  // Helper for server-side FastAPI calls with automatic token rotation retry
   async function apiCall<T>(
     path: string,
     opts: { method?: string; body?: unknown; query?: Record<string, string> } = {}
@@ -76,11 +86,40 @@ export default defineEventHandler(async (event) => {
     const cleanPath = path.replace(/^\//, "");
     const qs = opts.query ? `?${new URLSearchParams(opts.query).toString()}` : "";
     const url = `${backendUrl}/${cleanPath}${qs}`;
-    return await $fetch<T>(url, {
-      method: (opts.method || "GET") as "GET" | "POST" | "PATCH" | "DELETE",
-      headers,
-      body: opts.body,
-    });
+
+    try {
+      return await $fetch<T>(url, {
+        method: (opts.method || "GET") as "GET" | "POST" | "PATCH" | "DELETE",
+        headers,
+        body: opts.body,
+      });
+    } catch (err: any) {
+      const isAuthError =
+        err?.status === 401 ||
+        err?.statusCode === 401 ||
+        err?.data?.detail?.toString().includes("expired") ||
+        err?.data?.detail?.toString().includes("token");
+
+      if (isAuthError && refreshTokenCookie) {
+        try {
+          const refreshRes = await $fetch<{ access_token: string }>(`${backendUrl}/auth/refresh`, {
+            method: "POST",
+            body: { refresh_token: refreshTokenCookie },
+          });
+          if (refreshRes?.access_token) {
+            headers["authorization"] = `Bearer ${refreshRes.access_token}`;
+            return await $fetch<T>(url, {
+              method: (opts.method || "GET") as "GET" | "POST" | "PATCH" | "DELETE",
+              headers,
+              body: opts.body,
+            });
+          }
+        } catch {
+          // Fall through to throw err
+        }
+      }
+      throw err;
+    }
   }
 
   // Server-side tools using native jsonSchema from 'ai'
